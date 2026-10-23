@@ -1,0 +1,23 @@
+{
+  "id": "",
+  "org_id": "",
+  "program_id": null,
+  "sponsor_id": null,
+  "calendar_id": null,
+  "code": "",
+  "name": "",
+  "description": "",
+  "status": "active",
+  "start_date": "YYYY-MM-DD",
+  "actual_start_date": null,
+  "actual_finish_date": null,
+  "data_date": null,
+  "budget": null,
+  "planned_budget": null,
+  "currency": "PEN",
+  "is_template": false,
+  "settings": {},
+  "created_at": "",
+  "updated_at": "",
+  "deleted_at": null
+}

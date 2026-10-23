@@ -1,0 +1,51 @@
+{
+  "causasIncumplimiento": [
+    "Mala planificación",
+    "Pre-requisito / trabajo previo",
+    "Problema de diseño / planos",
+    "Inspección no aprobada",
+    "Mano de obra no disponible",
+    "Materiales no disponibles",
+    "Equipos / herramientas no disponibles",
+    "Contratos / órdenes de cambio",
+    "Submittals / aprobaciones pendientes",
+    "Condiciones climáticas",
+    "Me olvidé",
+    "Sin actualización / Info. faltante",
+    "Permisos / autorizaciones faltantes",
+    "Condición no prevista",
+    "Otras causas"
+  ],
+  "tiposRestriccion": [
+    "Pre-requisito",
+    "Materiales",
+    "Mano de Obra",
+    "Equipos",
+    "Diseño / Planos",
+    "Permisos",
+    "Submittals",
+    "Contratos / CO",
+    "Otros"
+  ],
+  "estadosRestriccion": [
+    { "value": "pending",     "label": "Pendiente",  "color": "#D32F2F", "icon": "🔒" },
+    { "value": "in-progress", "label": "En proceso", "color": "#F57C00", "icon": "⏳" },
+    { "value": "cleared",     "label": "Levantada",  "color": "#388E3C", "icon": "🔓" }
+  ],
+  "estadosActividad": [
+    { "value": "ready",   "label": "✅ Lista",     "color": "#388E3C" },
+    { "value": "blocked", "label": "🚧 Bloqueada", "color": "#D32F2F" }
+  ],
+  "semaforoPPC": [
+    { "min": 75, "color": "#388E3C", "label": "≥ 75% (meta LCI)" },
+    { "min": 60, "color": "#F57C00", "label": "60–74%" },
+    { "min": 0,  "color": "#D32F2F", "label": "< 60%" },
+    { "min": null, "color": "#CFD8DC", "label": "Sin datos" }
+  ],
+  "metasPPC": { "meta": 75, "optimo": 90 },
+  "preguntasStandUp": [
+    "¿Qué aprendiste hoy?",
+    "¿Qué mejoraste hoy?",
+    "¿Qué haría que mañana sea mejor?"
+  ]
+}

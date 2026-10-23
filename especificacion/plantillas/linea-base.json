@@ -1,0 +1,12 @@
+{
+  "id": "",
+  "project_id": "",
+  "name": "LB-0 Contrato",
+  "notes": null,
+  "is_primary": false,
+  "is_active": true,
+  "created_at": "",
+  "tasks": [
+    { "id": "", "baseline_id": "", "task_id": "", "es": 0, "ef": 0, "dur": 0, "planned_cost": null }
+  ]
+}

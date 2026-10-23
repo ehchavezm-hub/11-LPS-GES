@@ -1,0 +1,15 @@
+{
+  "id": "",
+  "org_id": "",
+  "project_id": null,
+  "name": "Calendario del proyecto",
+  "work_week": [1, 2, 3, 4, 5],
+  "hours_per_day": 8,
+  "shift_label": null,
+  "shift_start": null,
+  "shift_end": null,
+  "is_default": false,
+  "exceptions": [
+    { "id": "", "on_date": "YYYY-MM-DD", "is_working": false, "name": "", "description": "" }
+  ]
+}

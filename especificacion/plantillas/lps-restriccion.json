@@ -1,0 +1,18 @@
+{
+  "id": "",
+  "desc": "",
+  "type": null,
+  "activityNumber": null,
+  "taskId": null,
+  "responsible": null,
+  "responsibleCompany": null,
+  "rfiNumber": null,
+  "dateIdentified": null,
+  "requiredDate": null,
+  "promisedDate": null,
+  "effectiveDate": null,
+  "status": "pending",
+  "comments": null,
+  "createdAt": "",
+  "updatedAt": ""
+}
