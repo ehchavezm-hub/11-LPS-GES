@@ -1,0 +1,706 @@
+// Grilla tipo Excel (6.4 del alcance) basada en Tabulator:
+// selección de rangos, copiar/pegar desde y hacia Excel, rellenar, deshacer/rehacer, insertar/duplicar/
+// eliminar filas, agrupar con subtotales, filtrar, ordenar, mostrar/ocultar/mover/fijar columnas,
+// vistas guardadas, guardado automático por celda y cambios de otros usuarios en tiempo real.
+import { api, mensajeError } from '../data/api.js';
+import { store, etiqueta, esGestor } from '../core/store.js';
+import { esc, html, normalizar, parseFecha, fmtFecha, num, debounce } from '../core/util.js';
+import { toast, error, confirmar, modal } from './ui.js';
+
+const SOLO_LOCAL = k => k.startsWith('_');
+
+function opcionesDe(col, fila) {
+  const o = typeof col.opciones === 'function' ? col.opciones(fila) : col.opciones;
+  return o || [];
+}
+function etiquetaOpcion(col, v, fila) {
+  if (v == null || v === '') return '';
+  const o = opcionesDe(col, fila).find(x => String(x.value) === String(v));
+  return o ? o.label : (col.tipo === 'lista' ? etiqueta(v) : String(v));
+}
+/** Convierte el texto pegado o escrito al valor que guarda la columna. */
+function convertir(col, texto, fila) {
+  if (texto == null) return null;
+  if (typeof texto !== 'string') return texto;
+  const t = texto.trim();
+  switch (col.tipo) {
+    case 'numero': {
+      if (t === '') return col.vacioCero ? 0 : null;
+      const n = Number(t.replace(/\s/g, '').replace(/,(?=\d{1,2}$)/, '.').replace(/,/g, ''));
+      return isNaN(n) ? (col.vacioCero ? 0 : null) : n;
+    }
+    case 'fecha': return t ? parseFecha(t) : null;
+    case 'casilla': return ['1', 'si', 'sí', 'x', 'true', 'verdadero'].includes(normalizar(t));
+    case 'lista': {
+      if (!t) return null;
+      const ops = opcionesDe(col, fila);
+      const n = normalizar(t);
+      const o = ops.find(x => x.value != null && (String(x.value) === t || normalizar(x.label) === n))
+        || ops.find(x => x.value != null && normalizar(x.label).startsWith(n))
+        || ops.find(x => x.value != null && n.length >= 3 && normalizar(x.label).includes(n));
+      return o ? o.value : undefined;   // undefined = no reconocido
+    }
+    default: return t;
+  }
+}
+
+/** Analiza texto copiado de Excel (TSV con comillas). */
+export function parseTSV(texto) {
+  const filas = [];
+  let fila = [], campo = '', comillas = false;
+  const s = texto.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (comillas) {
+      if (c === '"' && s[i + 1] === '"') { campo += '"'; i++; }
+      else if (c === '"') comillas = false;
+      else campo += c;
+    } else if (c === '"' && campo === '') comillas = true;
+    else if (c === '\t') { fila.push(campo); campo = ''; }
+    else if (c === '\n') { fila.push(campo); filas.push(fila); fila = []; campo = ''; }
+    else campo += c;
+  }
+  if (campo !== '' || fila.length) { fila.push(campo); filas.push(fila); }
+  while (filas.length && filas[filas.length - 1].every(x => x === '')) filas.pop();
+  return filas;
+}
+
+export function crearGrilla(contenedor, cfg) {
+  const columnasCfg = cfg.columnas.filter(Boolean);
+  const porCampo = new Map(columnasCfg.map(c => [c.field, c]));
+  const servidor = new Map();              // id → copia de la fila tal como está guardada
+  let guardando = false;
+  let pendiente = false;
+
+  const editableCampo = (fila, col) => {
+    if (!col || col.calc || col.editable === false) return false;
+    if (cfg.puedeEditarFila && !cfg.puedeEditarFila(fila)) return false;
+    if (typeof col.editable === 'function') return col.editable(fila);
+    return true;
+  };
+
+  // ---------- Barra de herramientas ----------
+  const raiz = html(`<div class="grilla">
+    <div class="grilla-barra">
+      ${cfg.puedeCrear === false ? '' : '<button class="btn btn-primario btn-sm" data-a="nueva" title="Agregar fila (Ctrl+Enter)">＋ Fila</button>'}
+      ${cfg.puedeCrear === false ? '' : '<button class="btn btn-sm" data-a="pegar" title="Pegar varias filas copiadas desde Excel">📋 Pegar filas de Excel</button>'}
+      <button class="btn btn-sm" data-a="rellenar" title="Copia el valor de la primera celda seleccionada a las demás (Ctrl+D)">⬇ Rellenar</button>
+      <button class="btn btn-sm" data-a="deshacer" title="Deshacer (Ctrl+Z)">↶</button>
+      <button class="btn btn-sm" data-a="rehacer" title="Rehacer (Ctrl+Y)">↷</button>
+      <span class="sep"></span>
+      <label class="grilla-agrupar">Agrupar <select data-a="agrupar"><option value="">—</option>
+        ${(cfg.agrupar || []).map(g => `<option value="${g.field}">${esc(g.label)}</option>`).join('')}</select></label>
+      <button class="btn btn-sm" data-a="columnas" title="Mostrar, ocultar y fijar columnas">▥ Columnas</button>
+      <button class="btn btn-sm" data-a="vistas" title="Vistas guardadas">👁 Vista</button>
+      <input class="grilla-buscar" type="search" placeholder="Buscar…" aria-label="Buscar en la grilla">
+      <span class="grilla-estado" aria-live="polite"></span>
+      <span class="flex"></span>
+      ${cfg.extraBarra || ''}
+      <button class="btn btn-sm" data-a="excel" title="Exportar a Excel">⬇ Excel</button>
+    </div>
+    <div class="grilla-tabla"></div>
+    <div class="grilla-ayuda">Doble clic o Enter para editar · Selecciona un rango con el mouse o Shift+flechas · Ctrl+C / Ctrl+V con Excel · Supr borra · Clic derecho para más opciones</div>
+  </div>`);
+  contenedor.innerHTML = '';
+  contenedor.append(raiz);
+  const estadoEl = raiz.querySelector('.grilla-estado');
+  const setEstado = t => { estadoEl.textContent = t; };
+
+  // ---------- Columnas Tabulator ----------
+  function colTabulator(c) {
+    const def = {
+      field: c.field, title: c.title, width: c.ancho, minWidth: c.minAncho || 40, frozen: !!c.fijo,
+      visible: c.visible !== false, headerSort: c.ordenable !== false, hozAlign: c.align || (c.tipo === 'numero' ? 'right' : 'left'),
+      headerTooltip: c.ayuda || c.title, resizable: true,
+      editable: cell => editableCampo(cell.getRow().getData(), c),
+      headerFilter: c.filtro === false ? false : 'input',
+      headerFilterPlaceholder: '',
+      headerFilterFunc: (term, valor, fila) => {
+        const t = normalizar(term);
+        const texto = c.tipo === 'lista' ? etiquetaOpcion(c, valor, fila) : c.tipo === 'fecha' ? fmtFecha(valor) : String(valor ?? '');
+        return normalizar(texto).includes(t);
+      },
+      accessorClipboard: (v, fila) => c.tipo === 'lista' ? etiquetaOpcion(c, v, fila) : c.tipo === 'fecha' ? fmtFecha(v) : c.tipo === 'casilla' ? (v ? 'Sí' : '') : v,
+      accessorDownload: (v, fila) => c.tipo === 'lista' ? etiquetaOpcion(c, v, fila) : c.tipo === 'casilla' ? (v ? 'Sí' : 'No') : c.exportar ? c.exportar(v, fila) : v,
+    };
+    if (c.total) def.bottomCalc = 'sum', def.bottomCalcFormatter = cell => num(cell.getValue(), 1);
+    const clases = [c.clase, c.calc ? 'celda-calc' : ''].filter(Boolean).join(' ');
+    if (clases) def.cssClass = clases;
+    switch (c.tipo) {
+      case 'texto': def.editor = 'input'; break;
+      case 'textoLargo': def.editor = 'textarea'; def.formatter = 'textarea'; def.variableHeight = true; break;
+      case 'numero': def.editor = 'number'; def.editorParams = { step: c.paso || 0.5, min: c.min ?? 0, selectContents: true }; break;
+      case 'fecha': def.editor = 'date'; def.editorParams = { format: 'yyyy-MM-dd' }; break;
+      case 'casilla': def.editor = 'tickCross'; def.formatter = 'tickCross'; def.hozAlign = 'center'; break;
+      case 'lista':
+        def.editor = 'list';
+        def.editorParams = cell => ({
+          values: opcionesDe(c, cell.getRow().getData()).map(o => ({ label: o.label, value: o.value })),
+          autocomplete: true, allowEmpty: true, listOnEmpty: true, clearable: true, freetext: false,
+          filterFunc: (term, label) => normalizar(label).includes(normalizar(term)),
+        });
+        break;
+      default: break;
+    }
+    if (c.formato) def.formatter = cell => c.formato(cell.getValue(), cell.getRow().getData(), cell);
+    else if (c.tipo === 'lista') def.formatter = cell => {
+      const v = cell.getValue();
+      const t = etiquetaOpcion(c, v, cell.getRow().getData());
+      if (c.colorear && v) {
+        const color = (opcionesDe(c, cell.getRow().getData()).find(o => o.value === v) || {}).color;
+        if (color) return `<span class="badge" style="--c:${color}">${esc(t)}</span>`;
+      }
+      return esc(t);
+    };
+    else if (c.tipo === 'fecha') def.formatter = cell => fmtFecha(cell.getValue());
+    else if (c.tipo === 'numero') def.formatter = cell => {
+      const v = cell.getValue();
+      return v === 0 && c.ocultarCero ? '' : num(v, 2);
+    };
+    if (c.tipo === 'lista' || c.formato) def.sorter = (a, b, ra, rb) => {
+      const x = normalizar(c.tipo === 'lista' ? etiquetaOpcion(c, a, ra.getData()) : a);
+      const y = normalizar(c.tipo === 'lista' ? etiquetaOpcion(c, b, rb.getData()) : b);
+      return x > y ? 1 : x < y ? -1 : 0;
+    };
+    if (c.click) def.cellClick = (e, cell) => c.click(cell.getRow().getData(), e, cell);
+    return def;
+  }
+
+  // ---------- Pegado (rango) ----------
+  function parserPegado(texto) {
+    const datos = parseTSV(texto);
+    const rango = tabla.getRanges?.()[0];
+    if (!datos.length || !rango) return false;
+    const celdas = rango.getCells?.() || [];
+    const primera = celdas[0]?.[0] || celdas[0];
+    const colInicio = primera?.getColumn ? primera.getColumn() : null;
+    const visibles = tabla.getColumns().filter(c => c.isVisible());
+    const idx = Math.max(0, visibles.indexOf(colInicio));
+    const filasTabla = tabla.getRows('active');
+    const filaInicio = primera?.getRow ? filasTabla.indexOf(primera.getRow()) : 0;
+    return { datos, columnas: visibles.slice(idx), filaInicio: Math.max(0, filaInicio) };
+  }
+
+  function accionPegado(p) {
+    if (!p) return [];
+    const filasTabla = tabla.getRows('active');
+    let omitidas = 0, desconocidos = 0, nuevas = 0;
+    const tocadas = [];
+    const sobrantes = [];
+    p.datos.forEach((valores, i) => {
+      const fila = filasTabla[p.filaInicio + i];
+      if (fila) aplicarValores(fila, p.columnas, valores);
+      else if (cfg.puedeCrear !== false) sobrantes.push(valores);
+    });
+    if (sobrantes.length) {
+      (async () => {
+        for (const valores of sobrantes) {
+          const fila = await tabla.addRow({ ...(cfg.nuevaFila?.() || {}), _nueva: true }, false);
+          aplicarValores(fila, p.columnas, valores);
+          nuevas++;
+        }
+        toast(`${nuevas} fila(s) nuevas agregadas desde el portapapeles.`, 'ok');
+        programarGuardado();
+      })();
+    }
+    function aplicarValores(fila, columnas, valores) {
+      const datos = fila.getData();
+      const cambios = {};
+      valores.forEach((texto, j) => {
+        const colT = columnas[j];
+        if (!colT) return;
+        const col = porCampo.get(colT.getField());
+        if (!editableCampo(datos, col)) { omitidas++; return; }
+        const v = convertir(col, texto, { ...datos, ...cambios });
+        if (v === undefined) { desconocidos++; return; }
+        cambios[col.field] = v;
+      });
+      if (Object.keys(cambios).length) {
+        const derivados = cfg.derivar ? cfg.derivar({ ...datos, ...cambios }, cambios) : {};
+        fila.update({ ...cambios, ...derivados });
+        tocadas.push(fila);
+      }
+    }
+    if (omitidas) toast(`${omitidas} celda(s) no editables se omitieron.`, 'warn');
+    if (desconocidos) toast(`${desconocidos} valor(es) no coinciden con las listas y se omitieron.`, 'warn');
+    programarGuardado();
+    return tocadas;
+  }
+
+  // ---------- Tabulator ----------
+  const tabla = new window.Tabulator(raiz.querySelector('.grilla-tabla'), {
+    data: [],
+    index: 'id',
+    height: cfg.altura || 'calc(100vh - 260px)',
+    layout: 'fitDataStretch',
+    columnDefaults: { headerHozAlign: 'left', tooltip: false },
+    columns: columnasCfg.map(colTabulator),
+    selectableRange: 1,
+    selectableRangeColumns: true,
+    selectableRangeRows: true,
+    selectableRangeClearCells: true,
+    selectableRangeFill: true,
+    editTriggerEvent: 'dblclick',
+    clipboard: true,
+    clipboardCopyStyled: false,
+    clipboardCopyConfig: { rowHeaders: false, columnHeaders: false, columnCalcs: false, rowGroups: false },
+    clipboardCopyRowRange: 'range',
+    clipboardPasteParser: parserPegado,
+    clipboardPasteAction: accionPegado,
+    history: true,
+    movableColumns: true,
+    headerSortClickElement: 'icon',
+    rowHeader: { resizable: false, frozen: true, width: 36, hozAlign: 'center', formatter: 'rownum', cssClass: 'col-numero', headerSort: false },
+    placeholder: cfg.vacio || 'Sin filas. Use "＋ Fila" o pegue desde Excel.',
+    groupStartOpen: true,
+    groupHeader: (valor, cantidad, datos) => {
+      const g = porCampo.get(tabla.options.groupBy);
+      const t = g ? (g.tipo === 'lista' ? etiquetaOpcion(g, valor, datos[0]) : g.tipo === 'fecha' ? fmtFecha(valor) : g.formatoGrupo ? g.formatoGrupo(valor) : valor) : valor;
+      const hh = datos.reduce((s, d) => s + (Number(d.hh_total) || 0), 0);
+      return `${esc(t || '(vacío)')} <span class="grupo-info">${cantidad} fila(s)${hh ? ` · ${num(hh)} HH` : ''}</span>`;
+    },
+    rowFormatter: row => {
+      const d = row.getData();
+      const el = row.getElement();
+      el.classList.toggle('fila-ajena', !!cfg.puedeEditarFila && !cfg.puedeEditarFila(d));
+      el.classList.toggle('fila-nueva', !d.id);
+      if (cfg.claseFila) {
+        el.dataset.clase && el.classList.remove(...el.dataset.clase.split(' ').filter(Boolean));
+        const cl = cfg.claseFila(d) || '';
+        el.dataset.clase = cl;
+        if (cl) el.classList.add(...cl.split(' ').filter(Boolean));
+      }
+    },
+    rowContextMenu: (e, row) => menuFila(row),
+    locale: 'es',
+    langs: { es: { data: { loading: 'Cargando', error: 'Error' }, groups: { item: 'fila', items: 'filas' },
+      pagination: {}, headerFilters: { default: 'filtrar…' } } },
+  });
+
+  // ---------- Guardado automático ----------
+  const camposDB = fila => Object.fromEntries(Object.entries(fila).filter(([k]) => !SOLO_LOCAL(k) && !porCampo.get(k)?.calc && !(cfg.camposCalc || []).includes(k)));
+
+  function diferencias(fila) {
+    const prev = servidor.get(fila.id);
+    if (!prev) return null;
+    const dif = {};
+    for (const [k, v] of Object.entries(camposDB(fila))) {
+      if (JSON.stringify(v ?? null) !== JSON.stringify(prev[k] ?? null)) dif[k] = v;
+    }
+    return dif;
+  }
+
+  const programarGuardado = debounce(guardar, 350);
+
+  async function guardar() {
+    if (guardando) { pendiente = true; return; }
+    guardando = true;
+    try {
+      const filas = tabla.getRows();
+      let n = 0;
+      for (const row of filas) {
+        const d = row.getData();
+        // Valores no permitidos (p. ej. relleno sobre celdas de otro): se revierten
+        if (d.id && servidor.has(d.id)) {
+          const dif = diferencias(d);
+          if (!dif || !Object.keys(dif).length) continue;
+          const prev = servidor.get(d.id);
+          const revertir = {};
+          for (const k of Object.keys(dif)) {
+            const col = porCampo.get(k) || porCampo.get(k.split('.')[0]);
+            if (k !== 'extra' && col && !editableCampo(prev, col)) revertir[k] = prev[k];
+          }
+          if (Object.keys(revertir).length) { row.update(revertir); for (const k of Object.keys(revertir)) delete dif[k]; }
+          if (!Object.keys(dif).length) continue;
+          for (const [k, v] of Object.entries(dif)) if (v === '' && porCampo.get(k)?.tipo !== 'texto' && porCampo.get(k)?.tipo !== 'textoLargo') dif[k] = null;
+          setEstado('Guardando…');
+          try {
+            const res = await (cfg.actualizar ? cfg.actualizar(d, dif) : api.update(cfg.tabla, d.id, dif));
+            servidor.set(res.id, structuredClone(res));
+            row.update(res);
+            n++;
+          } catch (e) {
+            error(mensajeError(e));
+            const prevFila = servidor.get(d.id);
+            row.update(prevFila);
+          }
+        } else if (!d.id && !d._guardando) {
+          if (cfg.listaParaCrear && !cfg.listaParaCrear(d)) continue;
+          row.update({ _guardando: true });
+          setEstado('Guardando…');
+          try {
+            const datos = camposDB(d);
+            delete datos.id;
+            const [res] = await (cfg.crear ? cfg.crear(datos) : api.insert(cfg.tabla, datos));
+            servidor.set(res.id, structuredClone(res));
+            row.update({ ...res, _guardando: false, _nueva: false });
+            n++;
+          } catch (e) {
+            error(mensajeError(e));
+            row.update({ _guardando: false });
+          }
+        }
+      }
+      setEstado(n ? '✓ Guardado' : '');
+      if (n) cfg.alGuardar?.();
+      setTimeout(() => { if (estadoEl.textContent === '✓ Guardado') setEstado(''); }, 2500);
+    } finally {
+      guardando = false;
+      if (pendiente) { pendiente = false; programarGuardado(); }
+    }
+  }
+
+  tabla.on('cellEdited', cell => {
+    const col = porCampo.get(cell.getField());
+    const fila = cell.getRow();
+    let v = cell.getValue();
+    if (col?.tipo === 'numero' && (v === '' || v == null) && col.vacioCero) { v = 0; cell.setValue(0, false); }
+    if (cfg.derivar) {
+      const der = cfg.derivar(fila.getData(), { [cell.getField()]: v });
+      if (der && Object.keys(der).length) fila.update(der);
+    }
+    fila.reformat();
+    programarGuardado();
+  });
+  tabla.on('dataChanged', () => programarGuardado());
+  tabla.on('historyUndo', () => programarGuardado());
+  tabla.on('historyRedo', () => programarGuardado());
+
+  // ---------- Teclado: escribir para editar, Enter, Ctrl+D, Ctrl+Enter ----------
+  raiz.querySelector('.grilla-tabla').addEventListener('keydown', e => {
+    if (e.target.closest('input,textarea,select,.tabulator-edit-list')) return;
+    const rango = tabla.getRanges()[0];
+    const celda = rango?.getCells?.()?.[0]?.[0];
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); rellenar(); return; }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); nuevaFila(); return; }
+    if (!celda) return;
+    if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); celda.edit(true); return; }
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const col = porCampo.get(celda.getField());
+      if (!editableCampo(celda.getRow().getData(), col) || col.tipo === 'casilla') return;
+      e.preventDefault();
+      celda.edit(true);
+      setTimeout(() => {
+        const inp = celda.getElement().querySelector('input,textarea');
+        if (inp) { inp.value = e.key; inp.dispatchEvent(new Event('input', { bubbles: true })); }
+      }, 0);
+    }
+  });
+
+  // ---------- Acciones ----------
+  function filasSeleccionadas() {
+    const set = new Set();
+    for (const r of tabla.getRanges()) for (const row of r.getRows()) set.add(row);
+    return [...set];
+  }
+
+  async function nuevaFila(posicion, referencia) {
+    if (cfg.puedeCrear === false) return;
+    const base = { ...(cfg.nuevaFila?.() || {}), _nueva: true };
+    if (referencia) {
+      const ref = referencia.getData();
+      base.orden = (Number(ref.orden) || 0) + (posicion === 'arriba' ? -0.5 : 0.5);
+    }
+    const row = await tabla.addRow(base, posicion === 'arriba', referencia);
+    tabla.scrollToRow(row, 'center', false).catch(() => {});
+    const primera = (cfg.campoInicial && porCampo.get(cfg.campoInicial)) ||
+      columnasCfg.find(c => editableCampo(row.getData(), c) && c.visible !== false && (c.tipo === 'texto' || c.tipo === 'textoLargo'));
+    if (primera) setTimeout(() => {
+      const celda = row.getCell(primera.field);
+      if (!celda) return;
+      tabla.addRange?.(celda, celda);
+      celda.edit(true);
+    }, 80);
+    programarGuardado();
+  }
+
+  async function duplicar(rows) {
+    for (const r of rows) {
+      const d = camposDB(r.getData());
+      delete d.id; delete d.created_at; delete d.updated_at;
+      await tabla.addRow({ ...d, ...(cfg.alDuplicar?.(d) || {}), _nueva: true }, false, r);
+    }
+    programarGuardado();
+  }
+
+  async function eliminar(rows) {
+    const propias = rows.filter(r => !cfg.puedeEditarFila || cfg.puedeEditarFila(r.getData()));
+    if (!propias.length) return toast('No tiene permiso para eliminar esas filas.', 'warn');
+    if (!await confirmar(`¿Eliminar ${propias.length} fila(s)? Esta acción no se puede deshacer.`, { texto: 'Eliminar', peligro: true })) return;
+    for (const r of propias) {
+      const d = r.getData();
+      try {
+        if (d.id) await (cfg.eliminar ? cfg.eliminar(d) : api.remove(cfg.tabla, d.id));
+        servidor.delete(d.id);
+        r.delete();
+      } catch (e) { error(mensajeError(e)); }
+    }
+    cfg.alGuardar?.();
+  }
+
+  function rellenar() {
+    const rango = tabla.getRanges()[0];
+    if (!rango) return;
+    const filas = rango.getRows();
+    const cols = rango.getColumns();
+    if (filas.length < 2) return toast('Seleccione un rango de varias filas para rellenar hacia abajo.', 'info');
+    for (const colT of cols) {
+      const col = porCampo.get(colT.getField());
+      const valor = filas[0].getData()[colT.getField()];
+      for (const f of filas.slice(1)) {
+        if (editableCampo(f.getData(), col)) {
+          const der = cfg.derivar ? cfg.derivar({ ...f.getData(), [col.field]: valor }, { [col.field]: valor }) : {};
+          f.update({ [col.field]: valor, ...der });
+        }
+      }
+    }
+    programarGuardado();
+  }
+
+  function menuFila(row) {
+    const items = [
+      { label: '＋ Insertar fila arriba', action: () => nuevaFila('arriba', row), disabled: cfg.puedeCrear === false },
+      { label: '＋ Insertar fila abajo', action: () => nuevaFila('abajo', row), disabled: cfg.puedeCrear === false },
+      { label: '⧉ Duplicar fila(s)', action: () => duplicar(filasSeleccionadas().length ? filasSeleccionadas() : [row]), disabled: cfg.puedeCrear === false },
+      { label: '⬇ Rellenar hacia abajo', action: rellenar },
+      ...(cfg.menuFila ? cfg.menuFila(row.getData(), row) : []),
+      { separator: true },
+      { label: '🗑 Eliminar fila(s)', action: () => eliminar(filasSeleccionadas().length > 1 ? filasSeleccionadas() : [row]) },
+    ];
+    return items;
+  }
+
+  function dialogoPegar() {
+    const cols = tabla.getColumns().filter(c => c.isVisible() && porCampo.has(c.getField()) && !porCampo.get(c.getField()).calc);
+    const cuerpo = html(`<div>
+      <p>Copie filas en Excel (Ctrl+C) y péguelas aquí (Ctrl+V). Las columnas se asignan en este orden:</p>
+      <p class="nota">${cols.map(c => esc(c.getDefinition().title)).join(' · ')}</p>
+      <label class="chk"><input type="checkbox" data-cab> La primera fila tiene títulos (asignar por nombre de columna)</label>
+      <textarea rows="10" class="pegar-area" placeholder="Pegue aquí…"></textarea>
+      <div class="pegar-previa nota"></div></div>`);
+    const area = cuerpo.querySelector('textarea');
+    const previa = cuerpo.querySelector('.pegar-previa');
+    area.addEventListener('input', () => {
+      const d = parseTSV(area.value);
+      previa.textContent = d.length ? `${d.length} fila(s) × ${d[0].length} columna(s) detectadas.` : '';
+    });
+    modal({
+      titulo: 'Pegar filas desde Excel', cuerpo, ancho: 760,
+      botones: [{ texto: 'Cancelar' }, {
+        texto: 'Agregar filas', clase: 'btn-primario', accion: async () => {
+          let datos = parseTSV(area.value);
+          if (!datos.length) { toast('No hay datos para pegar.', 'warn'); return false; }
+          let columnas = cols;
+          if (cuerpo.querySelector('[data-cab]').checked) {
+            const cab = datos.shift().map(normalizar);
+            columnas = cab.map(t => cols.find(c => normalizar(c.getDefinition().title) === t || normalizar(c.getField()) === t ||
+              (porCampo.get(c.getField())?.alias || []).some(x => normalizar(x) === t)) || null);
+          }
+          for (const valores of datos) {
+            const fila = await tabla.addRow({ ...(cfg.nuevaFila?.() || {}), _nueva: true }, false);
+            const d = fila.getData();
+            const cambios = {};
+            valores.forEach((texto, j) => {
+              const colT = columnas[j];
+              if (!colT) return;
+              const col = porCampo.get(colT.getField());
+              if (!editableCampo({ ...d, ...cambios }, col)) return;
+              const v = convertir(col, texto, { ...d, ...cambios });
+              if (v !== undefined) cambios[col.field] = v;
+            });
+            const der = cfg.derivar ? cfg.derivar({ ...d, ...cambios }, cambios) : {};
+            fila.update({ ...cambios, ...der });
+          }
+          programarGuardado();
+          toast(`${datos.length} fila(s) agregadas.`, 'ok');
+        },
+      }],
+    });
+  }
+
+  function dialogoColumnas() {
+    const cols = tabla.getColumns().filter(c => c.getField() && porCampo.has(c.getField()));
+    const cuerpo = html(`<div class="lista-columnas">${cols.map(c => {
+      const d = c.getDefinition();
+      return `<div class="fila-col"><label class="chk"><input type="checkbox" data-f="${esc(c.getField())}" ${c.isVisible() ? 'checked' : ''}> ${esc(d.title)}</label>
+        <label class="chk peque"><input type="checkbox" data-fijo="${esc(c.getField())}" ${d.frozen ? 'checked' : ''}> fijar</label></div>`;
+    }).join('')}</div><p class="nota">También puede arrastrar los títulos de columna para cambiar el orden y sus bordes para cambiar el ancho.</p>`);
+    modal({
+      titulo: 'Columnas visibles', cuerpo, ancho: 460, botones: [{ texto: 'Cerrar', clase: 'btn-primario', accion: () => {
+        for (const inp of cuerpo.querySelectorAll('[data-f]')) {
+          const c = tabla.getColumn(inp.dataset.f);
+          if (inp.checked) c.show(); else c.hide();
+        }
+        for (const inp of cuerpo.querySelectorAll('[data-fijo]')) {
+          const c = tabla.getColumn(inp.dataset.fijo);
+          if (!!c.getDefinition().frozen !== inp.checked) c.updateDefinition({ frozen: inp.checked });
+        }
+        guardarVistaAuto();
+      } }],
+    });
+  }
+
+  // ---------- Vistas guardadas ----------
+  let vistas = [];
+  const usuarioId = () => store.usuario?.id;
+  function estadoVista() {
+    return {
+      columnas: tabla.getColumnLayout(),
+      orden: tabla.getSorters().map(s => ({ column: s.field, dir: s.dir })),
+      agrupar: tabla.options.groupBy || '',
+    };
+  }
+  function aplicarVista(cfgVista) {
+    if (!cfgVista) return;
+    try {
+      if (cfgVista.columnas?.length) {
+        const conocidas = cfgVista.columnas.filter(c => porCampo.has(c.field));
+        const faltantes = columnasCfg.filter(c => !conocidas.some(k => k.field === c.field)).map(c => ({ field: c.field }));
+        tabla.setColumnLayout([...conocidas, ...faltantes]);
+      }
+      if (cfgVista.orden) tabla.setSort(cfgVista.orden);
+      raiz.querySelector('[data-a="agrupar"]').value = cfgVista.agrupar || '';
+      tabla.setGroupBy(cfgVista.agrupar || false);
+    } catch (e) { console.warn('Vista no aplicable', e); }
+  }
+  const guardarVistaAuto = debounce(async () => {
+    if (!store.area || !cfg.id) return;
+    const datos = { area_id: store.area.id, usuario_id: usuarioId(), grilla: cfg.id, nombre: '__auto__', config: estadoVista() };
+    const ex = vistas.find(v => v.nombre === '__auto__' && v.usuario_id === usuarioId());
+    try {
+      if (ex) Object.assign(ex, await api.update('vistas', ex.id, { config: datos.config }));
+      else vistas.push(...await api.insert('vistas', datos));
+    } catch { /* la vista personal no es crítica */ }
+  }, 1200);
+  async function cargarVistas() {
+    if (!cfg.id || !store.area) return;
+    try { vistas = await api.list('vistas', { eq: { grilla: cfg.id, area_id: store.area.id } }); } catch { vistas = []; }
+    const auto = vistas.find(v => v.nombre === '__auto__' && v.usuario_id === usuarioId());
+    const estandar = vistas.find(v => v.nombre === '__estandar__' && !v.usuario_id);
+    aplicarVista((auto || estandar)?.config);
+  }
+  function menuVistas(boton) {
+    const propias = vistas.filter(v => v.usuario_id === usuarioId() && !v.nombre.startsWith('__'));
+    const estandar = vistas.find(v => v.nombre === '__estandar__' && !v.usuario_id);
+    const cuerpo = html(`<div class="menu-vistas">
+      ${estandar ? '<button class="btn btn-sm" data-v="estandar">Vista estándar del equipo</button>' : ''}
+      ${propias.map(v => `<div class="fila-vista"><button class="btn btn-sm" data-id="${v.id}">${esc(v.nombre)}</button>
+        <button class="btn-icono" data-borrar="${v.id}" title="Eliminar vista">✕</button></div>`).join('')}
+      <button class="btn btn-sm" data-v="restablecer">Restablecer columnas</button>
+      <hr><button class="btn btn-sm btn-primario" data-v="guardar">Guardar vista actual como…</button>
+      ${esGestor() ? '<button class="btn btn-sm" data-v="estandarizar">Usar la vista actual como estándar del equipo</button>' : ''}
+    </div>`);
+    const m = modal({ titulo: 'Vistas de la grilla', cuerpo, ancho: 420 });
+    cuerpo.addEventListener('click', async e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.id) { aplicarVista(vistas.find(v => v.id === b.dataset.id)?.config); guardarVistaAuto(); m.cerrar(); }
+      if (b.dataset.borrar) { await api.remove('vistas', b.dataset.borrar); vistas = vistas.filter(v => v.id !== b.dataset.borrar); m.cerrar(); }
+      if (b.dataset.v === 'estandar') { aplicarVista(estandar.config); guardarVistaAuto(); m.cerrar(); }
+      if (b.dataset.v === 'restablecer') {
+        tabla.setColumns(columnasCfg.map(colTabulator)); tabla.clearSort(); tabla.setGroupBy(false);
+        raiz.querySelector('[data-a="agrupar"]').value = '';
+        guardarVistaAuto(); m.cerrar();
+      }
+      if (b.dataset.v === 'guardar') {
+        const nombre = prompt('Nombre de la vista:');
+        if (!nombre) return;
+        vistas.push(...await api.insert('vistas', { area_id: store.area.id, usuario_id: usuarioId(), grilla: cfg.id, nombre, config: estadoVista() }));
+        toast('Vista guardada.', 'ok'); m.cerrar();
+      }
+      if (b.dataset.v === 'estandarizar') {
+        try {
+          if (estandar) await api.update('vistas', estandar.id, { config: estadoVista() });
+          else vistas.push(...await api.insert('vistas', { area_id: store.area.id, usuario_id: null, grilla: cfg.id, nombre: '__estandar__', config: estadoVista() }));
+          toast('Vista estándar del equipo actualizada.', 'ok');
+        } catch (err) { error(mensajeError(err)); }
+        m.cerrar();
+      }
+    });
+  }
+
+  for (const ev of ['columnMoved', 'columnResized', 'columnVisibilityChanged', 'dataSorted']) tabla.on(ev, () => guardarVistaAuto());
+
+  // ---------- Eventos de barra ----------
+  raiz.querySelector('.grilla-barra').addEventListener('click', e => {
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    if (a === 'nueva') nuevaFila();
+    if (a === 'pegar') dialogoPegar();
+    if (a === 'rellenar') rellenar();
+    if (a === 'deshacer') tabla.undo();
+    if (a === 'rehacer') tabla.redo();
+    if (a === 'columnas') dialogoColumnas();
+    if (a === 'vistas') menuVistas(e.target);
+    if (a === 'excel') exportarExcel();
+  });
+  raiz.querySelector('[data-a="agrupar"]').addEventListener('change', e => {
+    tabla.setGroupBy(e.target.value || false);
+    guardarVistaAuto();
+  });
+  raiz.querySelector('.grilla-buscar').addEventListener('input', debounce(e => {
+    const t = normalizar(e.target.value);
+    if (!t) return tabla.clearFilter();
+    tabla.setFilter(d => columnasCfg.some(c => {
+      const v = d[c.field.split('.')[0]];
+      const texto = c.tipo === 'lista' ? etiquetaOpcion(c, d[c.field], d) : c.field.includes('.') ? d.extra?.[c.field.split('.')[1]] : v;
+      return normalizar(texto).includes(t);
+    }));
+  }, 250));
+
+  function exportarExcel() {
+    if (cfg.exportar === false) return;
+    const nombre = (cfg.nombreArchivo?.() || cfg.id || 'datos') + '.xlsx';
+    tabla.download('xlsx', nombre, { sheetName: (cfg.titulo || 'Datos').slice(0, 30) });
+  }
+
+  // ---------- API pública ----------
+  let listo = false;
+  const alListo = new Promise(r => tabla.on('tableBuilt', () => { listo = true; r(); }));
+  const api_ = {
+    tabla,
+    listo: alListo,
+    async setDatos(filas) {
+      await alListo;
+      servidor.clear();
+      for (const f of filas) if (f.id) servidor.set(f.id, structuredClone(f));
+      await tabla.replaceData(filas);
+      tabla.clearHistory();
+    },
+    async inicializar(filas) {
+      await alListo;
+      await cargarVistas();
+      await api_.setDatos(filas);
+    },
+    /** Cambio recibido en tiempo real (de otro usuario o de otra pestaña). */
+    aplicarRemoto({ tipo, fila, anterior }, pertenece) {
+      if (!listo) return;
+      const id = fila?.id || anterior?.id;
+      const existente = id && tabla.getRow(id);
+      if (tipo === 'DELETE' || (fila && pertenece && !pertenece(fila))) {
+        if (existente) { existente.delete(); servidor.delete(id); }
+        return;
+      }
+      if (!fila) return;
+      const previo = servidor.get(fila.id);
+      if (previo && previo.updated_at === fila.updated_at) return;   // eco de un cambio propio
+      servidor.set(fila.id, structuredClone(fila));
+      if (existente) {
+        const editando = existente.getCells().some(c => c.getElement().classList.contains('tabulator-editing'));
+        if (!editando) existente.update(fila);
+      } else if (tipo === 'INSERT') {
+        const local = tabla.getRows().find(r => !r.getData().id && r.getData()._guardando);
+        if (!local) tabla.addRow(fila);
+      }
+      cfg.alCambioRemoto?.();
+    },
+    filas() { return tabla.getData(); },
+    refrescar() { tabla.getRows().forEach(r => r.reformat()); },
+    actualizarFila(id, datos) {
+      const r = tabla.getRow(id);
+      if (r) { r.update(datos); servidor.set(id, structuredClone(r.getData())); }
+    },
+    guardarAhora: guardar,
+    destruir() { try { tabla.destroy(); } catch { /* ya destruida */ } },
+  };
+  return api_;
+}

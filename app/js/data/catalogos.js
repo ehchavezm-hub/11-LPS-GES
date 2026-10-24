@@ -1,0 +1,105 @@
+// Valores iniciales de listas, parámetros y permisos. Deben coincidir con
+// supabase/migrations/003_datos_iniciales.sql (se usan en el modo demostración).
+
+export const LISTAS_INICIALES = [
+  ['gerencias', 'Gerencias (clientes internos)', [
+    ['GI', 'Gerencia de Ingeniería'], ['GOI', 'Gerencia de Obras Industriales'], ['GOC', 'Gerencia de Obras Civiles'],
+    ['GOF', 'Gerencia de Obras de Infraestructura'], ['PyL', 'Propuestas y Licitaciones'],
+    ['GOI_CH', 'Gerencia de Obras Industriales Chile'], ['GOC_CH', 'Gerencia de Obras Civiles Chile'], ['GIPT', 'Gerencia de Innovación']]],
+  ['cet', 'CET (códigos de proyectos internos)', [['CET-001', 'CET-001 Gestión del área'], ['CET-002', 'CET-002 Capacitación']]],
+  ['servicios', 'Servicios / Entregables', [
+    [null, 'Seguimiento implementación BIM'], [null, 'Envío y recepción de documentos técnicos'], [null, 'Monitoreo y control de RFI'],
+    [null, 'Gestión de las comunicaciones'], [null, 'Consultas técnicas'], [null, 'Metrados'], [null, 'Mejora de procesos'],
+    [null, 'Gestión del conocimiento'], [null, 'Planificación, monitoreo y control del área'], [null, 'Propuestas y licitaciones']]],
+  ['categorias_servicio', 'Categorías de servicio', [[null, 'Proyecto'], [null, 'Mejora de procesos'], [null, 'Gestión del conocimiento'], [null, 'Gestión del área']]],
+  ['tipos_proyecto', 'Tipos de proyecto', [[null, 'Proyecto'], [null, 'Proceso interno'], [null, 'Gestión del área'], [null, 'Capacitación / conocimiento']]],
+  ['fases', 'Fases de proyecto', [[null, 'Diseño'], [null, 'Preconstrucción'], [null, 'Construcción'], [null, 'Cierre'], [null, 'Permanente']]],
+  ['paises', 'Países', [[null, 'Perú'], [null, 'Chile'], [null, 'Colombia'], [null, 'Bolivia']]],
+  ['estados_proyecto', 'Estados de proyecto', [
+    ['propuesto', 'Propuesto', '#EDC948', 1], ['activo', 'Activo', '#59A14F', 1], ['en_pausa', 'En pausa', '#BAB0AC', 1],
+    ['cerrado', 'Cerrado', '#4E79A7', 1], ['rechazado', 'Rechazado', '#E15759', 1]]],
+  ['tipos_actividad', 'Tipos de compromiso', [['programada', 'Programada', null, 1], ['no_programada', 'No programada', null, 1]]],
+  ['estados_la', 'Estados de Look Ahead', [
+    ['pendiente', 'Pendiente', '#BAB0AC', 1], ['con_restriccion', 'Con restricción', '#E15759', 1], ['lista', 'Lista', '#59A14F', 1],
+    ['trasladada', 'Trasladada al plan', '#4E79A7', 1], ['cancelada', 'Cancelada', '#9E9E9E', 1]]],
+  ['estados_compromiso', 'Estados de compromiso', [
+    ['programado', 'Programado', '#EDC948', 1], ['completado', 'Completado', '#59A14F', 1],
+    ['no_completado', 'No completado', '#E15759', 1], ['cancelado', 'Cancelado', '#BAB0AC', 1]]],
+  ['cnc', 'Causas de no cumplimiento (CNC)', [
+    [null, 'Mala planificación / subestimación de HH'], [null, 'Trabajo previo no terminado (pre-requisito)'],
+    [null, 'Sin información del cliente / información faltante'], [null, 'Indefinición técnica / problema de diseño o planos'],
+    [null, 'Aprobación pendiente (interna o del cliente)'], [null, 'Decisión de cliente'], [null, 'Cambio de prioridad'],
+    [null, 'Dependencia externa / de otra área'], [null, 'Falta de recursos (personal no disponible)'],
+    [null, 'Herramientas, software o accesos no disponibles'], [null, 'Contratos / órdenes de cambio'],
+    [null, 'Permisos / autorizaciones faltantes'], [null, 'Condición no prevista'], [null, 'Fuerza mayor (incluye clima)'],
+    [null, 'Me olvidé'], [null, 'Otra causa (especificar en comentario)'], ['no_reportado', 'No reportado al cierre', null, 1]]],
+  ['tipos_restriccion', 'Tipos de restricción', [[null, 'Información del cliente'], [null, 'Aprobación'], [null, 'Recursos'],
+    [null, 'Dependencia de otra área'], [null, 'Accesos / software'], [null, 'Contractual'], [null, 'Otro']]],
+  ['estados_restriccion', 'Estados de restricción', [
+    ['pendiente', 'Pendiente', '#E15759', 1], ['en_gestion', 'En gestión', '#EDC948', 1], ['levantada', 'Levantada', '#59A14F', 1]]],
+  ['criticidad', 'Criticidad', [[null, 'Alta', '#E15759'], [null, 'Media', '#EDC948'], [null, 'Baja', '#59A14F']]],
+  ['tipos_cartera', 'Tipos de cartera', [[null, 'Proyecto'], [null, 'Permanente']]],
+  ['estados_cartera', 'Estados de cartera', [
+    ['nueva', 'Solicitud nueva', '#F28E2B', 1], ['abierta', 'Abierto', '#4E79A7', 1], ['en_proceso', 'En proceso', '#EDC948', 1],
+    ['cerrada', 'Cerrado', '#59A14F', 1], ['rechazada', 'Rechazado', '#E15759', 1]]],
+  ['ubicaciones', 'Ubicaciones', [
+    ['oficina', 'Oficina', '#4E79A7', 0, { cuenta_capacidad: true }], ['proyecto', 'Proyecto (obra)', '#F28E2B', 0, { cuenta_capacidad: true }],
+    ['remoto', 'Remoto', '#76B7B2', 0, { cuenta_capacidad: true }], ['vacaciones', 'Vacaciones / licencia', '#BAB0AC', 0, { cuenta_capacidad: false }],
+    ['feriado', 'Feriado', '#B07AA1', 0, { cuenta_capacidad: false }]]],
+];
+
+export const PARAMETROS_INICIALES = {
+  meta_pac: 0.8,
+  umbral_ambar: 0.6,
+  semanas_lookahead: 3,
+  horas_dia: 8,
+  dias_laborables: [1, 2, 3, 4, 5],
+  cierre: { dia: 5, hora: '17:00' },
+  reunion: { dia: 5, hora: '08:00' },
+  cierre_automatico: true,
+  alerta_dias: 3,
+  arrastre_alerta: 2,
+  zona_horaria: 'America/Lima',
+  version_app: 'LPS_GT V1.00.01',
+  firma_pdf: 'By EHCM',
+  reunion_minutos: { cierre: 10, avance: 10, restricciones: 10, compromisos: 20, lookahead: 10 },
+  reconocimientos: { mejor_pac: true, mayor_mejora: true },
+};
+
+export const ACCIONES = [
+  ['gestionar_usuarios', 'Gestionar usuarios, roles y gerencias'],
+  ['gestionar_listas', 'Editar listas configurables'],
+  ['gestionar_parametros', 'Editar parámetros generales'],
+  ['crear_proyecto', 'Crear y editar proyectos del menú'],
+  ['proponer_proyecto', 'Proponer proyectos (requiere aprobación)'],
+  ['aprobar_proyecto', 'Aprobar o rechazar proyectos propuestos'],
+  ['editar_actividades_otros', 'Editar actividades de otros líderes'],
+  ['crear_columnas', 'Crear columnas personalizadas'],
+  ['reabrir_semana', 'Reabrir semanas cerradas'],
+  ['cerrar_semana_otros', 'Cerrar la semana de otros líderes'],
+  ['aceptar_solicitudes', 'Aceptar o rechazar solicitudes de servicio'],
+  ['registrar_solicitud', 'Registrar solicitudes de servicio'],
+  ['comentar', 'Comentar y mencionar'],
+  ['exportar', 'Exportar reportes (Excel / PDF)'],
+  ['ver_tablero', 'Ver el tablero'],
+  ['gestionar_plantillas_servicio', 'Gestionar plantillas de servicio'],
+  ['gestionar_reuniones', 'Gestionar reuniones y acuerdos'],
+  ['ver_auditoria', 'Ver el historial de cambios (auditoría)'],
+  ['importar_historico', 'Importar histórico y datos desde Excel'],
+  ['gestionar_solicitudes_cambio', 'Gestionar solicitudes de cambio del aplicativo'],
+];
+
+export const PERMISOS_INICIALES = {
+  delegado: Object.fromEntries(ACCIONES.map(([a]) => [a, true])),
+  lider: Object.fromEntries(ACCIONES.map(([a]) => [a,
+    ['proponer_proyecto', 'aceptar_solicitudes', 'registrar_solicitud', 'comentar', 'exportar', 'ver_tablero'].includes(a)])),
+  consulta: Object.fromEntries(ACCIONES.map(([a]) => [a, ['registrar_solicitud', 'exportar', 'ver_tablero'].includes(a)])),
+};
+
+export const ROLES = {
+  admin: 'Administrador',
+  delegado: 'Administrador delegado',
+  lider: 'Líder de proceso',
+  consulta: 'Consulta',
+  pendiente: 'Pendiente de aprobación',
+};
