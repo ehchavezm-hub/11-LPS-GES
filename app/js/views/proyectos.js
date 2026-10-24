@@ -13,6 +13,11 @@ import { ROLES } from '../data/catalogos.js';
 import { elegirArchivoProyectos } from './importar-proyectos.js';
 
 let grilla;
+// Pestañas por estado, en este orden. "Propuesto" se ve en Activos (y en el panel de aprobación); "Rechazado", en Cerrados.
+const PESTANAS = [['activo', 'Activos'], ['en_pausa', 'En pausa'], ['cerrado', 'Cerrados']];
+const ESTADOS_EDITABLES = ['activo', 'en_pausa', 'cerrado'];
+const pestanaDe = p => (p.estado === 'en_pausa' ? 'en_pausa' : ['cerrado', 'rechazado'].includes(p.estado) ? 'cerrado' : 'activo');
+let pestana = 'activo';
 
 export async function render(el, params) {
   grilla?.destruir(); grilla = null;
@@ -27,6 +32,7 @@ export async function render(el, params) {
       ${puede('importar_historico') ? '<button class="btn btn-sm" data-a="importar">⬆ Importar desde Excel</button>' : ''}
       <button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <div data-propuestos></div>
+    <div class="pestanas pestanas-estado" data-pestanas style="margin-bottom:10px"></div>
     <div data-grilla></div></div>`);
   el.append(pag);
   pag.querySelector('[data-a="nuevo"]')?.addEventListener('click', () => formularioProyecto());
@@ -46,22 +52,33 @@ export async function render(el, params) {
       { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 200, opciones: () => opciones('gerencias') },
       { field: 'fase_id', title: 'Fase', tipo: 'lista', ancho: 120, opciones: () => opciones('fases') },
       { field: 'estado', title: 'Estado', tipo: 'lista', ancho: 115, colorear: true,
-        opciones: () => opcionesEstado('estados_proyecto').map(o => ({ ...o, color: colorEstado('estados_proyecto', o.value) })) },
+        opciones: () => opcionesEstado('estados_proyecto').map(o => ({ ...o, color: colorEstado('estados_proyecto', o.value) })),
+        opcionesEdicion: () => opcionesEstado('estados_proyecto').filter(o => ESTADOS_EDITABLES.includes(o.value)) },
       { field: 'pais_id', title: 'País', tipo: 'lista', ancho: 90, opciones: () => opciones('paises') },
       { field: 'fecha_inicio', title: 'Inicio', tipo: 'fecha', ancho: 100 },
       { field: 'fecha_fin', title: 'Fin', tipo: 'fecha', ancho: 100 },
       { field: '_ficha', title: '', tipo: 'texto', ancho: 70, calc: true, filtro: false, formato: (v, p) => p.id ? '<button class="mini-btn">Ficha ›</button>' : '',
         click: (p, e) => { if (p.id && e.target.closest('button')) ir('#/proyectos/' + p.id); } },
+      ...(puedeCrear ? [{ field: '_borrar', title: '', tipo: 'texto', ancho: 46, calc: true, filtro: false, ordenable: false,
+        formato: (v, p) => p.id ? '<button class="mini-btn mini-peligro" title="Eliminar proyecto">🗑</button>' : '',
+        click: (p, e) => { if (p.id && e.target.closest('button')) eliminarProyecto(p, { confirmaciones: 2 }).then(r => r && render(document.getElementById('contenido'), {})); } }] : []),
       ...columnasPersonalizadas('proyectos'),
     ],
     agrupar: [{ field: 'gerencia_id', label: 'Gerencia' }, { field: 'estado', label: 'Estado' }, { field: 'fase_id', label: 'Fase' }],
     puedeEditarFila: p => puede('crear_proyecto') || (p.estado === 'propuesto' && p.propuesto_por === store.usuario.id),
-    nuevaFila: () => ({ area_id: store.area.id, estado: 'activo', codigo: '', nombre_corto: '', extra: {} }),
+    nuevaFila: () => ({ area_id: store.area.id, estado: pestana, codigo: '', nombre_corto: '', extra: {} }),
+    // Al cambiar el estado, el proyecto pasa de inmediato a su pestaña
+    alEditar: (p, campo) => {
+      if (campo !== 'estado') return;
+      grilla.refrescarFiltro(); pintarPestanas();
+      if (pestanaDe(p) !== pestana) toast(`"${p.codigo}" pasó a ${PESTANAS.find(x => x[0] === pestanaDe(p))[1]}.`, 'ok');
+    },
+    alCambioRemoto: () => { grilla?.refrescarFiltro(); pintarPestanas(); },
     listaParaCrear: p => !!(p.codigo && p.nombre_corto),
     camposCalc: ['created_at', 'updated_at', 'created_by', 'aprobado_at'],
     alGuardar: () => cargarCatalogo(),
     // Eliminar (clic derecho → Eliminar fila): solo sin historial; si lo tiene, se ofrece desactivarlo
-    eliminar: p => eliminarProyecto(p),
+    eliminar: p => eliminarProyecto(p, { confirmaciones: 1 }),   // la grilla ya hizo la primera pregunta
     menuFila: p => [
       { label: '📄 Ver ficha', action: () => p.id && ir('#/proyectos/' + p.id) },
       ...(p.id && puede('crear_proyecto') ? [p.estado === 'cerrado'
@@ -72,6 +89,22 @@ export async function render(el, params) {
     ],
   });
   await grilla.inicializar(store.proyectos.filter(p => esStaff() || p.estado === 'activo'));
+  grilla.filtrar(p => pestanaDe(p) === pestana);
+  pintarPestanas();
+  pag.querySelector('[data-pestanas]').addEventListener('click', e => {
+    const b = e.target.closest('[data-e]');
+    if (!b) return;
+    pestana = b.dataset.e;
+    grilla.refrescarFiltro(); pintarPestanas();
+  });
+}
+
+function pintarPestanas() {
+  const cont = document.querySelector('#contenido [data-pestanas]');
+  if (!cont || !grilla) return;
+  const filas = grilla.filas();
+  cont.innerHTML = PESTANAS.map(([e, t]) => `<button data-e="${e}" class="${e === pestana ? 'activo' : ''}">${t}
+    <span class="contador-pestana">${filas.filter(p => pestanaDe(p) === e).length}</span></button>`).join('');
 }
 
 export function destruir() { grilla?.destruir(); grilla = null; }
@@ -103,7 +136,8 @@ async function usosDeProyecto(id) {
   return tablas.map(([, t], i) => n[i] ? `${n[i]} ${t}` : '').filter(Boolean);
 }
 
-async function eliminarProyecto(p) {
+// confirmaciones: cuántas preguntas hacer antes de borrar (el botón 🗑 y la ficha hacen dos)
+async function eliminarProyecto(p, { confirmaciones = 2 } = {}) {
   if (!puede('crear_proyecto')) throw new Error('No tiene permiso para eliminar proyectos.');
   const usos = await usosDeProyecto(p.id);
   if (usos.length) {
@@ -114,6 +148,10 @@ async function eliminarProyecto(p) {
     }
     return false;
   }
+  if (confirmaciones >= 2 && !await confirmar(`¿Eliminar el proyecto "${p.codigo} · ${p.nombre_corto}"? No tiene actividades ni otros registros.`,
+    { titulo: 'Eliminar proyecto (1 de 2)', texto: 'Sí, eliminar', peligro: true })) return false;
+  if (confirmaciones >= 1 && !await confirmar(`Confirme nuevamente: "${p.codigo} · ${p.nombre_corto}" se eliminará definitivamente. Esta acción no se puede deshacer.`,
+    { titulo: `Eliminar proyecto (${confirmaciones >= 2 ? '2 de 2' : 'confirmación final'})`, texto: 'Eliminar definitivamente', peligro: true })) return false;
   // Sin historial: se borra y se quita su asociación en la lista CET / Servicio
   for (const v of valoresLista('servicios', { inactivos: true }).filter(x => x.extra?.proyecto_id === p.id)) {
     await api.update('lista_valores', v.id, { extra: { ...v.extra, proyecto_id: null } });
@@ -270,10 +308,7 @@ async function ficha(el, id) {
     if (a === 'editar') { await formularioProyecto(p); el.innerHTML = ''; ficha(el, id); }
     if (a === 'desactivar' || a === 'reactivar') { if (await cambiarEstado(p, a === 'desactivar' ? 'cerrado' : 'activo') !== false) { el.innerHTML = ''; ficha(el, id); } }
     if (a === 'eliminar') {
-      const usos = await usosDeProyecto(id);
-      if (!usos.length && !await confirmar(`¿Eliminar "${p.codigo} · ${p.nombre_corto}"? No tiene actividades ni otros registros. Esta acción no se puede deshacer.`,
-        { titulo: 'Eliminar proyecto', texto: 'Eliminar', peligro: true })) return;
-      try { if (await eliminarProyecto(p)) ir('#/proyectos'); else { el.innerHTML = ''; ficha(el, id); } } catch (err) { error(mensajeError(err)); }
+      try { if (await eliminarProyecto(p, { confirmaciones: 2 })) ir('#/proyectos'); else { el.innerHTML = ''; ficha(el, id); } } catch (err) { error(mensajeError(err)); }
     }
     if (a === 'hito') {
       await pedirDatos({ titulo: 'Nuevo hito', campos: [{ name: 'nombre', label: 'Hito / entregable', required: true, full: true }, { name: 'fecha', label: 'Fecha', type: 'date', required: true }],

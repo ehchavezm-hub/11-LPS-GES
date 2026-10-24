@@ -9,6 +9,17 @@ import { toast, error, confirmar, modal } from './ui.js';
 
 const SOLO_LOCAL = k => k.startsWith('_');
 
+// Tabulator enfoca celdas y la tabla al hacer clic; el navegador desplazaba entonces la página para mostrar el elemento
+// enfocado y el segundo clic de un doble clic (o el clic derecho) caía en otra fila. Dentro de una grilla, enfocar
+// nunca desplaza la página: Tabulator ya se encarga de mostrar la celda activa dentro de su propio scroll.
+if (!HTMLElement.prototype.focus.__lpsgt) {
+  const enfocar = HTMLElement.prototype.focus;
+  HTMLElement.prototype.focus = function (opciones) {
+    return enfocar.call(this, this.closest?.('.tabulator') ? { ...(opciones || {}), preventScroll: true } : opciones);
+  };
+  HTMLElement.prototype.focus.__lpsgt = true;
+}
+
 function opcionesDe(col, fila) {
   const o = typeof col.opciones === 'function' ? col.opciones(fila) : col.opciones;
   return o || [];
@@ -207,7 +218,8 @@ export function crearGrilla(contenedor, cfg) {
       case 'lista':
         def.editor = 'list';
         def.editorParams = cell => ({
-          values: opcionesDe(c, cell.getRow().getData()).map(o => ({ label: o.label, value: o.value })),
+          // opcionesEdicion: lo que se puede elegir (p. ej. solo 3 estados); opciones: lo que se puede mostrar
+          values: (c.opcionesEdicion ? c.opcionesEdicion(cell.getRow().getData()) : opcionesDe(c, cell.getRow().getData())).map(o => ({ label: o.label, value: o.value })),
           autocomplete: true, allowEmpty: true, listOnEmpty: true, clearable: true, freetext: false,
           filterFunc: (term, label) => normalizar(label).includes(normalizar(term)),
         });
@@ -437,6 +449,7 @@ export function crearGrilla(contenedor, cfg) {
     }
     fila.reformat();
     programarGuardado();
+    cfg.alEditar?.(fila.getData(), cell.getField());
   });
   tabla.on('dataChanged', () => programarGuardado());
   tabla.on('historyUndo', () => programarGuardado());
@@ -509,9 +522,11 @@ export function crearGrilla(contenedor, cfg) {
         // cfg.eliminar puede devolver false: no se eliminó (p. ej. se desactivó en su lugar) y la fila se conserva
         if (d.id && (await (cfg.eliminar ? cfg.eliminar(d) : api.remove(cfg.tabla, d.id))) === false) continue;
         servidor.delete(d.id);
-        r.delete();
+        await r.delete();
       } catch (e) { error(mensajeError(e)); }
     }
+    // Tras borrar, Tabulator deja la vista descuadrada una fila (el siguiente clic caía en la fila de abajo): se reconstruye
+    tabla.redraw(true);
     cfg.alGuardar?.();
   }
 
@@ -785,6 +800,9 @@ export function crearGrilla(contenedor, cfg) {
     },
     filas() { return tabla.getData(); },
     refrescar() { tabla.getRows().forEach(r => r.reformat()); },
+    /** Filtro propio de la vista (además de los filtros de cada columna); fn(datosFila) → true para mostrar. */
+    filtrar(fn) { if (fn) tabla.setFilter(d => fn(d)); else tabla.clearFilter(); },
+    refrescarFiltro() { tabla.refreshFilter(); },
     actualizarFila(id, datos) {
       const r = tabla.getRow(id);
       if (r) { r.update(datos); servidor.set(id, structuredClone(r.getData())); }
