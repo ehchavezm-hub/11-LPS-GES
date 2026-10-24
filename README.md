@@ -25,7 +25,7 @@ capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GT_Alcance_v0.
 ### 1. Base de datos (Supabase, plan gratuito)
 1. Cree una cuenta en <https://supabase.com> y un proyecto nuevo (región: São Paulo o la más cercana). Guarde la contraseña de la base de datos.
 2. En **SQL Editor**, ejecute en orden el contenido de:
-   `001_esquema.sql`, `002_seguridad.sql`, `003_datos_iniciales.sql`, `004_permisos_funciones.sql`, `005_usuarios_admin.sql`, `006_eliminar_usuarios.sql`, `007_roles_planificadores.sql`, `008_grupos_listas.sql`, `009_super_administrador.sql`.
+   `001_esquema.sql`, `002_seguridad.sql`, `003_datos_iniciales.sql`, `004_permisos_funciones.sql`, `005_usuarios_admin.sql`, `006_eliminar_usuarios.sql`, `007_roles_planificadores.sql`, `008_grupos_listas.sql`, `009_super_administrador.sql`, `010_cet_servicio.sql`.
 3. **Cierre automático de semanas** (viernes 17:00): en **Database → Extensions** active `pg_cron` y ejecute en el SQL Editor:
    ```sql
    select cron.schedule('lpsgt-cierre', '5 * * * *', 'select public.cerrar_semanas_vencidas()');

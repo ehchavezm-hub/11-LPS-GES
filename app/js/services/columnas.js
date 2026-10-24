@@ -1,5 +1,5 @@
 // Definición de columnas de la grilla de actividades (Plan semanal y Look Ahead) + columnas personalizadas.
-import { store, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, cetDeProyecto, esGestor, textoEstado } from '../core/store.js';
+import { store, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, servicioDeProyecto, esGestor, textoEstado } from '../core/store.js';
 import { DIAS, DIAS_CORTOS, sumarDias, fmtCorto, esc, etiquetaSemana } from '../core/util.js';
 import { semanasPendiente } from './indicadores.js';
 
@@ -36,8 +36,7 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
     { field: 'resp2', title: 'Resp. 2', tipo: 'texto', ancho: 110, ayuda: 'Persona de apoyo (solo dato)' },
     { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 95, opciones: () => opciones('gerencias').map(o => ({ ...o, label: o.value ? (store.valores.get(o.value)?.codigo || o.label) : o.label })) },
     { field: 'proyecto_id', title: 'Proyecto / Proceso', tipo: 'lista', ancho: 190, opciones: opcionesProyectos },
-    { field: 'cet_id', title: 'CET', tipo: 'lista', ancho: 85, opciones: () => opciones('cet'), visible: false },
-    { field: 'servicio_id', title: 'Servicio / Entregable', tipo: 'lista', ancho: 180, opciones: () => opciones('servicios') },
+    { field: 'servicio_id', title: 'CET / Servicio', tipo: 'lista', ancho: 180, opciones: () => opciones('servicios') },
     { field: 'descripcion', title: 'Actividad', tipo: 'texto', ancho: 300, minAncho: 160 },
     ...dias,
     { field: 'hh_total', title: 'HH', tipo: 'numero', ancho: 64, calc: true, total: true, filtro: false },
@@ -85,7 +84,7 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
   return cols.filter(Boolean);
 }
 
-/** Al elegir un proyecto se completan su gerencia y su CET (según la lista CET); si se completa, se limpia la CNC. */
+/** Al elegir un proyecto se completan su gerencia y, si está vacío, su CET / Servicio (si la lista tiene uno solo asociado); si se completa, se limpia la CNC. */
 export function derivarActividad(fila, cambios) {
   const d = {};
   if (Object.keys(cambios).some(k => k.startsWith('hh_') && k !== 'hh_real' && k !== 'hh_total')) {
@@ -94,8 +93,8 @@ export function derivarActividad(fila, cambios) {
   if ('proyecto_id' in cambios && cambios.proyecto_id) {
     const p = proyecto(cambios.proyecto_id);
     if (p?.gerencia_id) d.gerencia_id = p.gerencia_id;
-    const cet = cetDeProyecto(p);
-    if (cet) d.cet_id = cet;
+    const serv = servicioDeProyecto(p);
+    if (serv && !fila.servicio_id) d.servicio_id = serv;
   }
   if ('estado' in cambios && cambios.estado !== 'no_completado' && fila.cnc_id) d.cnc_id = null;
   if ('estado' in cambios && cambios.estado === 'completado' && fila.hh_real == null && fila.hh_total) d.hh_real = fila.hh_total;

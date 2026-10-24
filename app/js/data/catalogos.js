@@ -8,6 +8,8 @@ export const GRUPO_INICIAL = {
   cnc: 1, tipos_restriccion: 1, criticidad: 1, tipos_cartera: 1, ubicaciones: 1,
   estados_compromiso: 2, tipos_actividad: 2, estados_la: 2, estados_proyecto: 2, estados_restriccion: 2, estados_cartera: 2,
 };
+// Listas retiradas: no se muestran (sus datos se conservan por el historial). La lista CET se fusionó con "CET / Servicio".
+export const LISTAS_RETIRADAS = ['cet'];
 export const grupoDeLista = l => l.grupo || GRUPOS_LISTAS[GRUPO_INICIAL[l.clave] ?? 3];
 
 export const LISTAS_INICIALES = [
@@ -15,8 +17,7 @@ export const LISTAS_INICIALES = [
     ['GI', 'Gerencia de Ingeniería'], ['GOI', 'Gerencia de Obras Industriales'], ['GOC', 'Gerencia de Obras Civiles'],
     ['GOF', 'Gerencia de Obras de Infraestructura'], ['PyL', 'Propuestas y Licitaciones'],
     ['GOI_CH', 'Gerencia de Obras Industriales Chile'], ['GOC_CH', 'Gerencia de Obras Civiles Chile'], ['GIPT', 'Gerencia de Innovación']]],
-  ['cet', 'CET (códigos de proyectos internos)', [['CET-001', 'CET-001 Gestión del área'], ['CET-002', 'CET-002 Capacitación']]],
-  ['servicios', 'Servicios / Entregables', [
+  ['servicios', 'CET / Servicio', [
     [null, 'Seguimiento implementación BIM'], [null, 'Envío y recepción de documentos técnicos'], [null, 'Monitoreo y control de RFI'],
     [null, 'Gestión de las comunicaciones'], [null, 'Consultas técnicas'], [null, 'Metrados'], [null, 'Mejora de procesos'],
     [null, 'Gestión del conocimiento'], [null, 'Planificación, monitoreo y control del área'], [null, 'Propuestas y licitaciones']]],

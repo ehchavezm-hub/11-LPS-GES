@@ -133,10 +133,11 @@ export function horasDia(id) { return Number(perfil(id)?.horas_dia ?? param('hor
 
 // ---------- Proyectos ----------
 export function proyecto(id) { return store.proyectos.find(p => p.id === id); }
-/** CET de un proyecto: el que tiene asignado ese proyecto en la lista CET (o el antiguo campo del proyecto). */
-export function cetDeProyecto(p) {
+/** CET / Servicio asociado a un proyecto (columna Proyecto de la lista "CET / Servicio"), si hay uno solo. */
+export function servicioDeProyecto(p) {
   if (!p) return null;
-  return valoresLista('cet').find(v => v.extra?.proyecto_id === p.id)?.id || p.cet_id || null;
+  const asociados = valoresLista('servicios').filter(v => v.extra?.proyecto_id === p.id);
+  return asociados.length === 1 ? asociados[0].id : null;
 }
 export function nombreProyecto(id) { const p = proyecto(id); return p ? `${p.codigo} · ${p.nombre_corto}` : ''; }
 export function proyectosActivos() { return store.proyectos.filter(p => p.estado === 'activo' || p.estado === 'propuesto'); }

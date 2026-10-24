@@ -94,7 +94,7 @@ export function analizar(hojas) {
     }
   }
   const unicos = k => [...new Set(filas.map(f => f[k]).filter(Boolean))].sort();
-  return { filas, responsables: unicos('resp1'), proyectos: unicos('proyecto'), programas: unicos('programa'), cncs: unicos('cnc'), servicios: unicos('servicio') };
+  return { filas, responsables: unicos('resp1'), proyectos: unicos('proyecto'), programas: unicos('programa'), cncs: unicos('cnc'), servicios: [...new Set(filas.map(f => f.servicio || f.cet).filter(Boolean))].sort() };
 }
 const txt = v => v == null ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).trim();
 
@@ -187,7 +187,7 @@ export async function importar(analisis, mapa, progreso = () => {}) {
     const reg = {
       area_id: area, semana: f.semana, responsable_id: uid, resp2: f.resp2 || null, proyecto_id: pid,
       gerencia_id: buscarValor('gerencias', f.programa) || store.proyectos.find(p => p.id === pid)?.gerencia_id || null,
-      cet_id: buscarValor('cet', f.cet), servicio_id: buscarValor('servicios', f.servicio), descripcion: f.actividad,
+      cet_id: null, servicio_id: buscarValor('servicios', f.servicio || f.cet), descripcion: f.actividad,
       hh_lu: f.hh_lu, hh_ma: f.hh_ma, hh_mi: f.hh_mi, hh_ju: f.hh_ju, hh_vi: f.hh_vi, hh_sa: f.hh_sa, hh_do: f.hh_do,
       tipo: tipoDe(f.tipo), comprometida: true, estado_la: 'trasladada', estado, cnc_id: cncId, comentario, origen: 'importacion',
     };

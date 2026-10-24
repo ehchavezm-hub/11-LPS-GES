@@ -65,7 +65,7 @@ export function crearDatosDemo() {
     proy('D-103', 'Puente Demo Río Azul', 'GOF', 'Preconstrucción'),
     proy('D-104', 'Edificio Corporativo Demo', 'GOC', 'Construcción'),
     proy('D-105', 'Licitación Demo Aeropuerto', 'PyL', 'Diseño'),
-    { ...proy('INT-01', 'Gestión del área', 'GI', 'Permanente'), tipo_id: vid('tipos_proyecto', 'Gestión del área'), cet_id: vid('cet', 'CET-001') },
+    { ...proy('INT-01', 'Gestión del área', 'GI', 'Permanente'), tipo_id: vid('tipos_proyecto', 'Gestión del área') },
     { ...proy('INT-02', 'Biblioteca de estándares BIM', 'GIPT', 'Permanente'), tipo_id: vid('tipos_proyecto', 'Proceso interno') },
     proy('D-106', 'Ampliación Demo Puerto', 'GOF', 'Diseño', 'propuesto', { propuesto_por: lideres[2].id }),
   ];

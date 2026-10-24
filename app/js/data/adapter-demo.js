@@ -36,6 +36,8 @@ function cargar() {
       const db = JSON.parse(s);
       // Datos de demo creados antes de la versión con Super administrador (equivale a la migración 009)
       for (const p of db.profiles || []) if (p.es_admin_principal && p.rol === 'admin') p.rol = 'superadmin';
+      // "Servicios / Entregables" pasó a llamarse "CET / Servicio" (migración 010)
+      for (const l of db.listas || []) if (l.clave === 'servicios' && l.nombre === 'Servicios / Entregables') l.nombre = 'CET / Servicio';
       return db;
     }
   } catch { /* datos corruptos: se regeneran */ }

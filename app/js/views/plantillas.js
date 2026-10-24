@@ -72,7 +72,7 @@ async function pintarGrilla() {
       estado.modo === 'servicio' ? { field: 'semana_offset', title: 'Semana +', tipo: 'numero', ancho: 85, paso: 1, ayuda: '0 = semana de inicio, 1 = la siguiente…' } : null,
       { field: 'proyecto_id', title: 'Proyecto', tipo: 'lista', ancho: 190, opciones: opcionesProyectos, visible: estado.modo === 'recurrente' },
       { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 160, opciones: () => opciones('gerencias'), visible: estado.modo === 'recurrente' },
-      { field: 'servicio_id', title: 'Servicio', tipo: 'lista', ancho: 200, opciones: () => opciones('servicios') },
+      { field: 'servicio_id', title: 'CET / Servicio', tipo: 'lista', ancho: 200, opciones: () => opciones('servicios') },
       { field: 'descripcion', title: 'Actividad', tipo: 'texto', ancho: 320 },
       { field: 'resp2', title: 'Resp. 2', tipo: 'texto', ancho: 110 },
       ...DIAS.map((d, i) => ({ field: `hh_${d}`, title: DIAS_CORTOS[i], tipo: 'numero', ancho: 58, ocultarCero: true, total: true, vacioCero: true, filtro: false, visible: i < 5 || undefined })),
@@ -89,7 +89,7 @@ async function pintarGrilla() {
 async function nuevaPlantilla() {
   await pedirDatos({
     titulo: 'Nueva plantilla de servicio', texto: 'Crear',
-    campos: [{ name: 'nombre', label: 'Nombre', required: true, full: true }, { name: 'servicio_id', label: 'Servicio', type: 'select', options: opciones('servicios') }],
+    campos: [{ name: 'nombre', label: 'Nombre', required: true, full: true }, { name: 'servicio_id', label: 'CET / Servicio', type: 'select', options: opciones('servicios') }],
     alGuardar: async d => {
       const [p] = await api.insert('plantillas', { ...d, area_id: store.area.id, tipo: 'servicio' });
       estado.plantilla = p.id; ok('Plantilla creada. Agregue sus actividades.');
@@ -103,7 +103,7 @@ async function renombrar() {
   if (!p) return;
   await pedirDatos({
     titulo: 'Plantilla', valores: p,
-    campos: [{ name: 'nombre', label: 'Nombre', required: true, full: true }, { name: 'servicio_id', label: 'Servicio', type: 'select', options: opciones('servicios') },
+    campos: [{ name: 'nombre', label: 'Nombre', required: true, full: true }, { name: 'servicio_id', label: 'CET / Servicio', type: 'select', options: opciones('servicios') },
       { name: 'activa', label: 'Estado', type: 'checkbox', texto: 'Activa (disponible para aplicar)' }],
     alGuardar: async d => { await api.update('plantillas', p.id, d); ok('Plantilla actualizada.'); },
   });

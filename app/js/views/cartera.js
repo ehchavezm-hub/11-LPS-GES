@@ -39,7 +39,7 @@ export async function render(el, params) {
       { field: 'solicitante', title: 'Solicitante', tipo: 'texto', ancho: 140, formato: (v, c) => esc(v || nombre(c.solicitante_id)) },
       { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 95, opciones: () => opciones('gerencias').map(o => ({ ...o, label: o.value ? (store.valores.get(o.value)?.codigo || o.label) : o.label })) },
       { field: 'proyecto_id', title: 'Proyecto / Proceso', tipo: 'lista', ancho: 180, opciones: opcionesProyectos },
-      { field: 'servicio_id', title: 'Servicio', tipo: 'lista', ancho: 170, opciones: () => opciones('servicios') },
+      { field: 'servicio_id', title: 'CET / Servicio', tipo: 'lista', ancho: 170, opciones: () => opciones('servicios') },
       { field: 'descripcion', title: 'Descripción', tipo: 'texto', ancho: 280 },
       { field: 'responsable_id', title: 'Responsable', tipo: 'lista', ancho: 130, opciones: opcionesLideres },
       { field: 'resp2', title: 'Resp. 2', tipo: 'texto', ancho: 100 },
@@ -102,7 +102,7 @@ function pintarExtras() {
   const nuevas = estado.items.filter(c => c.estado === 'nueva');
   pag.querySelector('[data-nuevas]').innerHTML = nuevas.length ? `<div class="tarjeta" style="margin-bottom:12px;border-left:4px solid var(--arena)">
     <h2>Solicitudes nuevas por atender (${nuevas.length})</h2>
-    <table class="simple"><tr><th>Fecha</th><th>Solicitante</th><th>Proyecto</th><th>Servicio</th><th>Descripción</th><th>Dirigida a</th><th>F. requerida</th><th></th></tr>
+    <table class="simple"><tr><th>Fecha</th><th>Solicitante</th><th>Proyecto</th><th>CET / Servicio</th><th>Descripción</th><th>Dirigida a</th><th>F. requerida</th><th></th></tr>
     ${nuevas.map(c => `<tr data-sol="${c.id}"><td>${fmtFecha(c.f_solicitud)}</td><td>${esc(c.solicitante || nombre(c.solicitante_id))}</td>
       <td>${esc(proyecto(c.proyecto_id)?.nombre_corto || '')}</td><td>${esc(etiqueta(c.servicio_id))}</td><td>${esc(c.descripcion)}</td>
       <td>${esc(nombre(c.responsable_id) || '—')}</td><td>${fmtFecha(c.f_requerida)}</td>
@@ -179,7 +179,7 @@ async function nuevaSolicitud(enNombreDeOtro = false) {
     campos: [
       ...(enNombreDeOtro ? [{ name: 'solicitante', label: 'Solicitante (nombre y área)', required: true }] : []),
       { name: 'proyecto_id', label: 'Proyecto', type: 'select', required: true, options: [{ value: '', label: '—' }, ...proys.map(p => ({ value: p.id, label: `${p.codigo} · ${p.nombre_corto}` }))] },
-      { name: 'servicio_id', label: 'Servicio requerido', type: 'select', options: opciones('servicios') },
+      { name: 'servicio_id', label: 'CET / Servicio requerido', type: 'select', options: opciones('servicios') },
       { name: 'descripcion', label: 'Descripción del pedido', type: 'textarea', required: true, full: true },
       { name: 'f_requerida', label: 'Fecha requerida', type: 'date', required: true },
       { name: 'criticidad_id', label: 'Prioridad', type: 'select', options: opciones('criticidad') },
@@ -210,7 +210,7 @@ async function renderSolicitante(el) {
     <div class="pagina-cab"><h1>Mis solicitudes de servicio</h1><span class="flex"></span>
       ${puede('registrar_solicitud') ? '<button class="btn btn-primario" data-a="nueva">＋ Nueva solicitud</button>' : ''}</div>
     <div class="aviso">Registre aquí sus pedidos al equipo de la Gerencia Técnica. Recibirá un aviso cuando se acepten o rechacen.</div>
-    <div class="tarjeta">${mias.length ? `<table class="simple"><tr><th>Fecha</th><th>Proyecto</th><th>Servicio</th><th>Descripción</th><th>F. requerida</th><th>Responsable</th><th>F. comprometida</th><th>Estado</th></tr>
+    <div class="tarjeta">${mias.length ? `<table class="simple"><tr><th>Fecha</th><th>Proyecto</th><th>CET / Servicio</th><th>Descripción</th><th>F. requerida</th><th>Responsable</th><th>F. comprometida</th><th>Estado</th></tr>
       ${mias.map(c => `<tr><td>${fmtFecha(c.f_solicitud)}</td><td>${esc(proyecto(c.proyecto_id)?.nombre_corto || '')}</td><td>${esc(etiqueta(c.servicio_id))}</td>
         <td>${esc(c.descripcion)}${c.motivo_rechazo ? `<div class="nota">Motivo: ${esc(c.motivo_rechazo)}</div>` : ''}</td><td>${fmtFecha(c.f_requerida)}</td>
         <td>${esc(nombre(c.responsable_id))}</td><td>${fmtFecha(c.f_comprometida)}</td>

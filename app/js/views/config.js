@@ -2,7 +2,7 @@
 // columnas personalizadas, importación desde Excel, respaldo y auditoría.
 import { api, mensajeError, modoDemo } from '../data/api.js';
 import { store, cargarCatalogo, esAdmin, esSuperadmin, puede, opciones, opcionesProyectos, nombre, valoresLista } from '../core/store.js';
-import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista } from '../data/catalogos.js';
+import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista, LISTAS_RETIRADAS } from '../data/catalogos.js';
 import { esc, html, fmtFechaHora, fmtFecha, normalizar } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -205,7 +205,7 @@ async function rotarDelegado(perfiles) {
 
 // ---------- Listas configurables ----------
 async function listas(el, claveSel) {
-  const todas = Object.values(store.listas).map(x => x.lista).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  const todas = Object.values(store.listas).map(x => x.lista).filter(l => !LISTAS_RETIRADAS.includes(l.clave)).sort((a, b) => a.nombre.localeCompare(b.nombre));
   const sel = claveSel || todas.find(l => l.clave === 'gerencias')?.clave || todas[0]?.clave;
   const editable = puede('gestionar_listas');
   // Grupos: los iniciales en su orden, luego los creados por el usuario y al final "Otras listas"
@@ -214,7 +214,7 @@ async function listas(el, claveSel) {
     const del = todas.filter(l => grupoDeLista(l) === g);
     const opcion = l => `<option value="${l.clave}"${l.clave === sel ? ' selected' : ''}>${esc(l.nombre)}</option>`;
     if (g !== GRUPOS_LISTAS[0]) return del.length ? `<optgroup label="${esc(g)}">${del.map(opcion).join('')}</optgroup>` : '';
-    // Primer grupo: Gerencias, Proyectos / Procesos y Servicios / Entregables primero
+    // Primer grupo: Gerencias, Proyectos / Procesos y CET / Servicio primero
     const primero = c => del.filter(l => l.clave === c).map(opcion).join('');
     return `<optgroup label="${esc(g)}">${primero('gerencias')}<option value="__proyectos">🏗 Proyectos / Procesos (catálogo) →</option>${primero('servicios')}
       ${del.filter(l => !['gerencias', 'servicios'].includes(l.clave)).map(opcion).join('')}</optgroup>`;
@@ -252,16 +252,16 @@ async function listas(el, claveSel) {
   if (!lista) return;
   grilla?.destruir();
   grilla = crearGrilla(el.querySelector('[data-g]'), {
-    id: 'lista_valores', tabla: 'lista_valores', titulo: lista.nombre, altura: 'calc(100vh - 330px)', puedeCrear: editable,
+    id: `lista_valores_${sel}`, tabla: 'lista_valores', titulo: lista.nombre, altura: 'calc(100vh - 330px)', puedeCrear: editable,
     columnas: [
       { field: '_p', title: '', tipo: 'texto', ancho: 36, calc: true, filtro: false, formato: (v, x) => x.protegido ? '🔒' : '' },
       { field: 'valor', title: 'Texto visible', tipo: 'texto', ancho: 320 },
       { field: 'codigo', title: 'Código', tipo: 'texto', ancho: 120, editable: x => !x.protegido },
-      // CET: cada código se asocia a un proyecto (reemplaza el campo CET del proyecto); no usa descripción ni color
-      sel === 'cet' ? { field: '_proyecto', title: 'Proyecto', tipo: 'lista', ancho: 280, opciones: opcionesProyectos,
-        ayuda: 'Proyecto al que corresponde este CET: al elegir el proyecto en una actividad, el CET se completa solo' } : null,
-      sel === 'cet' ? null : { field: 'descripcion', title: 'Descripción', tipo: 'texto', ancho: 240 },
-      sel === 'cet' ? null : { field: 'color', title: 'Color', tipo: 'texto', ancho: 100, formato: v => v ? `<span class="badge" style="--c:${esc(v)}">${esc(v)}</span>` : '' },
+      // CET / Servicio: cada valor puede asociarse a un proyecto; no usa descripción ni color
+      sel === 'servicios' ? { field: '_proyecto', title: 'Proyecto', tipo: 'lista', ancho: 280, opciones: opcionesProyectos,
+        ayuda: 'Proyecto al que corresponde: al elegir ese proyecto en una actividad, el CET / Servicio se completa solo' } : null,
+      sel === 'servicios' ? null : { field: 'descripcion', title: 'Descripción', tipo: 'texto', ancho: 240 },
+      sel === 'servicios' ? null : { field: 'color', title: 'Color', tipo: 'texto', ancho: 100, formato: v => v ? `<span class="badge" style="--c:${esc(v)}">${esc(v)}</span>` : '' },
       { field: 'orden', title: 'Orden', tipo: 'numero', ancho: 70, paso: 1 },
       { field: 'activo', title: 'Activo', tipo: 'casilla', ancho: 70, editable: x => !x.protegido },
       sel === 'ubicaciones' ? { field: '_cuenta', title: 'Cuenta para capacidad', tipo: 'casilla', ancho: 150,
@@ -280,7 +280,7 @@ async function listas(el, claveSel) {
     alGuardar: () => cargarCatalogo(),
   });
   const valores = await api.list('lista_valores', { eq: { lista_id: lista.id }, order: [['orden', true]] });
-  await grilla.inicializar(valores.map(v => ({ ...v, _cuenta: v.extra?.cuenta_capacidad !== false, _proyecto: v.extra?.proyecto_id || store.proyectos.find(x => x.cet_id === v.id)?.id || null })));
+  await grilla.inicializar(valores.map(v => ({ ...v, _cuenta: v.extra?.cuenta_capacidad !== false, _proyecto: v.extra?.proyecto_id || null })));
 }
 
 // ---------- Parámetros ----------

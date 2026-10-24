@@ -99,7 +99,7 @@ export function crearGrilla(contenedor, cfg) {
       <button class="btn btn-sm" data-a="excel" title="Exportar a Excel">⬇ Excel</button>
     </div>
     <div class="grilla-tabla"></div>
-    <div class="grilla-ayuda">Doble clic o Enter para editar · Selecciona un rango con el mouse o Shift+flechas · Ctrl+C / Ctrl+V con Excel · Supr borra · Clic derecho en una fila para más opciones, o en el título de Gerencia, Proyecto o Servicio para editar sus opciones</div>
+    <div class="grilla-ayuda">Doble clic o Enter para editar · Selecciona un rango con el mouse o Shift+flechas · Ctrl+C / Ctrl+V con Excel · Supr borra · Clic derecho en una fila para más opciones, o en el título de Gerencia, Proyecto o CET / Servicio para editar sus opciones</div>
   </div>`);
   contenedor.innerHTML = '';
   contenedor.append(raiz);
@@ -107,10 +107,10 @@ export function crearGrilla(contenedor, cfg) {
   const setEstado = t => { estadoEl.textContent = t; };
 
   // ---------- Acceso directo para editar las opciones de una columna de lista ----------
-  // Clic derecho en el título de Gerencia, Proyecto, Servicio, CET o CNC lleva a donde se editan sus opciones.
+  // Clic derecho en el título de Gerencia, Proyecto, CET / Servicio o CNC lleva a donde se editan sus opciones.
   const DESTINOS = {
-    gerencia_id: { lista: 'gerencias', texto: 'gerencias' }, servicio_id: { lista: 'servicios', texto: 'servicios / entregables' },
-    cet_id: { lista: 'cet', texto: 'CET' }, cnc_id: { lista: 'cnc', texto: 'causas de no cumplimiento (CNC)' },
+    gerencia_id: { lista: 'gerencias', texto: 'gerencias' }, servicio_id: { lista: 'servicios', texto: 'CET / servicios' },
+    cnc_id: { lista: 'cnc', texto: 'causas de no cumplimiento (CNC)' },
     proyecto_id: { ruta: '#/proyectos', texto: 'proyectos / procesos' },
   };
   function menuTitulo(c) {

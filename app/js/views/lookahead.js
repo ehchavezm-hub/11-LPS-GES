@@ -9,7 +9,7 @@ import { columnasActividad, derivarActividad, CAMPOS_CALC_ACT } from '../service
 import { capacidadSemana, colorCarga, restriccionesActivas } from '../services/indicadores.js';
 import { abrirDetalle, abrirRestricciones, confirmarRestricciones } from './detalle.js';
 import { imprimirPDF, tablaPDF } from '../services/pdf.js';
-import { textoEstado, cetDeProyecto } from '../core/store.js';
+import { textoEstado, servicioDeProyecto } from '../core/store.js';
 
 let grilla, desuscribir = [], estado;
 
@@ -62,7 +62,7 @@ export async function render(el, { query }) {
       const p = store.proyectoSel ? proyecto(store.proyectoSel) : null;
       return { area_id: store.area.id, semana: estado.semanas[0], responsable_id: estado.resp !== 'todos' ? estado.resp : store.usuario.id,
         comprometida: false, tipo: 'programada', estado: 'programado', estado_la: 'pendiente', origen: 'manual',
-        proyecto_id: p?.id || null, gerencia_id: p?.gerencia_id || null, cet_id: cetDeProyecto(p),
+        proyecto_id: p?.id || null, gerencia_id: p?.gerencia_id || null, servicio_id: servicioDeProyecto(p),
         hh_lu: 0, hh_ma: 0, hh_mi: 0, hh_ju: 0, hh_vi: 0, hh_sa: 0, hh_do: 0, hh_total: 0, extra: {} };
     },
     derivar: derivarActividad,
@@ -167,7 +167,7 @@ const acciones = {
       await api.insert('actividades', items.map((i, k) => ({
         area_id: store.area.id, semana: sumarSemanas(d.semana, Number(i.semana_offset) || 0), responsable_id: d.responsable,
         comprometida: false, tipo: 'programada', estado: 'programado', estado_la: 'pendiente', origen: 'plantilla', origen_id: i.id,
-        proyecto_id: d.proyecto, gerencia_id: p?.gerencia_id || i.gerencia_id, cet_id: cetDeProyecto(p) || i.cet_id, servicio_id: i.servicio_id,
+        proyecto_id: d.proyecto, gerencia_id: p?.gerencia_id || i.gerencia_id, cet_id: i.cet_id, servicio_id: i.servicio_id,
         descripcion: i.descripcion, resp2: i.resp2, orden: k,
         ...Object.fromEntries(DIAS.map(x => [`hh_${x}`, Number(i[`hh_${x}`]) || 0])),
       })));

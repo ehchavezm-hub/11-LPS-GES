@@ -53,6 +53,11 @@ salvo donde se dice lo contrario.
 Los cuatro roles de planificación tienen plan semanal, Look Ahead y PAC, y aparecen como responsables en las grillas.
 El renombre no cambia datos: el código interno de "Líder de especialidad" sigue siendo `lider`.
 
+## CET / Servicio (versión 1.1)
+"Servicios / Entregables" y "CET" eran lo mismo: queda una sola lista **CET / Servicio** con los datos de servicios. Cada valor puede
+asociarse a un proyecto (columna *Proyecto*); al elegir ese proyecto en una actividad, el CET / Servicio se completa solo si estaba vacío.
+La antigua lista CET ya no se muestra; sus valores se conservan por las actividades antiguas que pudieran usarlos.
+
 ## Seguridad
 - Toda regla de permisos se aplica en la base de datos (RLS), no solo en pantalla: aunque alguien manipule el navegador no puede ver ni cambiar lo que su rol no permite.
 - Las funciones de respaldo y mantenimiento no pueden llamarse con la clave pública.
