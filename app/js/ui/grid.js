@@ -667,8 +667,16 @@ export function crearGrilla(contenedor, cfg) {
       if (cfgVista.columnas?.length) {
         // Las vistas guardadas antes también traían el título: se descarta y se usa el actual
         const conocidas = cfgVista.columnas.filter(c => porCampo.has(c.field)).map(({ title, ...c }) => c);
-        const faltantes = columnasCfg.filter(c => !conocidas.some(k => k.field === c.field)).map(c => ({ field: c.field }));
-        tabla.setColumnLayout([...conocidas, ...faltantes]);
+        // Columnas que no estaban en la vista guardada (p. ej. agregadas en una versión nueva): van en su lugar
+        // original, antes de la columna que las sigue, y no al final
+        const disposicion = [...conocidas];
+        columnasCfg.forEach((c, i) => {
+          if (disposicion.some(k => k.field === c.field)) return;
+          const siguiente = columnasCfg.slice(i + 1).find(x => disposicion.some(k => k.field === x.field));
+          const pos = siguiente ? disposicion.findIndex(k => k.field === siguiente.field) : disposicion.length;
+          disposicion.splice(pos, 0, { field: c.field });
+        });
+        tabla.setColumnLayout(disposicion);
       }
       if (cfgVista.orden) tabla.setSort(cfgVista.orden);
       raiz.querySelector('[data-a="agrupar"]').value = cfgVista.agrupar || '';
