@@ -30,7 +30,8 @@ export function destruir() { grilla?.destruir(); grilla = null; }
 
 // ---------- Usuarios ----------
 async function usuarios(el) {
-  const perfiles = await api.list('profiles', { eq: { area_id: store.area.id }, order: [['nombre', true]] });
+  // Los eliminados con historial se conservan solo como nombre en los registros pasados
+  const perfiles = (await api.list('profiles', { eq: { area_id: store.area.id }, order: [['nombre', true]] })).filter(p => !p.eliminado);
   const historial = await api.list('delegado_historial', { eq: { area_id: store.area.id }, order: [['desde', false]] }).catch(() => []);
   const pendientes = perfiles.filter(p => p.rol === 'pendiente' && p.activo);
   const principal = store.usuario.es_admin_principal;
@@ -47,7 +48,8 @@ async function usuarios(el) {
         <td>${esc((p.gerencia_ids || []).map(g => store.valores.get(g)?.codigo || '').join(', '))}</td><td class="num">${p.horas_dia ?? '—'}</td>
         <td>${p.activo ? 'Activo' : '<span style="color:var(--rojo)">Inactivo</span>'}</td>
         <td style="white-space:nowrap"><button class="btn btn-sm" data-editar="${p.id}">Editar</button>
-          ${puedeRestablecer(p) ? `<button class="btn btn-sm" data-clave="${p.id}" title="Restablecer contraseña">🔑</button>` : ''}</td></tr>`).join('')}</table></div>
+          ${puedeRestablecer(p) ? `<button class="btn btn-sm" data-clave="${p.id}" title="Restablecer contraseña">🔑</button>` : ''}
+          ${puedeEliminar(p) ? `<button class="btn btn-sm" data-eliminar="${p.id}" title="Eliminar usuario">🗑</button>` : ''}</td></tr>`).join('')}</table></div>
     <details class="tarjeta"><summary><b>Historial del administrador delegado</b></summary>
       <table class="simple" style="margin-top:8px"><tr><th>Persona</th><th>Desde</th><th>Hasta</th><th>Otorgado por</th></tr>
       ${historial.map(h => `<tr><td>${esc(nombre(h.usuario_id))}</td><td>${fmtFechaHora(h.desde)}</td><td>${h.hasta ? fmtFechaHora(h.hasta) : 'Vigente'}</td><td>${esc(nombre(h.otorgado_por))}</td></tr>`).join('') || '<tr><td colspan="4" class="nota">Sin registros.</td></tr>'}</table></details>`;
@@ -57,6 +59,8 @@ async function usuarios(el) {
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (id) await editarUsuario(perfiles.find(p => p.id === id));
     if (idClave) await restablecerClave(perfiles.find(p => p.id === idClave));
+    const idEliminar = e.target.closest('[data-eliminar]')?.dataset.eliminar;
+    if (idEliminar) await eliminarUsuario(perfiles.find(p => p.id === idEliminar));
     if (a === 'nuevo') await nuevoUsuario();
     if (a === 'invitar') {
       const url = location.origin + location.pathname;
@@ -81,6 +85,25 @@ function puedeRestablecer(p) {
   if (p.id === yo.id) return false;   // la propia se cambia desde el menú de usuario
   if (p.es_admin_principal) return false;
   return yo.es_admin_principal || !['admin', 'delegado'].includes(p.rol);
+}
+
+// Solo el administrador elimina usuarios (el delegado no); nunca a sí mismo ni al principal
+function puedeEliminar(p) {
+  return store.usuario.rol === 'admin' && p.id !== store.usuario.id && !p.es_admin_principal;
+}
+
+async function eliminarUsuario(p) {
+  const si = await confirmar(`¿Eliminar a ${p.nombre}${p.email ? ` (${p.email})` : ''}? Perderá el acceso de inmediato. ` +
+    'Si ya registró actividades, cierres u otros datos, su nombre se mantiene en esos registros históricos (para no alterar el PAC), ' +
+    'pero deja de aparecer en las listas. Su correo queda libre para volver a crearlo si hiciera falta. Esta acción no se puede deshacer.',
+    { titulo: 'Eliminar usuario', texto: 'Eliminar', peligro: true });
+  if (!si) return;
+  try {
+    const r = await api.rpc('eliminar_usuario', { p_usuario: p.id });
+    ok(r === 'eliminado' ? `${p.nombre} fue eliminado.` : `${p.nombre} fue eliminado; su nombre se conserva en el historial.`);
+  } catch (e) { error(mensajeError(e)); }
+  await cargarCatalogo();
+  render(document.getElementById('contenido'), { seccion: 'usuarios' });
 }
 
 function mostrarCredenciales(titulo, email, clave) {

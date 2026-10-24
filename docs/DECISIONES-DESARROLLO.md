@@ -21,10 +21,13 @@ salvo donde se dice lo contrario.
   (al marcar *Completado* se propone HH real = HH planificadas).
 - **Restricciones**: advierten pero no bloquean ("Comprometer igual"), según el alcance.
 - **Arrastre**: al cerrar se ofrece copiar los no completados a la semana siguiente; la copia guarda la semana original para medir reprogramaciones.
-- **Rotación del delegado**: al nombrar un nuevo delegado, el anterior vuelve a *Líder*. El historial queda registrado. Nadie puede quitar el rol al administrador principal ni eliminar usuarios (solo desactivarlos).
+- **Rotación del delegado**: al nombrar un nuevo delegado, el anterior vuelve a *Líder*. El historial queda registrado. Nadie puede quitar el rol al administrador principal ni eliminarlo.
 - **Alta de usuarios por el administrador** (pedido del Gerente Técnico): el administrador y quien tenga el permiso *Gestionar usuarios* crean cuentas con
   contraseña temporal y la restablecen con 🔑. El delegado no puede restablecer la de administradores ni la de otro delegado. La persona debe cambiar la
   contraseña temporal en su primer ingreso. Esto se hace con la Edge Function `admin-usuarios`, porque la clave secreta de Supabase no puede estar en el navegador.
+- **Eliminar usuarios** (pedido del Gerente Técnico): solo el administrador (no el delegado), con 🗑. Si la persona no registró nada, se borra por completo.
+  Si tiene historial (actividades, cierres, comentarios…), pierde el acceso para siempre y desaparece de listas y selectores, pero su nombre se conserva
+  en los registros pasados para no alterar el PAC histórico; su correo queda libre para crearla de nuevo. Para una ausencia temporal conviene *Desactivar* (Editar).
 - **Primer usuario** que se registra en un área = administrador principal. Los demás quedan *Pendientes* hasta que se les asigne rol.
 - **Proyectos propuestos** por líderes: pueden recibir actividades mientras están en revisión (marcados ⏳). Al rechazarlos se notifica el motivo.
 - **Importación de los Excel anteriores**: los responsables del Excel se asocian a usuarios (sugerencia automática, revisable). Lo no asociado se guarda como

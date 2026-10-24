@@ -190,4 +190,28 @@ do $$ begin
   assert not exists (select 1 from notificaciones where texto like '%creado@x.pe%'), 'no debe avisar al crear por admin';
 end $$;
 
+-- ---------- Eliminar usuarios ----------
+set role authenticated;
+select como('delegado@x.pe');
+do $$ begin
+  begin perform eliminar_usuario((select id from profiles where email = 'creado@x.pe')); raise exception 'delegado pudo eliminar';
+  exception when raise_exception then if sqlerrm not like 'Solo el administrador%' then raise; end if; end;
+end $$;
+select como('admin@x.pe');
+do $$ begin
+  -- sin historial: se borra por completo
+  assert eliminar_usuario((select id from profiles where email = 'creado@x.pe')) = 'eliminado', 'debía eliminarse';
+  -- con historial (lider1 tiene actividades): se conserva desactivado
+  assert eliminar_usuario((select id from profiles where email = 'lider1@x.pe')) = 'desactivado', 'debía desactivarse';
+  begin perform eliminar_usuario((select id from profiles where es_admin_principal)); raise exception 'eliminó al principal';
+  exception when raise_exception then if sqlerrm not like 'No puede eliminarse%' and sqlerrm not like 'El administrador principal%' then raise; end if; end;
+end $$;
+reset role;
+do $$ begin
+  assert not exists (select 1 from auth.users where email = 'creado@x.pe'), 'cuenta no borrada';
+  assert (select p.eliminado and not p.activo and p.email is null from profiles p join auth.users u on u.id = p.id
+           where u.email like 'eliminado+%'), 'perfil con historial no desactivado';
+  assert exists (select 1 from actividades a join profiles p on p.id = a.responsable_id where p.eliminado), 'historial perdido';
+end $$;
+
 \echo 'Todas las pruebas pasaron'

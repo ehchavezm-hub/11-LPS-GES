@@ -109,7 +109,7 @@ export function param(clave) { return store.parametros[clave] ?? PARAMETROS_INIC
 export function perfil(id) { return store.perfiles.find(p => p.id === id); }
 export function nombre(id) { return perfil(id)?.nombre || ''; }
 export function lideres({ inactivos = false } = {}) {
-  return store.perfiles.filter(p => ['admin', 'delegado', 'lider'].includes(p.rol) && (inactivos || p.activo));
+  return store.perfiles.filter(p => ['admin', 'delegado', 'lider'].includes(p.rol) && !p.eliminado && (inactivos || p.activo));
 }
 /** Personas que planifican: líderes y delegado; el administrador solo si tiene actividades en 'acts'. */
 export function equipo(acts = []) {

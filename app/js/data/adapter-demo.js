@@ -62,6 +62,30 @@ export function crearAdaptadorDemo() {
   function usuarioId() { return localStorage.getItem(CLAVE_SESION); }
   function perfil(id = usuarioId()) { return tabla('profiles').find(p => p.id === id); }
 
+  // Emula public.eliminar_usuario(): borra si no tiene historial; si tiene, conserva el perfil como eliminado
+  const SIN_HISTORIAL = new Set(['profiles', 'notificaciones', 'proyecto_favoritos', 'vistas', 'proyecto_lideres', 'auditoria']);
+  async function eliminarUsuarioDemo(id) {
+    db = cargar();
+    const yo = perfil();
+    const obj = perfil(id);
+    if (!yo || yo.rol !== 'admin') throw new Error('Solo el administrador puede eliminar usuarios.');
+    if (!obj) throw new Error('Usuario no encontrado.');
+    if (obj.id === yo.id) throw new Error('No puede eliminarse a sí mismo.');
+    if (obj.es_admin_principal) throw new Error('El administrador principal no se puede eliminar.');
+    const conHistorial = Object.entries(db).some(([t, filas]) => !SIN_HISTORIAL.has(t) && Array.isArray(filas) &&
+      filas.some(f => f && typeof f === 'object' && Object.entries(f).some(([k, v]) => k !== 'id' && v === id)));
+    if (!conHistorial) {
+      for (const t of ['notificaciones', 'proyecto_favoritos', 'vistas', 'proyecto_lideres']) db[t] = tabla(t).filter(f => f.usuario_id !== id);
+      guardar();
+      await api.remove('profiles', id);
+      return 'eliminado';
+    }
+    db.proyecto_lideres = tabla('proyecto_lideres').filter(f => f.usuario_id !== id);
+    guardar();
+    await api.update('profiles', id, { eliminado: true, activo: false, email: null, rol: ['admin', 'delegado'].includes(obj.rol) ? 'lider' : obj.rol });
+    return 'desactivado';
+  }
+
   function emitir(ev, local = true) {
     if (local) for (const cb of oyentes) cb(clon(ev));
     canal?.postMessage(ev);
@@ -261,7 +285,8 @@ export function crearAdaptadorDemo() {
       guardar();
       for (const v of quitar) emitir({ tabla: t, tipo: 'DELETE', fila: null, anterior: clon(v) });
     },
-    async rpc(nombre) {
+    async rpc(nombre, args = {}) {
+      if (nombre === 'eliminar_usuario') return eliminarUsuarioDemo(args.p_usuario);
       if (nombre === 'exportar_respaldo') return { generado: new Date().toISOString(), version: 1, modo: 'demo', ...clon(db) };
       if (nombre === 'cerrar_semanas_vencidas') return 0;
       throw new Error(`Función no disponible en modo demo: ${nombre}`);
