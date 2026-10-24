@@ -33,7 +33,6 @@ export async function render(el, params) {
   pag.querySelector('[data-a="pdf"]').addEventListener('click', () => imprimirPDF('Catálogo de proyectos', tablaPDF([
     { titulo: 'Código', valor: p => p.codigo }, { titulo: 'Nombre', valor: p => p.nombre_corto }, { titulo: 'Gerencia', valor: p => etiqueta(p.gerencia_id) },
     { titulo: 'Fase', valor: p => etiqueta(p.fase_id) }, { titulo: 'Estado', valor: p => textoEstado('estados_proyecto', p.estado) },
-    { titulo: 'Líderes', valor: p => lideresDe(p.id).map(nombre).join(', ') },
   ], store.proyectos), { proyectoTexto: 'Todos los proyectos', orientacion: 'landscape' }));
   pintarPropuestos(pag);
 
@@ -47,11 +46,9 @@ export async function render(el, params) {
       { field: 'fase_id', title: 'Fase', tipo: 'lista', ancho: 120, opciones: () => opciones('fases') },
       { field: 'estado', title: 'Estado', tipo: 'lista', ancho: 115, colorear: true,
         opciones: () => opcionesEstado('estados_proyecto').map(o => ({ ...o, color: colorEstado('estados_proyecto', o.value) })) },
-      { field: '_lideres', title: 'Líderes', tipo: 'texto', ancho: 200, calc: true, formato: (v, p) => esc(lideresDe(p.id).map(nombre).join(', ')) },
       { field: 'pais_id', title: 'País', tipo: 'lista', ancho: 90, opciones: () => opciones('paises') },
       { field: 'fecha_inicio', title: 'Inicio', tipo: 'fecha', ancho: 100 },
       { field: 'fecha_fin', title: 'Fin', tipo: 'fecha', ancho: 100 },
-      { field: 'observaciones', title: 'Observaciones', tipo: 'texto', ancho: 200 },
       { field: '_ficha', title: '', tipo: 'texto', ancho: 70, calc: true, filtro: false, formato: (v, p) => p.id ? '<button class="mini-btn">Ficha ›</button>' : '',
         click: (p, e) => { if (p.id && e.target.closest('button')) ir('#/proyectos/' + p.id); } },
       ...columnasPersonalizadas('proyectos'),
