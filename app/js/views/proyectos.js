@@ -68,7 +68,7 @@ async function redistribuir() {
 function configGrilla(estado, puedeCrear) {
   return {
     id: 'proyectos_' + estado, tabla: 'proyectos', titulo: VENTANAS.find(v => v[0] === estado)[1], puedeCrear,
-    alturaMax: estado === 'activo' ? 'calc(100vh - 230px)' : '420px',
+    alturaAuto: true,
     columnas: [
       { field: 'codigo', title: 'Código', tipo: 'texto', ancho: 90 },
       { field: 'nombre_corto', title: 'Nombre corto', tipo: 'texto', ancho: 200 },
