@@ -1,6 +1,6 @@
 // Proyectos (6.3): catálogo que alimenta el menú, propuesta y aprobación, ficha con indicadores e hitos.
 import { api, mensajeError } from '../data/api.js';
-import { store, cargarCatalogo, esGestor, esStaff, puede, opciones, opcionesLideres, opcionesEstado, colorEstado, textoEstado, etiqueta, nombre, proyecto, seleccionarProyecto } from '../core/store.js';
+import { store, cargarCatalogo, esGestor, esStaff, puede, opciones, opcionesLideres, lideres, opcionesEstado, colorEstado, textoEstado, etiqueta, nombre, proyecto, seleccionarProyecto } from '../core/store.js';
 import { esc, html, fmtFecha, hoy, num, pct, lunes, sumarSemanas } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -9,6 +9,7 @@ import { columnasPersonalizadas } from '../services/columnas.js';
 import { resumenPAC, colorPAC, resumenRestricciones } from '../services/indicadores.js';
 import { panelColaboracion } from './detalle.js';
 import { imprimirPDF, tablaPDF, kpisPDF } from '../services/pdf.js';
+import { ROLES } from '../data/catalogos.js';
 
 let grilla;
 
@@ -31,7 +32,7 @@ export async function render(el, params) {
   pag.querySelector('[data-a="importar"]')?.addEventListener('click', () => import('./config.js').then(m => m.importarProyectos()));
   pag.querySelector('[data-a="pdf"]').addEventListener('click', () => imprimirPDF('Catálogo de proyectos', tablaPDF([
     { titulo: 'Código', valor: p => p.codigo }, { titulo: 'Nombre', valor: p => p.nombre_corto }, { titulo: 'Gerencia', valor: p => etiqueta(p.gerencia_id) },
-    { titulo: 'Tipo', valor: p => etiqueta(p.tipo_id) }, { titulo: 'Fase', valor: p => etiqueta(p.fase_id) }, { titulo: 'Estado', valor: p => textoEstado('estados_proyecto', p.estado) },
+    { titulo: 'Fase', valor: p => etiqueta(p.fase_id) }, { titulo: 'Estado', valor: p => textoEstado('estados_proyecto', p.estado) },
     { titulo: 'Líderes', valor: p => lideresDe(p.id).map(nombre).join(', ') },
   ], store.proyectos), { proyectoTexto: 'Todos los proyectos', orientacion: 'landscape' }));
   pintarPropuestos(pag);
@@ -40,10 +41,8 @@ export async function render(el, params) {
     id: 'proyectos', tabla: 'proyectos', titulo: 'Proyectos', puedeCrear: puedeCrear,
     columnas: [
       { field: 'codigo', title: 'Código', tipo: 'texto', ancho: 90 },
-      { field: 'cet_id', title: 'CET', tipo: 'lista', ancho: 95, opciones: () => opciones('cet') },
       { field: 'nombre_corto', title: 'Nombre corto', tipo: 'texto', ancho: 200 },
       { field: 'nombre_completo', title: 'Nombre completo', tipo: 'texto', ancho: 260 },
-      { field: 'tipo_id', title: 'Tipo', tipo: 'lista', ancho: 140, opciones: () => opciones('tipos_proyecto') },
       { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 200, opciones: () => opciones('gerencias') },
       { field: 'fase_id', title: 'Fase', tipo: 'lista', ancho: 120, opciones: () => opciones('fases') },
       { field: 'estado', title: 'Estado', tipo: 'lista', ancho: 115, colorear: true,
@@ -57,7 +56,7 @@ export async function render(el, params) {
         click: (p, e) => { if (p.id && e.target.closest('button')) ir('#/proyectos/' + p.id); } },
       ...columnasPersonalizadas('proyectos'),
     ],
-    agrupar: [{ field: 'gerencia_id', label: 'Gerencia' }, { field: 'estado', label: 'Estado' }, { field: 'tipo_id', label: 'Tipo' }, { field: 'fase_id', label: 'Fase' }],
+    agrupar: [{ field: 'gerencia_id', label: 'Gerencia' }, { field: 'estado', label: 'Estado' }, { field: 'fase_id', label: 'Fase' }],
     puedeEditarFila: p => puede('crear_proyecto') || (p.estado === 'propuesto' && p.propuesto_por === store.usuario.id),
     nuevaFila: () => ({ area_id: store.area.id, estado: 'activo', codigo: '', nombre_corto: '', extra: {} }),
     listaParaCrear: p => !!(p.codigo && p.nombre_corto),
@@ -73,6 +72,11 @@ export async function render(el, params) {
 }
 
 export function destruir() { grilla?.destruir(); grilla = null; }
+
+// Todas las personas del equipo (todos los roles que planifican, delegado y administradores), por nombre, con su rol
+function opcionesEquipo() {
+  return lideres().slice().sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => ({ value: p.id, label: p.nombre, nota: ROLES[p.rol] || p.rol }));
+}
 
 function lideresDe(id) { return store.proyectoLideres.filter(l => l.proyecto_id === id).map(l => l.usuario_id); }
 
@@ -114,16 +118,14 @@ export async function formularioProyecto(p = null) {
     valores: p || { estado: 'activo' },
     campos: [
       { name: 'codigo', label: 'Código', required: true, placeholder: 'Ej.: 3126 o INT-012' },
-      { name: 'cet_id', label: 'CET', type: 'select', options: opciones('cet') },
       { name: 'nombre_corto', label: 'Nombre corto (menú)', required: true },
       { name: 'nombre_completo', label: 'Nombre completo' },
-      { name: 'tipo_id', label: 'Tipo', type: 'select', required: true, options: opciones('tipos_proyecto') },
       { name: 'gerencia_id', label: 'Gerencia', type: 'select', required: true, options: opciones('gerencias') },
       { name: 'fase_id', label: 'Fase', type: 'select', options: opciones('fases') },
       { name: 'pais_id', label: 'País', type: 'select', options: opciones('paises') },
       { name: 'fecha_inicio', label: 'Inicio previsto', type: 'date' },
       { name: 'fecha_fin', label: 'Fin previsto', type: 'date' },
-      ...(crea ? [{ name: 'lideres', label: 'Líderes asignados', type: 'multiselect', options: opcionesLideres(), value: p ? lideresDe(p.id) : [store.usuario.id] }] : []),
+      ...(crea ? [{ name: 'lideres', label: 'Líderes asignados', type: 'multiselect', unaColumna: true, options: opcionesEquipo(), value: p ? lideresDe(p.id) : [store.usuario.id] }] : []),
       { name: 'observaciones', label: 'Observaciones', type: 'textarea' },
     ],
     alGuardar: async v => {
@@ -148,7 +150,7 @@ export async function formularioProyecto(p = null) {
 async function asignarLideres(p) {
   await pedirDatos({
     titulo: `Líderes de ${p.nombre_corto}`, texto: 'Guardar',
-    campos: [{ name: 'lideres', label: 'Líderes', type: 'multiselect', options: opcionesLideres(), value: lideresDe(p.id) }],
+    campos: [{ name: 'lideres', label: 'Líderes', type: 'multiselect', unaColumna: true, options: opcionesEquipo(), value: lideresDe(p.id) }],
     alGuardar: async v => {
       await api.removeWhere('proyecto_lideres', { eq: { proyecto_id: p.id } });
       if (v.lideres.length) await api.insert('proyecto_lideres', v.lideres.map(u => ({ proyecto_id: p.id, usuario_id: u })));
@@ -189,8 +191,8 @@ async function ficha(el, id) {
     </div>
     <div class="grid-2">
       <div class="tarjeta"><h2>Datos</h2><table class="simple">
-        <tr><td>Gerencia</td><td>${esc(etiqueta(p.gerencia_id))}</td></tr><tr><td>Tipo</td><td>${esc(etiqueta(p.tipo_id))}</td></tr>
-        <tr><td>Fase</td><td>${esc(etiqueta(p.fase_id))}</td></tr><tr><td>CET</td><td>${esc(etiqueta(p.cet_id))}</td></tr>
+        <tr><td>Gerencia</td><td>${esc(etiqueta(p.gerencia_id))}</td></tr>
+        <tr><td>Fase</td><td>${esc(etiqueta(p.fase_id))}</td></tr>
         <tr><td>País</td><td>${esc(etiqueta(p.pais_id))}</td></tr><tr><td>Fechas</td><td>${fmtFecha(p.fecha_inicio)} – ${fmtFecha(p.fecha_fin)}</td></tr>
         <tr><td>Líderes</td><td>${esc(lideresDe(id).map(nombre).join(', ') || '—')}</td></tr>
         ${p.propuesto_por ? `<tr><td>Propuesto por</td><td>${esc(nombre(p.propuesto_por))}${p.aprobado_at ? ` · aprobado el ${fmtFecha(p.aprobado_at)}` : ''}</td></tr>` : ''}

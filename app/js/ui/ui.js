@@ -52,7 +52,7 @@ export function confirmar(mensaje, { titulo = 'Confirmar', texto = 'Aceptar', pe
 }
 
 // ---------- Formularios ----------
-/** campos: [{ name, label, type, options, required, value, help, placeholder, full, min, max, step }] */
+/** campos: [{ name, label, type, options, required, value, help, placeholder, full, min, max, step, unaColumna }] */
 export function crearFormulario(campos, valores = {}) {
   const f = html('<form class="form" novalidate></form>');
   for (const c of campos) {
@@ -70,8 +70,8 @@ export function crearFormulario(campos, valores = {}) {
       }
       case 'multiselect': {
         const sel = new Set(v || []);
-        control = `<div class="multi" id="${id}" data-name="${c.name}">${(c.options || []).map(o =>
-          `<label class="chk"><input type="checkbox" value="${esc(o.value)}"${sel.has(o.value) ? ' checked' : ''}> ${esc(o.label)}</label>`).join('')}</div>`; break;
+        control = `<div class="multi${c.unaColumna ? ' una-columna' : ''}" id="${id}" data-name="${c.name}">${(c.options || []).map(o =>
+          `<label class="chk"><input type="checkbox" value="${esc(o.value)}"${sel.has(o.value) ? ' checked' : ''}> <span>${esc(o.label)}</span>${o.nota ? `<span class="nota">${esc(o.nota)}</span>` : ''}</label>`).join('')}</div>`; break;
       }
       case 'checkbox':
         control = `<label class="chk"><input type="checkbox" id="${id}" name="${c.name}"${v ? ' checked' : ''}> ${esc(c.texto || '')}</label>`; break;

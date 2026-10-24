@@ -276,3 +276,12 @@ body.pantalla-completa .contenido { padding: 24px 34px; font-size: 16px; }
 
 .recarga-forzada { position: fixed; inset: 0; z-index: 2000; background: rgba(15, 23, 42, .55); display: flex; align-items: center; justify-content: center; }
 .recarga-forzada > div { background: #fff; color: var(--texto); padding: 16px 22px; border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,.3); display: flex; gap: 10px; align-items: center; }
+
+/* Selección múltiple en una sola columna (p. ej. líderes asignados a un proyecto) */
+.multi.una-columna { display: block; max-height: 300px; padding: 4px 6px; }
+.multi.una-columna label.chk { display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; padding: 5px 6px;
+  border-radius: 5px; margin: 0; text-align: left; font-size: 13.5px; font-weight: 500; color: var(--texto); }
+.multi.una-columna label.chk input[type=checkbox] { width: auto; flex: none; margin: 0; padding: 0; }
+.multi.una-columna label.chk span:first-of-type { flex: 1; }
+.multi.una-columna label.chk:hover { background: var(--surface-2); }
+.multi.una-columna label.chk .nota { margin-left: auto; font-size: 11px; }

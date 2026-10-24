@@ -131,7 +131,7 @@ async function nuevoUsuario() {
       { name: 'rol', label: 'Rol', type: 'select', required: true, options: roles.map(([value, label]) => ({ value, label })) },
       { name: 'clave', label: 'Contraseña temporal (mínimo 8)', required: true, help: 'Se generó una al azar; puede cambiarla. La persona la cambiará al ingresar.' },
       { name: 'horas_dia', label: 'Horas disponibles por día', type: 'number', min: 0, max: 24, step: 0.5, help: 'Vacío = valor general del área' },
-      { name: 'gerencia_ids', label: 'Gerencias visibles (solo usuarios de consulta)', type: 'multiselect', options: opciones('gerencias', { vacio: false }) },
+      { name: 'gerencia_ids', label: 'Gerencias visibles (solo usuarios de consulta)', type: 'multiselect', unaColumna: true, options: opciones('gerencias', { vacio: false }) },
     ],
     alGuardar: async d => {
       if (String(d.clave).length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
@@ -171,7 +171,7 @@ async function editarUsuario(p) {
       { name: 'rol', label: 'Rol', type: 'select', options: roles.map(([value, label]) => ({ value, label })),
         help: principal ? '' : 'Solo el administrador principal asigna los roles de administrador y delegado.' },
       { name: 'horas_dia', label: 'Horas disponibles por día', type: 'number', min: 0, max: 24, step: 0.5, help: 'Vacío = valor general del área' },
-      { name: 'gerencia_ids', label: 'Gerencias visibles (solo usuarios de consulta)', type: 'multiselect', options: opciones('gerencias', { vacio: false }) },
+      { name: 'gerencia_ids', label: 'Gerencias visibles (solo usuarios de consulta)', type: 'multiselect', unaColumna: true, options: opciones('gerencias', { vacio: false }) },
       { name: 'activo', label: 'Estado', type: 'checkbox', texto: 'Activo (desmarque para bloquear el acceso sin perder su historial)' },
     ],
     alGuardar: async d => {
