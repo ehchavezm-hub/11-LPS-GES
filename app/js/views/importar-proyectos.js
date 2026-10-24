@@ -18,6 +18,12 @@ const CAMPOS = [
   ['fecha_inicio', 'Inicio', ['inicio', 'fecha inicio', 'fecha de inicio', 'inicio previsto']],
   ['fecha_fin', 'Fin', ['fin', 'fecha fin', 'fecha de fin', 'fin previsto', 'termino', 'término']],
 ];
+// Si ningún título coincide exacto, se acepta el que contenga una de estas palabras (p. ej. "Gerencia responsable")
+const CONTIENE = {
+  codigo: ['codigo', 'cod.'], nombre_corto: ['nombre corto', 'proyecto'], nombre_completo: ['completo', 'descripcion'],
+  gerencia: ['gerencia', 'cliente', 'programa'], fase: ['fase', 'etapa'], pais: ['pais'], estado: ['estado'],
+  fecha_inicio: ['inicio'], fecha_fin: ['fecha fin', 'fin previsto', 'termino', 'fecha de fin'],
+};
 const LISTA_DE = { gerencia: 'gerencias', fase: 'fases', pais: 'paises' };
 const COLUMNA_DE = { gerencia: 'gerencia_id', fase: 'fase_id', pais: 'pais_id' };
 
@@ -40,6 +46,11 @@ function leerHojas(wb) {
         const j = cab.findIndex(c => c && titulos.includes(c));
         if (j >= 0 && !Object.values(mapa).includes(j)) mapa[campo] = j;
       }
+      for (const [campo] of CAMPOS) {
+        if (mapa[campo] !== undefined) continue;
+        const j = cab.findIndex((c, k) => c && !Object.values(mapa).includes(k) && CONTIENE[campo].some(w => c.includes(w)));
+        if (j >= 0) mapa[campo] = j;
+      }
       // Sin "nombre corto" se usa el nombre completo
       if (mapa.nombre_corto === undefined && mapa.nombre_completo !== undefined) mapa.nombre_corto = mapa.nombre_completo;
       if (mapa.codigo === undefined || mapa.nombre_corto === undefined) continue;
@@ -57,13 +68,34 @@ function valorDeLista(clave, texto) {
   if (!texto) return null;
   const n = normalizar(texto);
   const vs = valoresLista(clave, { inactivos: true });
-  return (vs.find(v => normalizar(v.valor) === n || normalizar(v.codigo || '') === n) || null)?.id || null;
+  return (vs.find(v => normalizar(v.valor) === n || normalizar(v.codigo || '') === n) ||
+    (n.length >= 6 ? vs.find(v => normalizar(v.valor).length >= 6 && (normalizar(v.valor).includes(n) || n.includes(normalizar(v.valor)))) : null))?.id || null;
 }
 function estadoDe(texto) {
   const n = normalizar(texto);
   if (!n) return null;
   const v = valoresLista('estados_proyecto', { inactivos: true }).find(x => normalizar(x.valor) === n || x.codigo === n);
   return v?.codigo || null;
+}
+/** Datos del proyecto que trae una fila del Excel (solo las celdas con valor). */
+function datosDe(f) {
+  const d = {};
+  if (f.nombre_corto) d.nombre_corto = f.nombre_corto;
+  if (f.nombre_completo) d.nombre_completo = f.nombre_completo;
+  for (const campo of Object.keys(LISTA_DE)) { const id = valorDeLista(LISTA_DE[campo], f[campo]); if (id) d[COLUMNA_DE[campo]] = id; }
+  const est = estadoDe(f.estado); if (est) d.estado = est;
+  const fi = parseFecha(f.fecha_inicio); if (fi) d.fecha_inicio = fi;
+  const ff = parseFecha(f.fecha_fin); if (ff) d.fecha_fin = ff;
+  return d;
+}
+const NOMBRE_CAMPO = { nombre_corto: 'Nombre corto', nombre_completo: 'Nombre completo', gerencia_id: 'Gerencia', fase_id: 'Fase', pais_id: 'País',
+  estado: 'Estado', fecha_inicio: 'Inicio', fecha_fin: 'Fin' };
+/** Campos que cambiarían en un proyecto existente (incluye los valores de lista que aún hay que agregar). */
+function cambiosDe(p, f, faltantes) {
+  const d = datosDe(f);
+  const c = Object.keys(d).filter(k => String(p[k] ?? '') !== String(d[k]));
+  for (const [campo, vals] of Object.entries(faltantes)) if (vals.includes(f[campo])) c.push(COLUMNA_DE[campo]);
+  return [...new Set(c)].map(k => NOMBRE_CAMPO[k] || k);
 }
 const texto = v => (v == null ? '' : v instanceof Date ? v.toISOString().slice(0, 10) : String(v).trim());
 
@@ -112,24 +144,25 @@ export async function importarProyectos(archivo) {
       <p class="nota" style="margin-top:6px">Columnas reconocidas: ${asignados}</p>
       <div class="kpis" style="margin:10px 0">
         <div class="kpi"><div class="kpi-tit">Nuevos</div><div class="kpi-val">${a.nuevos.length}</div></div>
-        <div class="kpi"><div class="kpi-tit">Ya existen (mismo código)</div><div class="kpi-val">${a.existentes.length}</div></div>
+        <div class="kpi"><div class="kpi-tit">Ya existen (mismo código)</div><div class="kpi-val">${a.existentes.length}</div>
+          <div class="kpi-sub">${a.existentes.filter(f => cambiosDe(a.existente(f), f, a.faltantes).length).length} se actualizarán con los datos del archivo</div></div>
         ${a.sinNombre.length ? `<div class="kpi" style="--kc:#E15759"><div class="kpi-tit">Nuevos sin nombre (se omiten)</div><div class="kpi-val">${a.sinNombre.length}</div></div>` : ''}</div>
-      <label class="chk"><input type="checkbox" data-actualizar ${a.existentes.length ? 'checked' : 'disabled'}> Actualizar los proyectos que ya existen
-        con los datos del archivo (solo las celdas con valor; no se borra nada)</label>
+      <p class="nota">Los proyectos que ya existen se actualizan con los datos del archivo (solo las celdas con valor; una celda vacía no borra nada).</p>
       ${falt ? (puedeListas
         ? `<label class="chk" style="margin-top:6px"><input type="checkbox" data-listas checked> Agregar a las listas los valores nuevos: ${esc(falt)}</label>`
         : `<div class="aviso warn" style="margin-top:6px">Valores que no existen en las listas (quedarán vacíos; pida al administrador que los agregue): ${esc(falt)}</div>`) : ''}
-      <div style="max-height:300px;overflow:auto;margin-top:10px"><table class="simple"><tr><th></th><th>Código</th><th>Nombre corto</th><th>Gerencia</th><th>Fase</th><th>País</th><th>Estado</th><th>Inicio</th><th>Fin</th></tr>
+      <div style="max-height:300px;overflow:auto;margin-top:10px"><table class="simple"><tr><th></th><th>Código</th><th>Nombre corto</th><th>Gerencia</th><th>Fase</th><th>País</th><th>Estado</th><th>Inicio</th><th>Fin</th><th>Cambios</th></tr>
         ${a.unicas.map(f => `<tr><td>${a.existente(f) ? '<span class="nota">existe</span>' : f.nombre_corto ? '<b style="color:var(--verde)">nuevo</b>' : '<span style="color:var(--rojo)">sin nombre</span>'}</td>
           <td>${esc(f.codigo)}</td><td>${esc(f.nombre_corto)}</td><td>${esc(f.gerencia)}</td><td>${esc(f.fase)}</td><td>${esc(f.pais)}</td>
-          <td>${esc(f.estado)}</td><td>${esc(fmtFecha(parseFecha(f.fecha_inicio)) || '')}</td><td>${esc(fmtFecha(parseFecha(f.fecha_fin)) || '')}</td></tr>`).join('')}</table></div>`;
+          <td>${esc(f.estado)}</td><td>${esc(fmtFecha(parseFecha(f.fecha_inicio)) || '')}</td><td>${esc(fmtFecha(parseFecha(f.fecha_fin)) || '')}</td>
+          <td class="nota">${a.existente(f) ? esc(cambiosDe(a.existente(f), f, a.faltantes).join(', ') || 'sin cambios') : ''}</td></tr>`).join('')}</table></div>`;
     cuerpo.querySelector('[data-hoja]')?.addEventListener('change', e => { hoja = hojas[Number(e.target.value)]; pintar(); });
   };
   pintar();
   modal({
     titulo: `Importar proyectos · ${archivo.name}`, cuerpo, ancho: 980,
     botones: [{ texto: 'Cancelar' }, { texto: 'Importar', clase: 'btn-primario', accion: async () => {
-      const actualizar = cuerpo.querySelector('[data-actualizar]')?.checked;
+      const actualizar = true;   // siempre se actualizan los existentes con los datos del archivo
       const agregarListas = cuerpo.querySelector('[data-listas]')?.checked;
       try {
         let valoresNuevos = 0;
@@ -147,16 +180,6 @@ export async function importarProyectos(archivo) {
           }
           await cargarCatalogo();
         }
-        const datosDe = f => {
-          const d = {};
-          if (f.nombre_corto) d.nombre_corto = f.nombre_corto;
-          if (f.nombre_completo) d.nombre_completo = f.nombre_completo;
-          for (const campo of Object.keys(LISTA_DE)) { const id = valorDeLista(LISTA_DE[campo], f[campo]); if (id) d[COLUMNA_DE[campo]] = id; }
-          const est = estadoDe(f.estado); if (est) d.estado = est;
-          const fi = parseFecha(f.fecha_inicio); if (fi) d.fecha_inicio = fi;
-          const ff = parseFecha(f.fecha_fin); if (ff) d.fecha_fin = ff;
-          return d;
-        };
         if (a.nuevos.length) {
           await api.insert('proyectos', a.nuevos.map(f => ({ area_id: store.area.id, codigo: f.codigo, estado: 'activo', extra: {}, ...datosDe(f) })));
         }
