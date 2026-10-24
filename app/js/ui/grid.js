@@ -3,7 +3,7 @@
 // eliminar filas, agrupar con subtotales, filtrar, ordenar, mostrar/ocultar/mover/fijar columnas,
 // vistas guardadas, guardado automático por celda y cambios de otros usuarios en tiempo real.
 import { api, mensajeError } from '../data/api.js';
-import { store, etiqueta, esGestor, puede } from '../core/store.js';
+import { store, etiqueta, esGestor, puede, cargarCatalogo } from '../core/store.js';
 import { esc, html, normalizar, parseFecha, fmtFecha, num, debounce } from '../core/util.js';
 import { toast, error, confirmar, modal } from './ui.js';
 
@@ -35,7 +35,10 @@ function convertir(col, texto, fila) {
       if (!t) return null;
       const ops = opcionesDe(col, fila);
       const n = normalizar(t);
+      // Coincide con el texto mostrado, o con el nombre completo o el código del valor (p. ej. "GOC" o "Gerencia de Obras Civiles")
+      const valorDe = x => store.valores.get(x.value);
       const o = ops.find(x => x.value != null && (String(x.value) === t || normalizar(x.label) === n))
+        || ops.find(x => x.value != null && valorDe(x) && (normalizar(valorDe(x).valor) === n || normalizar(valorDe(x).codigo || '') === n))
         || ops.find(x => x.value != null && normalizar(x.label).startsWith(n))
         || ops.find(x => x.value != null && n.length >= 3 && normalizar(x.label).includes(n));
       return o ? o.value : undefined;   // undefined = no reconocido
@@ -111,6 +114,7 @@ export function crearGrilla(contenedor, cfg) {
   const DESTINOS = {
     gerencia_id: { lista: 'gerencias', texto: 'gerencias' }, servicio_id: { lista: 'servicios', texto: 'CET / servicios' },
     cnc_id: { lista: 'cnc', texto: 'causas de no cumplimiento (CNC)' },
+    fase_id: { lista: 'fases', texto: 'fases' }, pais_id: { lista: 'paises', texto: 'países' },
     proyecto_id: { ruta: '#/proyectos', texto: 'proyectos / procesos' },
   };
   function menuTitulo(c) {
@@ -120,6 +124,52 @@ export function crearGrilla(contenedor, cfg) {
     if (!permitido) return null;
     const ruta = d.ruta || `#/config/listas?lista=${encodeURIComponent(d.lista)}`;
     return [{ label: `✎ Agregar, editar o eliminar ${esc(d.texto)}`, action: () => { location.hash = ruta; } }];
+  }
+
+  // ---------- Valores pegados que no existen en una lista ----------
+  // pend: [{ row, col, texto }]. Si la columna tiene una lista editable, se ofrece agregarlos y completar las celdas.
+  const listaDe = c => (c.editarEn || DESTINOS[c.field] || (c.lista ? { lista: c.lista } : null))?.lista;
+  async function agregarDesconocidos(pend) {
+    if (!pend.length) return;
+    const sinLista = pend.filter(x => !listaDe(x.col) || !store.listas[listaDe(x.col)]);
+    const conLista = pend.filter(x => !sinLista.includes(x));
+    if (sinLista.length) {
+      toast(`${sinLista.length} valor(es) no coinciden con las opciones de ${[...new Set(sinLista.map(x => x.col.title))].join(', ')} y se omitieron.`, 'warn', 7000);
+    }
+    if (!conLista.length) return;
+    const porLista = new Map();
+    for (const x of conLista) {
+      const clave = listaDe(x.col);
+      if (!porLista.has(clave)) porLista.set(clave, { titulo: x.col.title, textos: new Set() });
+      porLista.get(clave).textos.add(x.texto.trim());
+    }
+    const resumen = [...porLista.values()].map(g => `${g.titulo}: ${[...g.textos].join(', ')}`).join(' · ');
+    if (!puede('gestionar_listas')) {
+      toast(`Estos valores no existen en las listas y se omitieron (pida al administrador que los agregue): ${resumen}`, 'warn', 9000);
+      return;
+    }
+    if (!await confirmar(`Estos valores no existen en las listas: ${resumen}. ¿Agregarlos a las listas y completar las celdas?`,
+      { titulo: 'Valores nuevos en las listas', texto: 'Agregar a las listas' })) return;
+    try {
+      for (const [clave, g] of porLista) {
+        const lista = store.listas[clave].lista;
+        let orden = Math.max(0, ...store.listas[clave].valores.map(v => Number(v.orden) || 0));
+        for (const texto of g.textos) {
+          orden += 10;
+          await api.insert('lista_valores', { lista_id: lista.id, valor: texto, codigo: clave === 'gerencias' && texto.length <= 12 ? texto : null,
+            orden, activo: true, extra: {} });
+        }
+      }
+      await cargarCatalogo();
+      for (const x of conLista) {
+        const v = convertir(x.col, x.texto, x.row.getData());
+        if (v === undefined) continue;
+        const der = cfg.derivar ? cfg.derivar({ ...x.row.getData(), [x.col.field]: v }, { [x.col.field]: v }) : {};
+        x.row.update({ [x.col.field]: v, ...der });
+      }
+      toast(`Se agregaron ${[...porLista.values()].reduce((n, g) => n + g.textos.size, 0)} valor(es) a las listas.`, 'ok');
+      programarGuardado();
+    } catch (e) { error(mensajeError(e)); }
   }
 
   // ---------- Columnas Tabulator ----------
@@ -202,9 +252,10 @@ export function crearGrilla(contenedor, cfg) {
   function accionPegado(p) {
     if (!p) return [];
     const filasTabla = tabla.getRows('active');
-    let omitidas = 0, desconocidos = 0, nuevas = 0;
+    let omitidas = 0, nuevas = 0;
     const tocadas = [];
     const sobrantes = [];
+    const pend = [];
     p.datos.forEach((valores, i) => {
       const fila = filasTabla[p.filaInicio + i];
       if (fila) aplicarValores(fila, p.columnas, valores);
@@ -219,6 +270,7 @@ export function crearGrilla(contenedor, cfg) {
         }
         toast(`${nuevas} fila(s) nuevas agregadas desde el portapapeles.`, 'ok');
         programarGuardado();
+        await agregarDesconocidos(pend);
       })();
     }
     function aplicarValores(fila, columnas, valores) {
@@ -230,7 +282,7 @@ export function crearGrilla(contenedor, cfg) {
         const col = porCampo.get(colT.getField());
         if (!editableCampo(datos, col)) { omitidas++; return; }
         const v = convertir(col, texto, { ...datos, ...cambios });
-        if (v === undefined) { desconocidos++; return; }
+        if (v === undefined) { pend.push({ row: fila, col, texto }); return; }
         cambios[col.field] = v;
       });
       if (Object.keys(cambios).length) {
@@ -240,7 +292,7 @@ export function crearGrilla(contenedor, cfg) {
       }
     }
     if (omitidas) toast(`${omitidas} celda(s) no editables se omitieron.`, 'warn');
-    if (desconocidos) toast(`${desconocidos} valor(es) no coinciden con las listas y se omitieron.`, 'warn');
+    if (!sobrantes.length) agregarDesconocidos(pend);
     programarGuardado();
     return tocadas;
   }
@@ -352,6 +404,7 @@ export function crearGrilla(contenedor, cfg) {
             const [res] = await (cfg.crear ? cfg.crear(datos) : api.insert(cfg.tabla, datos));
             servidor.set(res.id, structuredClone(res));
             row.update({ ...res, _guardando: false, _nueva: false });
+            row.reformat();   // columnas calculadas que dependen del id (p. ej. "Ficha ›")
             n++;
           } catch (e) {
             error(mensajeError(e));
@@ -490,31 +543,42 @@ export function crearGrilla(contenedor, cfg) {
 
   function dialogoPegar() {
     const cols = tabla.getColumns().filter(c => c.isVisible() && porCampo.has(c.getField()) && !porCampo.get(c.getField()).calc);
+    // Columna de la grilla que corresponde a un título del Excel (por nombre, campo o alias)
+    const colPorTitulo = t => cols.find(c => normalizar(c.getDefinition().title) === t || normalizar(c.getField()) === t ||
+      (porCampo.get(c.getField())?.alias || []).some(x => normalizar(x) === t)) || null;
+    const esCabecera = fila => fila.filter(t => colPorTitulo(normalizar(t))).length >= 2;
     const cuerpo = html(`<div>
-      <p>Copie filas en Excel (Ctrl+C) y péguelas aquí (Ctrl+V). Las columnas se asignan en este orden:</p>
+      <p>Copie la tabla en Excel (Ctrl+C) y péguela aquí (Ctrl+V). <b>Incluya la fila de títulos</b> para que cada columna vaya a su lugar
+        aunque el orden sea distinto. Sin títulos, las columnas se asignan en este orden:</p>
       <p class="nota">${cols.map(c => esc(c.getDefinition().title)).join(' · ')}</p>
-      <label class="chk"><input type="checkbox" data-cab> La primera fila tiene títulos (asignar por nombre de columna)</label>
+      <label class="chk"><input type="checkbox" data-cab> La primera fila tiene títulos (se detecta sola)</label>
       <textarea rows="10" class="pegar-area" placeholder="Pegue aquí…"></textarea>
       <div class="pegar-previa nota"></div></div>`);
     const area = cuerpo.querySelector('textarea');
     const previa = cuerpo.querySelector('.pegar-previa');
+    const chkCab = cuerpo.querySelector('[data-cab]');
     area.addEventListener('input', () => {
       const d = parseTSV(area.value);
-      previa.textContent = d.length ? `${d.length} fila(s) × ${d[0].length} columna(s) detectadas.` : '';
+      if (!d.length) { previa.textContent = ''; return; }
+      if (esCabecera(d[0])) chkCab.checked = true;
+      const cab = chkCab.checked ? d[0] : null;
+      const asignacion = cab
+        ? cab.map(t => { const c = colPorTitulo(normalizar(t)); return `${t || '(vacío)'} → ${c ? c.getDefinition().title : 'se ignora'}`; }).join(' · ')
+        : d[0].map((_, j) => `col. ${j + 1} → ${cols[j] ? cols[j].getDefinition().title : 'se ignora'}`).join(' · ');
+      previa.innerHTML = `<b>${d.length - (cab ? 1 : 0)} fila(s)</b> × ${d[0].length} columna(s). ${esc(asignacion)}`;
     });
+    chkCab.addEventListener('change', () => area.dispatchEvent(new Event('input')));
     modal({
-      titulo: 'Pegar filas desde Excel', cuerpo, ancho: 760,
+      titulo: 'Pegar filas desde Excel', cuerpo, ancho: 820,
       botones: [{ texto: 'Cancelar' }, {
         texto: 'Agregar filas', clase: 'btn-primario', accion: async () => {
           let datos = parseTSV(area.value);
           if (!datos.length) { toast('No hay datos para pegar.', 'warn'); return false; }
           let columnas = cols;
-          if (cuerpo.querySelector('[data-cab]').checked) {
-            const cab = datos.shift().map(normalizar);
-            columnas = cab.map(t => cols.find(c => normalizar(c.getDefinition().title) === t || normalizar(c.getField()) === t ||
-              (porCampo.get(c.getField())?.alias || []).some(x => normalizar(x) === t)) || null);
-          }
+          if (chkCab.checked || esCabecera(datos[0])) columnas = datos.shift().map(t => colPorTitulo(normalizar(t)));
+          const pend = [];
           for (const valores of datos) {
+            if (!valores.some(v => String(v ?? '').trim())) continue;   // filas vacías
             const fila = await tabla.addRow({ ...(cfg.nuevaFila?.() || {}), _nueva: true }, false);
             const d = fila.getData();
             const cambios = {};
@@ -524,13 +588,15 @@ export function crearGrilla(contenedor, cfg) {
               const col = porCampo.get(colT.getField());
               if (!editableCampo({ ...d, ...cambios }, col)) return;
               const v = convertir(col, texto, { ...d, ...cambios });
-              if (v !== undefined) cambios[col.field] = v;
+              if (v === undefined) pend.push({ row: fila, col, texto });
+              else cambios[col.field] = v;
             });
             const der = cfg.derivar ? cfg.derivar({ ...d, ...cambios }, cambios) : {};
             fila.update({ ...cambios, ...der });
           }
           programarGuardado();
           toast(`${datos.length} fila(s) agregadas.`, 'ok');
+          setTimeout(() => agregarDesconocidos(pend), 50);
         },
       }],
     });
