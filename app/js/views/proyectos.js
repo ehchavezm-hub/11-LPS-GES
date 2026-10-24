@@ -12,15 +12,15 @@ import { imprimirPDF, tablaPDF, kpisPDF } from '../services/pdf.js';
 import { ROLES } from '../data/catalogos.js';
 import { elegirArchivoProyectos } from './importar-proyectos.js';
 
-let grilla;
-// Pestañas por estado, en este orden. "Propuesto" se ve en Activos (y en el panel de aprobación); "Rechazado", en Cerrados.
-const PESTANAS = [['activo', 'Activos'], ['en_pausa', 'En pausa'], ['cerrado', 'Cerrados']];
+// Tres ventanas, una debajo de otra y en este orden. "Propuesto" va en Activos (y en el panel de aprobación); "Rechazado", en Cerrados.
+const VENTANAS = [['activo', 'Activos'], ['en_pausa', 'En pausa'], ['cerrado', 'Cerrados']];
 const ESTADOS_EDITABLES = ['activo', 'en_pausa', 'cerrado'];
-const pestanaDe = p => (p.estado === 'en_pausa' ? 'en_pausa' : ['cerrado', 'rechazado'].includes(p.estado) ? 'cerrado' : 'activo');
-let pestana = 'activo';
+const ventanaDe = p => (p.estado === 'en_pausa' ? 'en_pausa' : ['cerrado', 'rechazado'].includes(p.estado) ? 'cerrado' : 'activo');
+let grillas = {};
+const todasLasGrillas = () => Object.values(grillas);
 
 export async function render(el, params) {
-  grilla?.destruir(); grilla = null;
+  destruir();
   el.innerHTML = '';
   if (params.id) return ficha(el, params.id);
   const puedeCrear = puede('crear_proyecto');
@@ -32,8 +32,9 @@ export async function render(el, params) {
       ${puede('importar_historico') ? '<button class="btn btn-sm" data-a="importar">⬆ Importar desde Excel</button>' : ''}
       <button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <div data-propuestos></div>
-    <div class="pestanas pestanas-estado" data-pestanas style="margin-bottom:10px"></div>
-    <div data-grilla></div></div>`);
+    ${VENTANAS.map(([e, t]) => `<section class="ventana-estado ventana-${e}" data-ventana="${e}">
+      <h2 class="ventana-tit">${t} <span class="contador-pestana" data-cuenta="${e}"></span></h2><div data-grilla="${e}"></div></section>`).join('')}
+  </div>`);
   el.append(pag);
   pag.querySelector('[data-a="nuevo"]')?.addEventListener('click', () => formularioProyecto());
   pag.querySelector('[data-a="importar"]')?.addEventListener('click', () => elegirArchivoProyectos());
@@ -43,8 +44,31 @@ export async function render(el, params) {
   ], store.proyectos), { proyectoTexto: 'Todos los proyectos', orientacion: 'landscape' }));
   pintarPropuestos(pag);
 
-  grilla = crearGrilla(pag.querySelector('[data-grilla]'), {
-    id: 'proyectos', tabla: 'proyectos', titulo: 'Proyectos', puedeCrear: puedeCrear,
+  for (const [estado] of VENTANAS) grillas[estado] = crearGrilla(pag.querySelector(`[data-grilla="${estado}"]`), configGrilla(estado, puedeCrear));
+  await Promise.all(VENTANAS.map(([e]) => grillas[e].inicializar(proyectosDe(e))));
+  pintarCuentas();
+}
+
+function proyectosDe(estado) { return store.proyectos.filter(p => (esStaff() || p.estado === 'activo') && ventanaDe(p) === estado); }
+
+function pintarCuentas() {
+  for (const [e] of VENTANAS) {
+    const c = document.querySelector(`#contenido [data-cuenta="${e}"]`);
+    if (c && grillas[e]) c.textContent = grillas[e].filas().filter(p => p.id).length;
+  }
+}
+
+// Vuelve a cargar las tres ventanas desde el catálogo (p. ej. tras cambiar un estado: el proyecto pasa a su ventana)
+async function redistribuir() {
+  await cargarCatalogo();
+  await Promise.all(VENTANAS.map(([e]) => grillas[e]?.setDatos(proyectosDe(e))));
+  pintarCuentas();
+}
+
+function configGrilla(estado, puedeCrear) {
+  return {
+    id: 'proyectos_' + estado, tabla: 'proyectos', titulo: VENTANAS.find(v => v[0] === estado)[1], puedeCrear,
+    alturaMax: estado === 'activo' ? 'calc(100vh - 230px)' : '420px',
     columnas: [
       { field: 'codigo', title: 'Código', tipo: 'texto', ancho: 90 },
       { field: 'nombre_corto', title: 'Nombre corto', tipo: 'texto', ancho: 200 },
@@ -61,22 +85,23 @@ export async function render(el, params) {
         click: (p, e) => { if (p.id && e.target.closest('button')) ir('#/proyectos/' + p.id); } },
       ...(puedeCrear ? [{ field: '_borrar', title: '', tipo: 'texto', ancho: 46, calc: true, filtro: false, ordenable: false,
         formato: (v, p) => p.id ? '<button class="mini-btn mini-peligro" title="Eliminar proyecto">🗑</button>' : '',
-        click: (p, e) => { if (p.id && e.target.closest('button')) eliminarProyecto(p, { confirmaciones: 2 }).then(r => r && render(document.getElementById('contenido'), {})); } }] : []),
+        click: (p, e) => { if (p.id && e.target.closest('button')) eliminarProyecto(p, { confirmaciones: 2 }).then(r => r && redistribuir()); } }] : []),
       ...columnasPersonalizadas('proyectos'),
     ],
-    agrupar: [{ field: 'gerencia_id', label: 'Gerencia' }, { field: 'estado', label: 'Estado' }, { field: 'fase_id', label: 'Fase' }],
+    agrupar: [{ field: 'gerencia_id', label: 'Gerencia' }, { field: 'fase_id', label: 'Fase' }],
     puedeEditarFila: p => puede('crear_proyecto') || (p.estado === 'propuesto' && p.propuesto_por === store.usuario.id),
-    nuevaFila: () => ({ area_id: store.area.id, estado: pestana, codigo: '', nombre_corto: '', extra: {} }),
-    // Al cambiar el estado, el proyecto pasa de inmediato a su pestaña
-    alEditar: (p, campo) => {
-      if (campo !== 'estado') return;
-      grilla.refrescarFiltro(); pintarPestanas();
-      if (pestanaDe(p) !== pestana) toast(`"${p.codigo}" pasó a ${PESTANAS.find(x => x[0] === pestanaDe(p))[1]}.`, 'ok');
+    nuevaFila: () => ({ area_id: store.area.id, estado, codigo: '', nombre_corto: '', extra: {} }),
+    // Al cambiar el estado se guarda y el proyecto pasa de inmediato a su ventana
+    alEditar: async (p, campo) => {
+      if (campo !== 'estado' || ventanaDe(p) === estado) return;
+      await grillas[estado].guardarAhora();
+      await redistribuir();
+      toast(`"${p.codigo}" pasó a ${VENTANAS.find(x => x[0] === ventanaDe(p))[1]}.`, 'ok');
     },
-    alCambioRemoto: () => { grilla?.refrescarFiltro(); pintarPestanas(); },
+    alCambioRemoto: () => { clearTimeout(configGrilla.t); configGrilla.t = setTimeout(redistribuir, 600); },
     listaParaCrear: p => !!(p.codigo && p.nombre_corto),
     camposCalc: ['created_at', 'updated_at', 'created_by', 'aprobado_at'],
-    alGuardar: () => cargarCatalogo(),
+    alGuardar: () => { cargarCatalogo(); pintarCuentas(); },
     // Eliminar (clic derecho → Eliminar fila): solo sin historial; si lo tiene, se ofrece desactivarlo
     eliminar: p => eliminarProyecto(p, { confirmaciones: 1 }),   // la grilla ya hizo la primera pregunta
     menuFila: p => [
@@ -87,27 +112,10 @@ export async function render(el, params) {
       { label: '👥 Asignar líderes…', action: () => p.id && asignarLideres(p), disabled: !puede('crear_proyecto') },
       { label: '🏗 Seleccionar en el menú', action: () => p.id && seleccionarProyecto(p.id) },
     ],
-  });
-  await grilla.inicializar(store.proyectos.filter(p => esStaff() || p.estado === 'activo'));
-  grilla.filtrar(p => pestanaDe(p) === pestana);
-  pintarPestanas();
-  pag.querySelector('[data-pestanas]').addEventListener('click', e => {
-    const b = e.target.closest('[data-e]');
-    if (!b) return;
-    pestana = b.dataset.e;
-    grilla.refrescarFiltro(); pintarPestanas();
-  });
+  };
 }
 
-function pintarPestanas() {
-  const cont = document.querySelector('#contenido [data-pestanas]');
-  if (!cont || !grilla) return;
-  const filas = grilla.filas();
-  cont.innerHTML = PESTANAS.map(([e, t]) => `<button data-e="${e}" class="${e === pestana ? 'activo' : ''}">${t}
-    <span class="contador-pestana">${filas.filter(p => pestanaDe(p) === e).length}</span></button>`).join('');
-}
-
-export function destruir() { grilla?.destruir(); grilla = null; }
+export function destruir() { todasLasGrillas().forEach(g => g.destruir()); grillas = {}; }
 
 // Todas las personas del equipo (todos los roles que planifican, delegado y administradores), por nombre, con su rol
 function opcionesEquipo() {
@@ -240,7 +248,7 @@ async function asignarLideres(p) {
       await api.removeWhere('proyecto_lideres', { eq: { proyecto_id: p.id } });
       if (v.lideres.length) await api.insert('proyecto_lideres', v.lideres.map(u => ({ proyecto_id: p.id, usuario_id: u })));
       await cargarCatalogo();
-      grilla?.refrescar();
+      todasLasGrillas().forEach(g => g.refrescar());
     },
   });
 }

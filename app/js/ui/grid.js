@@ -318,7 +318,8 @@ export function crearGrilla(contenedor, cfg) {
   const tabla = new window.Tabulator(raiz.querySelector('.grilla-tabla'), {
     data: [],
     index: 'id',
-    height: cfg.altura || 'calc(100vh - 260px)',
+    // alturaMax: la grilla crece con sus filas hasta ese alto (p. ej. varias grillas en una página)
+    ...(cfg.alturaMax ? { maxHeight: cfg.alturaMax, minHeight: 90 } : { height: cfg.altura || 'calc(100vh - 260px)' }),
     layout: 'fitDataStretch',
     columnDefaults: { headerHozAlign: 'left', tooltip: false },
     columns: columnasCfg.map(colTabulator),
