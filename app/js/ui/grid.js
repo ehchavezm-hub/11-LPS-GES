@@ -9,6 +9,43 @@ import { toast, error, confirmar, modal } from './ui.js';
 
 const SOLO_LOCAL = k => k.startsWith('_');
 
+/**
+ * Editor de texto de varias líneas (como en Excel): la caja crece hacia abajo mientras se escribe,
+ * Enter guarda, Alt+Enter o Shift+Enter agregan una línea, Esc cancela.
+ */
+function editorTextoLargo(cell, onRendered, success, cancel) {
+  const caja = document.createElement('textarea');
+  caja.value = cell.getValue() ?? '';
+  caja.rows = 1;
+  caja.style.cssText = 'display:block;width:100%;box-sizing:border-box;padding:4px;border:0;outline:none;resize:none;' +
+    'white-space:pre-wrap;overflow:hidden;font:inherit;line-height:1.35;background:#fff;';
+  const crecer = () => {
+    caja.style.height = 'auto';
+    caja.style.height = caja.scrollHeight + 'px';
+    try { cell.checkHeight(); } catch { /* la fila se ajusta al guardar */ }
+  };
+  let listo = false;
+  const guardar = () => { if (listo) return; listo = true; success(caja.value); };
+  caja.addEventListener('input', crecer);
+  caja.addEventListener('blur', guardar);
+  caja.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.altKey || e.shiftKey)) {
+      e.preventDefault(); e.stopPropagation();
+      const i = caja.selectionStart, f = caja.selectionEnd;
+      caja.setRangeText('\n', i, f, 'end');
+      crecer();
+    } else if (e.key === 'Enter') {
+      e.preventDefault(); guardar();
+    } else if (e.key === 'Escape') {
+      listo = true; cancel();
+    } else if (e.key !== 'Tab') {
+      e.stopPropagation();   // flechas, Inicio, Fin… se mueven dentro del texto (Tab sigue pasando a la celda siguiente)
+    }
+  });
+  onRendered(() => { crecer(); caja.focus({ preventScroll: true }); caja.setSelectionRange(caja.value.length, caja.value.length); });
+  return caja;
+}
+
 // Globo de ayuda para las opciones de las listas desplegables (data-ayuda): aparece al pasar el mouse
 if (!window.__lpsgtAyudaOpciones) {
   window.__lpsgtAyudaOpciones = true;
@@ -138,7 +175,7 @@ export function crearGrilla(contenedor, cfg) {
       <button class="btn btn-sm" data-a="excel" title="Exportar a Excel">⬇ Excel</button>
     </div>
     <div class="grilla-tabla"></div>
-    <div class="grilla-ayuda">Doble clic o Enter para editar · Selecciona un rango con el mouse o Shift+flechas · Ctrl+C / Ctrl+V con Excel · Supr borra · Clic derecho en una fila para más opciones, o en el título de Gerencia, Proyecto o Servicio para editar sus opciones</div>
+    <div class="grilla-ayuda">Doble clic o Enter para editar · Alt+Enter: nueva línea en Actividad · Selecciona un rango con el mouse o Shift+flechas · Ctrl+C / Ctrl+V con Excel · Supr borra · Clic derecho en una fila para más opciones, o en el título de Gerencia, Proyecto o Servicio para editar sus opciones</div>
   </div>`);
   contenedor.innerHTML = '';
   contenedor.append(raiz);
@@ -234,7 +271,7 @@ export function crearGrilla(contenedor, cfg) {
     if (clases) def.cssClass = clases;
     switch (c.tipo) {
       case 'texto': def.editor = 'input'; break;
-      case 'textoLargo': def.editor = 'textarea'; def.formatter = 'textarea'; def.variableHeight = true; break;
+      case 'textoLargo': def.editor = editorTextoLargo; def.formatter = 'textarea'; def.variableHeight = true; break;
       case 'numero': def.editor = 'number'; def.editorParams = { step: c.paso || 0.5, min: c.min ?? 0, selectContents: true }; break;
       case 'fecha': def.editor = 'date'; def.editorParams = { format: 'yyyy-MM-dd' }; break;
       case 'casilla': def.editor = 'tickCross'; def.formatter = 'tickCross'; def.hozAlign = 'center'; break;
