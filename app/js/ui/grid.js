@@ -668,7 +668,9 @@ export function crearGrilla(contenedor, cfg) {
     try {
       if (cfgVista.columnas?.length) {
         // Las vistas guardadas antes también traían el título: se descarta y se usa el actual
-        const conocidas = cfgVista.columnas.filter(c => porCampo.has(c.field)).map(({ title, ...c }) => c);
+        // anchoFijo: el ancho lo define la columna (p. ej. días L–D angostos), no la vista guardada
+        const conocidas = cfgVista.columnas.filter(c => porCampo.has(c.field))
+          .map(({ title, ...c }) => (porCampo.get(c.field).anchoFijo ? (({ width, ...r }) => r)(c) : c));
         // Columnas que no estaban en la vista guardada (p. ej. agregadas en una versión nueva): van en su lugar
         // original, antes de la columna que las sigue, y no al final
         const disposicion = [...conocidas];

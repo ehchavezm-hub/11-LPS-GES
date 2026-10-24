@@ -115,6 +115,7 @@ export function destruir() {
 }
 
 function cambiarSemana(s) {
+  s = lunes(s);   // la semana siempre empieza el lunes: la columna L es ese lunes
   estado.semana = s;
   actualizarQuery({ semana: s });
   grilla.destruir();

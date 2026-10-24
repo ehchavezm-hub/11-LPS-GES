@@ -21,9 +21,9 @@ export function columnasPersonalizadas(grilla) {
  */
 export function columnasActividad({ modo, semana, semanasLA = [], extras = {} }) {
   const dias = DIAS.map((d, i) => ({
-    field: `hh_${d}`, alias: [d, DIAS_CORTOS[i], `hh ${d}`, ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'][i]], title: modo === 'plan' && semana ? `${DIAS_CORTOS[i]} ${fmtCorto(sumarDias(semana, i))}` : DIAS_CORTOS[i],
-    tipo: 'numero', ancho: 74, ocultarCero: true, total: true, vacioCero: true, paso: 0.5, filtro: false,
-    visible: i < 5 || !!param('trabajo_fin_semana') || (param('dias_laborables') || []).map(Number).includes(i + 1), ayuda: `HH del ${['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'][i]}`,
+    field: `hh_${d}`, alias: [d, DIAS_CORTOS[i], `hh ${d}`, ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'][i]], title: DIAS_CORTOS[i],
+    tipo: 'numero', ancho: 46, minAncho: 38, anchoFijo: true, align: 'center', ocultarCero: true, total: true, vacioCero: true, paso: 0.5, filtro: false,
+    visible: i < 5 || !!param('trabajo_fin_semana') || (param('dias_laborables') || []).map(Number).includes(i + 1), ayuda: `HH del ${['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'][i]}${modo === 'plan' && semana ? ` ${fmtCorto(sumarDias(semana, i))}` : ''}`,
   }));
   const cols = [
     modo === 'lookahead' ? {
