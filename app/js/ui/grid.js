@@ -127,7 +127,7 @@ export function crearGrilla(contenedor, cfg) {
   // ---------- Acceso directo para editar las opciones de una columna de lista ----------
   // Clic derecho en el título de Gerencia, Proyecto, CET / Servicio o CNC lleva a donde se editan sus opciones.
   const DESTINOS = {
-    gerencia_id: { lista: 'gerencias', texto: 'gerencias' }, servicio_id: { lista: 'servicios', texto: 'CET / servicios' },
+    gerencia_id: { lista: 'gerencias', texto: 'gerencias' }, servicio_id: { lista: 'servicios', texto: 'CET / Servicio' },
     cnc_id: { lista: 'cnc', texto: 'causas de no cumplimiento (CNC)' },
     fase_id: { lista: 'fases', texto: 'fases' }, pais_id: { lista: 'paises', texto: 'países' },
     proyecto_id: { ruta: '#/config/listas?lista=__proyectos', rutaSinConfig: '#/proyectos', texto: 'proyectos / procesos' },
@@ -198,10 +198,10 @@ export function crearGrilla(contenedor, cfg) {
       headerFilterPlaceholder: '',
       headerFilterFunc: (term, valor, fila) => {
         const t = normalizar(term);
-        const texto = c.tipo === 'lista' ? etiquetaOpcion(c, valor, fila) : c.tipo === 'fecha' ? fmtFecha(valor) : String(valor ?? '');
+        const texto = c.tipo === 'lista' ? etiquetaOpcion(c, valor, fila) : c.tipo === 'fecha' ? fmtFecha(valor) : String((c.exportar ? c.exportar(valor, fila) : valor) ?? '');
         return normalizar(texto).includes(t);
       },
-      accessorClipboard: (v, fila) => c.tipo === 'lista' ? etiquetaOpcion(c, v, fila) : c.tipo === 'fecha' ? fmtFecha(v) : c.tipo === 'casilla' ? (v ? 'Sí' : '') : v,
+      accessorClipboard: (v, fila) => c.tipo === 'lista' ? etiquetaOpcion(c, v, fila) : c.tipo === 'fecha' ? fmtFecha(v) : c.tipo === 'casilla' ? (v ? 'Sí' : '') : c.exportar ? c.exportar(v, fila) : v,
       accessorDownload: (v, fila) => c.tipo === 'lista' ? etiquetaOpcion(c, v, fila) : c.tipo === 'casilla' ? (v ? 'Sí' : 'No') : c.exportar ? c.exportar(v, fila) : v,
     };
     const menuT = menuTitulo(c);
@@ -242,8 +242,8 @@ export function crearGrilla(contenedor, cfg) {
       return v === 0 && c.ocultarCero ? '' : num(v, 2);
     };
     if (c.tipo === 'lista' || c.formato) def.sorter = (a, b, ra, rb) => {
-      const x = normalizar(c.tipo === 'lista' ? etiquetaOpcion(c, a, ra.getData()) : a);
-      const y = normalizar(c.tipo === 'lista' ? etiquetaOpcion(c, b, rb.getData()) : b);
+      const x = normalizar(c.tipo === 'lista' ? etiquetaOpcion(c, a, ra.getData()) : c.exportar ? c.exportar(a, ra.getData()) : a);
+      const y = normalizar(c.tipo === 'lista' ? etiquetaOpcion(c, b, rb.getData()) : c.exportar ? c.exportar(b, rb.getData()) : b);
       return x > y ? 1 : x < y ? -1 : 0;
     };
     if (c.click) def.cellClick = (e, cell) => c.click(cell.getRow().getData(), e, cell);
@@ -671,6 +671,8 @@ export function crearGrilla(contenedor, cfg) {
         // original, antes de la columna que las sigue, y no al final
         const disposicion = [...conocidas];
         columnasCfg.forEach((c, i) => {
+          // Columnas con posición fija: se reubican aunque la vista guardada las tenga en otro lugar
+          if (c.posicionFija) { const j = disposicion.findIndex(k => k.field === c.field); if (j >= 0) disposicion.splice(j, 1); }
           if (disposicion.some(k => k.field === c.field)) return;
           const siguiente = columnasCfg.slice(i + 1).find(x => disposicion.some(k => k.field === x.field));
           const pos = siguiente ? disposicion.findIndex(k => k.field === siguiente.field) : disposicion.length;
