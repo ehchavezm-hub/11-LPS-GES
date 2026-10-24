@@ -9,7 +9,7 @@ import { imprimirPDF } from '../services/pdf.js';
 let estado;
 
 export async function render(el, { query }) {
-  estado = { semana: lunes(query?.get('semana') || undefined) };
+  estado = { semana: lunes(query?.get('semana') || undefined), heredadas: new Set() };
   el.append(html(`<div>
     <div class="pagina-cab"><h1>Equipo y capacidad</h1>
       <div class="selector-semana"><button class="btn-icono" data-a="ant">◀</button><span data-sem></span><button class="btn-icono" data-a="sig">▶</button></div>
@@ -17,7 +17,8 @@ export async function render(el, { query }) {
       <button class="btn btn-sm" data-a="copiar" title="Copiar la ubicación de la semana anterior">⧉ Copiar semana anterior</button>
       <span class="flex"></span><span data-finde></span><button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <div class="aviso">Registre dónde estará cada persona cada día. Los días de vacaciones, licencia o feriado se descuentan de la capacidad semanal
-      (días laborables × horas por día). Cada líder edita su fila; el administrador puede editar todas.</div>
+      (días laborables × horas por día). Cada líder edita su fila; el administrador puede editar todas.
+      Al abrir la semana actual o una futura, quien no tenga nada registrado hereda su semana anterior (sin vacaciones ni feriados): solo cambie lo que sea distinto.</div>
     <div class="tarjeta" data-tabla></div></div>`));
   el.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
@@ -53,6 +54,7 @@ export async function render(el, { query }) {
 }
 
 async function pintar() {
+  await heredarSemanaAnterior();
   const area = store.area.id;
   const fin = sumarDias(estado.semana, 6);
   const [ubic, acts] = await Promise.all([
@@ -90,6 +92,29 @@ async function pintar() {
     }).join('')}</table></div>`;
 }
 
+// Herencia automática: al abrir la semana actual o una futura, cada persona sin nada registrado en ella recibe
+// las ubicaciones de su semana anterior (sin vacaciones, licencias ni feriados). No toca semanas pasadas
+// ni lo ya registrado; solo personas que quien mira puede editar.
+const ES_AUSENCIA = v => !v || v.extra?.cuenta_capacidad === false || ['feriado', 'vacaciones'].includes(v.codigo);
+async function heredarSemanaAnterior() {
+  if (estado.semana < lunes() || estado.heredadas.has(estado.semana)) return;
+  estado.heredadas.add(estado.semana);   // solo al abrir la semana: si luego alguien borra todo, no se vuelve a heredar
+  const area = store.area.id, ant = sumarSemanas(estado.semana, -1);
+  try {
+    const [actual, prev] = await Promise.all([
+      api.list('ubicaciones_dia', { eq: { area_id: area }, gte: { fecha: estado.semana }, lte: { fecha: sumarDias(estado.semana, 6) } }),
+      api.list('ubicaciones_dia', { eq: { area_id: area }, gte: { fecha: ant }, lte: { fecha: sumarDias(ant, 6) } }),
+    ]);
+    const conDatos = new Set(actual.map(u => u.usuario_id));
+    const copias = prev.filter(u => !conDatos.has(u.usuario_id) && (esGestor() || u.usuario_id === store.usuario.id) && !ES_AUSENCIA(store.valores.get(u.ubicacion_id)))
+      .map(u => ({ area_id: area, usuario_id: u.usuario_id, fecha: sumarDias(u.fecha, 7), ubicacion_id: u.ubicacion_id }));
+    if (!copias.length) return;
+    await api.insert('ubicaciones_dia', copias);
+    const personas = new Set(copias.map(c => c.usuario_id)).size;
+    ok(`Se heredó la semana anterior para ${personas} persona(s). Cambie solo lo que sea distinto.`);
+  } catch (e) { error(mensajeError(e)); }
+}
+
 async function copiar() {
   const ant = sumarSemanas(estado.semana, -1);
   try {
@@ -99,7 +124,7 @@ async function copiar() {
       const f = sumarDias(u.fecha, 7);
       if (estado.ubic.some(x => x.usuario_id === u.usuario_id && x.fecha === f)) continue;
       const v = store.valores.get(u.ubicacion_id);
-      if (v?.codigo === 'feriado' || v?.codigo === 'vacaciones') continue;
+      if (ES_AUSENCIA(v)) continue;
       await api.insert('ubicaciones_dia', { area_id: store.area.id, usuario_id: u.usuario_id, fecha: f, ubicacion_id: u.ubicacion_id });
     }
     await pintar();
