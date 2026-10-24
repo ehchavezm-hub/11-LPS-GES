@@ -89,17 +89,32 @@ export const ACCIONES = [
   ['gestionar_solicitudes_cambio', 'Gestionar solicitudes de cambio del aplicativo'],
 ];
 
+const PERMISOS_LIDER = ['proponer_proyecto', 'aceptar_solicitudes', 'registrar_solicitud', 'comentar', 'exportar', 'ver_tablero'];
+const conPermisos = lista => Object.fromEntries(ACCIONES.map(([a]) => [a, lista.includes(a)]));
+
 export const PERMISOS_INICIALES = {
   delegado: Object.fromEntries(ACCIONES.map(([a]) => [a, true])),
-  lider: Object.fromEntries(ACCIONES.map(([a]) => [a,
-    ['proponer_proyecto', 'aceptar_solicitudes', 'registrar_solicitud', 'comentar', 'exportar', 'ver_tablero'].includes(a)])),
-  consulta: Object.fromEntries(ACCIONES.map(([a]) => [a, ['registrar_solicitud', 'exportar', 'ver_tablero'].includes(a)])),
+  resp_equipo: conPermisos([...PERMISOS_LIDER, 'editar_actividades_otros', 'cerrar_semana_otros', 'gestionar_reuniones', 'gestionar_plantillas_servicio']),
+  lider: conPermisos(PERMISOS_LIDER),
+  resp_proceso: conPermisos(PERMISOS_LIDER),
+  resp_actividad: conPermisos(PERMISOS_LIDER.filter(a => !['proponer_proyecto', 'aceptar_solicitudes'].includes(a))),
+  consulta: conPermisos(['registrar_solicitud', 'exportar', 'ver_tablero']),
 };
 
+// El orden define cómo se muestran en listas y en la matriz de permisos.
+// "lider" conserva su código interno; desde la versión 1.1 se muestra como "Líder de especialidad".
 export const ROLES = {
   admin: 'Administrador',
   delegado: 'Administrador delegado',
-  lider: 'Líder de proceso',
+  resp_equipo: 'Responsable del equipo',
+  lider: 'Líder de especialidad',
+  resp_proceso: 'Responsable de proceso',
+  resp_actividad: 'Responsable de actividad',
   consulta: 'Consulta',
   pendiente: 'Pendiente de aprobación',
 };
+
+/** Roles que planifican: tienen plan semanal, Look Ahead y PAC (equivale a public.rol_planifica). */
+export const PLANIFICADORES = ['resp_equipo', 'lider', 'resp_proceso', 'resp_actividad'];
+export const COLOR_ROL = { admin: '#E8762B', delegado: '#4E79A7', resp_equipo: '#B07AA1', lider: '#59A14F', resp_proceso: '#9C755F',
+  resp_actividad: '#EDC948', consulta: '#76B7B2', pendiente: '#BAB0AC' };

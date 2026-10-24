@@ -2,7 +2,7 @@
 // columnas personalizadas, importación desde Excel, respaldo y auditoría.
 import { api, mensajeError, modoDemo } from '../data/api.js';
 import { store, cargarCatalogo, esAdmin, puede, opciones, nombre, valoresLista } from '../core/store.js';
-import { ACCIONES, ROLES, PARAMETROS_INICIALES } from '../data/catalogos.js';
+import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL } from '../data/catalogos.js';
 import { esc, html, fmtFechaHora, fmtFecha, normalizar } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -44,7 +44,7 @@ async function usuarios(el) {
         <button class="btn btn-sm" data-a="invitar" title="Enlace para que la persona se registre sola">✉ Invitar</button></div>
       <table class="simple"><tr><th>Nombre</th><th>Correo</th><th>Código</th><th>Rol</th><th>Gerencias (consulta)</th><th class="num">H/día</th><th>Estado</th><th></th></tr>
       ${perfiles.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.es_admin_principal ? ' ' + badge('Principal', '#E8762B') : ''}</td><td>${esc(p.email || '')}</td><td>${esc(p.codigo || '')}</td>
-        <td>${badge(ROLES[p.rol] || p.rol, { admin: '#E8762B', delegado: '#4E79A7', lider: '#59A14F', consulta: '#76B7B2', pendiente: '#EDC948' }[p.rol])}</td>
+        <td>${badge(ROLES[p.rol] || p.rol, COLOR_ROL[p.rol])}</td>
         <td>${esc((p.gerencia_ids || []).map(g => store.valores.get(g)?.codigo || '').join(', '))}</td><td class="num">${p.horas_dia ?? '—'}</td>
         <td>${p.activo ? 'Activo' : '<span style="color:var(--rojo)">Inactivo</span>'}</td>
         <td style="white-space:nowrap"><button class="btn btn-sm" data-editar="${p.id}">Editar</button>
@@ -186,10 +186,10 @@ async function editarUsuario(p) {
 
 async function rotarDelegado(perfiles) {
   const actuales = perfiles.filter(p => p.rol === 'delegado');
-  const cands = perfiles.filter(p => ['lider', 'delegado'].includes(p.rol) && p.activo);
+  const cands = perfiles.filter(p => ['delegado', ...PLANIFICADORES].includes(p.rol) && p.activo);
   const d = await pedirDatos({
     titulo: 'Administrador delegado', texto: 'Asignar',
-    antes: `Delegado actual: <b>${esc(actuales.map(a => a.nombre).join(', ') || 'ninguno')}</b>. El anterior vuelve a ser líder de proceso; el cambio queda en el historial.`,
+    antes: `Delegado actual: <b>${esc(actuales.map(a => a.nombre).join(', ') || 'ninguno')}</b>. El anterior vuelve a ser ${esc(ROLES.lider.toLowerCase())}; el cambio queda en el historial.`,
     campos: [{ name: 'nuevo', label: 'Nuevo delegado', type: 'select', options: [{ value: '', label: '— Ninguno (retirar) —' }, ...cands.map(p => ({ value: p.id, label: p.nombre }))] }],
   });
   if (!d) return;
@@ -306,7 +306,7 @@ async function parametros(el) {
 // ---------- Permisos ----------
 async function permisos(el) {
   const editable = esAdmin();
-  const roles = ['delegado', 'lider', 'consulta'];
+  const roles = ['delegado', ...PLANIFICADORES, 'consulta'];
   el.innerHTML = `<div class="tarjeta"><p class="nota">El administrador siempre tiene todos los permisos. Los límites del delegado (no quitar el rol al administrador principal, no eliminar usuarios, no rotar el delegado) no son modificables.${editable ? '' : ' Solo el administrador puede modificar esta matriz.'}</p>
     <table class="simple"><tr><th>Acción</th>${roles.map(r => `<th style="text-align:center">${esc(ROLES[r])}</th>`).join('')}</tr>
     ${ACCIONES.map(([a, t]) => `<tr><td>${esc(t)}</td>${roles.map(r => `<td style="text-align:center"><input type="checkbox" data-r="${r}" data-acc="${a}"
@@ -372,7 +372,7 @@ async function importarHistorico(archivo, salida) {
   if (!a.filas.length) { salida.innerHTML = '<div class="aviso warn">No se encontraron hojas de plan semanal con columna "ACTIVIDAD".</div>'; return; }
   const semanas = [...new Set(a.filas.map(f => f.semana))].sort();
   salida.innerHTML = `<div class="aviso ok">${a.filas.length} actividades · ${semanas.length} semana(s) (${fmtFecha(semanas[0])} – ${fmtFecha(semanas.at(-1))}) · ${a.responsables.length} responsables · ${a.proyectos.length} proyectos.</div>`;
-  const usuarios = store.perfiles.filter(p => ['admin', 'delegado', 'lider'].includes(p.rol));
+  const usuarios = store.perfiles.filter(p => ['admin', 'delegado', ...PLANIFICADORES].includes(p.rol) && !p.eliminado);
   const cuerpo = html(`<div>
     <h3>1. Responsables del Excel → usuarios</h3><p class="nota">Los que no se asignen se guardan solo como resumen de PAC histórico.</p>
     <table class="simple">${a.responsables.map(r => { const s = sugerirUsuario(r); return `<tr><td>${esc(r)}</td><td><select class="sel" data-u="${esc(r)}">

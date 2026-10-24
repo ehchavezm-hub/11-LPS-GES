@@ -34,7 +34,7 @@ begin
   assert (select rol from profiles p join auth.users u on u.id = p.id where u.email = 'lider1@x.pe') = 'pendiente', 'segundo no pendiente';
   assert (select count(*) from notificaciones where tipo = 'usuario_nuevo') = 4, 'faltan avisos de usuario nuevo';
   assert (select count(*) from listas) >= 18, 'listas no sembradas';
-  assert (select count(*) from permisos) = 60, 'matriz de permisos incompleta';
+  assert (select count(*) from permisos) = 120, 'matriz de permisos incompleta (20 acciones × 6 roles)';
 end $$;
 
 -- Datos base (como superusuario)
@@ -212,6 +212,31 @@ do $$ begin
   assert (select p.eliminado and not p.activo and p.email is null from profiles p join auth.users u on u.id = p.id
            where u.email like 'eliminado+%'), 'perfil con historial no desactivado';
   assert exists (select 1 from actividades a join profiles p on p.id = a.responsable_id where p.eliminado), 'historial perdido';
+end $$;
+
+-- ---------- Roles de planificación (007) ----------
+reset role;
+do $$ begin perform set_config('request.jwt.claim.sub', '', false); end $$;
+insert into auth.users (email) values ('equipo@x.pe'), ('actividad@x.pe');
+update profiles set rol = 'resp_equipo' where email = 'equipo@x.pe';
+update profiles set rol = 'resp_actividad' where email = 'actividad@x.pe';
+set role authenticated;
+select como('equipo@x.pe');
+do $$ begin
+  assert es_staff(), 'resp_equipo debe planificar';
+  assert puede('editar_actividades_otros'), 'resp_equipo edita actividades de otros';
+end $$;
+select como('actividad@x.pe');
+do $$ begin
+  assert es_staff() and es_miembro(), 'resp_actividad debe planificar';
+  assert not puede('proponer_proyecto'), 'resp_actividad no propone proyectos';
+  assert puede('comentar'), 'resp_actividad comenta';
+end $$;
+reset role;
+do $$ begin perform set_config('request.jwt.claim.sub', '', false); end $$;
+do $$ begin
+  begin update profiles set rol = 'inventado' where email = 'actividad@x.pe'; raise exception 'aceptó rol inválido';
+  exception when check_violation then null; end;
 end $$;
 
 \echo 'Todas las pruebas pasaron'

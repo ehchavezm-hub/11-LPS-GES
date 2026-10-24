@@ -45,8 +45,8 @@ export function crearDatosDemo() {
   const admin = persona('Gerente Técnico (demo)', 'GT', 'admin', { es_admin_principal: true });
   const delegado = persona('Diana Rojas', 'DR', 'delegado');
   const lideres = [
-    persona('Ana Torres', 'AT', 'lider'), persona('Bruno Salas', 'BS', 'lider'), persona('Carla Medina', 'CM', 'lider'),
-    persona('Diego Paredes', 'DP', 'lider'), persona('Elena Quiroga', 'EQ', 'lider', { horas_dia: 6 }),
+    persona('Ana Torres', 'AT', 'resp_equipo'), persona('Bruno Salas', 'BS', 'lider'), persona('Carla Medina', 'CM', 'resp_proceso'),
+    persona('Diego Paredes', 'DP', 'resp_actividad'), persona('Elena Quiroga', 'EQ', 'lider', { horas_dia: 6 }),
   ];
   const consulta = persona('Fernando Ruiz (GOC)', 'FR', 'consulta', { gerencia_ids: [vid('gerencias', 'GOC')] });
   const pendiente = persona('Gabriela Núñez', 'GN', 'pendiente');

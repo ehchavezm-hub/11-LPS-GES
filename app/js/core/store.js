@@ -1,6 +1,6 @@
 // Estado de la sesión y catálogo en memoria (listas, parámetros, permisos, usuarios, proyectos).
 import { api } from '../data/api.js';
-import { PARAMETROS_INICIALES } from '../data/catalogos.js';
+import { PARAMETROS_INICIALES, PLANIFICADORES } from '../data/catalogos.js';
 
 const bus = new EventTarget();
 
@@ -77,10 +77,13 @@ export async function cargarCatalogo() {
 export function rol() { return store.usuario?.rol || 'anonimo'; }
 export function esAdmin() { return rol() === 'admin'; }
 export function esGestor() { return ['admin', 'delegado'].includes(rol()); }
-export function esStaff() { return ['admin', 'delegado', 'lider'].includes(rol()); }
+export function esStaff() { return ['admin', 'delegado', ...PLANIFICADORES].includes(rol()); }
 export function puede(accion) {
   if (rol() === 'admin') return true;
-  return !!store.permisos[rol()]?.[accion];
+  const propio = store.permisos[rol()]?.[accion];
+  // Igual que public.puede(): un rol de planificación sin fila propia usa los permisos de "lider"
+  if (propio === undefined && PLANIFICADORES.includes(rol())) return !!store.permisos.lider?.[accion];
+  return !!propio;
 }
 export function puedeEditarActividad(a) {
   return a.responsable_id === store.usuario?.id || puede('editar_actividades_otros');
@@ -109,7 +112,7 @@ export function param(clave) { return store.parametros[clave] ?? PARAMETROS_INIC
 export function perfil(id) { return store.perfiles.find(p => p.id === id); }
 export function nombre(id) { return perfil(id)?.nombre || ''; }
 export function lideres({ inactivos = false } = {}) {
-  return store.perfiles.filter(p => ['admin', 'delegado', 'lider'].includes(p.rol) && !p.eliminado && (inactivos || p.activo));
+  return store.perfiles.filter(p => ['admin', 'delegado', ...PLANIFICADORES].includes(p.rol) && !p.eliminado && (inactivos || p.activo));
 }
 /** Personas que planifican: líderes y delegado; el administrador solo si tiene actividades en 'acts'. */
 export function equipo(acts = []) {

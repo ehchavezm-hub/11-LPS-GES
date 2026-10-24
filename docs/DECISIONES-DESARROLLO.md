@@ -38,6 +38,20 @@ salvo donde se dice lo contrario.
 - **Respaldos**: semanales en Google Drive (carpeta privada) mediante GitHub Actions; nunca en el repositorio, que es público. Se conservan 12 meses.
 - **Mantener activo Supabase gratuito**: el mismo flujo consulta la base lunes y jueves para evitar la pausa por inactividad.
 
+## Roles (versión 1.1, pedido del Gerente Técnico)
+| Rol | Permisos iniciales (editables en Configuración → Permisos) |
+|---|---|
+| Administrador | Todo. |
+| Administrador delegado | Todo lo de la matriz; no rota el delegado, no elimina usuarios ni toca al administrador principal. |
+| **Responsable del equipo** | Lo del líder + editar actividades y cerrar la semana de otros, gestionar reuniones y plantillas de servicio. |
+| **Líder de especialidad** (antes "Líder de proceso") | Planifica su trabajo, propone proyectos, acepta solicitudes dirigidas a él, comenta, exporta, ve el tablero. |
+| **Responsable de proceso** | Igual que el líder de especialidad. |
+| **Responsable de actividad** | Igual que el líder, sin proponer proyectos ni aceptar solicitudes. |
+| Consulta | Ve proyectos e indicadores de sus gerencias y registra solicitudes. |
+
+Los cuatro roles de planificación tienen plan semanal, Look Ahead y PAC, y aparecen como responsables en las grillas.
+El renombre no cambia datos: el código interno de "Líder de especialidad" sigue siendo `lider`.
+
 ## Seguridad
 - Toda regla de permisos se aplica en la base de datos (RLS), no solo en pantalla: aunque alguien manipule el navegador no puede ver ni cambiar lo que su rol no permite.
 - Las funciones de respaldo y mantenimiento no pueden llamarse con la clave pública.
