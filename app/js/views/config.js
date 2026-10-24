@@ -15,7 +15,7 @@ const SECCIONES = [
 ];
 let grilla;
 
-export async function render(el, { seccion }) {
+export async function render(el, { seccion, query }) {
   grilla?.destruir(); grilla = null;
   el.innerHTML = '';
   el.append(html(`<div><div class="pagina-cab"><h1>Configuración</h1></div>
@@ -24,7 +24,7 @@ export async function render(el, { seccion }) {
   el.querySelector('.pestanas').addEventListener('click', e => { const s = e.target.closest('[data-s]')?.dataset.s; if (s) ir('#/config/' + s); });
   const cont = el.querySelector('[data-sec]');
   const f = { usuarios, listas, parametros, permisos, columnas, importar: importarVista, respaldo, auditoria }[seccion];
-  if (f) await f(cont); else cont.textContent = 'Sección no encontrada.';
+  if (f) await f(cont, query?.get('lista') || undefined); else cont.textContent = 'Sección no encontrada.';
 }
 export function destruir() { grilla?.destruir(); grilla = null; }
 

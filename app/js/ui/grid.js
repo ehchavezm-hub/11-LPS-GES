@@ -3,7 +3,7 @@
 // eliminar filas, agrupar con subtotales, filtrar, ordenar, mostrar/ocultar/mover/fijar columnas,
 // vistas guardadas, guardado automático por celda y cambios de otros usuarios en tiempo real.
 import { api, mensajeError } from '../data/api.js';
-import { store, etiqueta, esGestor } from '../core/store.js';
+import { store, etiqueta, esGestor, puede } from '../core/store.js';
 import { esc, html, normalizar, parseFecha, fmtFecha, num, debounce } from '../core/util.js';
 import { toast, error, confirmar, modal } from './ui.js';
 
@@ -99,12 +99,28 @@ export function crearGrilla(contenedor, cfg) {
       <button class="btn btn-sm" data-a="excel" title="Exportar a Excel">⬇ Excel</button>
     </div>
     <div class="grilla-tabla"></div>
-    <div class="grilla-ayuda">Doble clic o Enter para editar · Selecciona un rango con el mouse o Shift+flechas · Ctrl+C / Ctrl+V con Excel · Supr borra · Clic derecho para más opciones</div>
+    <div class="grilla-ayuda">Doble clic o Enter para editar · Selecciona un rango con el mouse o Shift+flechas · Ctrl+C / Ctrl+V con Excel · Supr borra · Clic derecho en una fila para más opciones, o en el título de Gerencia, Proyecto o Servicio para editar sus opciones</div>
   </div>`);
   contenedor.innerHTML = '';
   contenedor.append(raiz);
   const estadoEl = raiz.querySelector('.grilla-estado');
   const setEstado = t => { estadoEl.textContent = t; };
+
+  // ---------- Acceso directo para editar las opciones de una columna de lista ----------
+  // Clic derecho en el título de Gerencia, Proyecto, Servicio, CET o CNC lleva a donde se editan sus opciones.
+  const DESTINOS = {
+    gerencia_id: { lista: 'gerencias', texto: 'gerencias' }, servicio_id: { lista: 'servicios', texto: 'servicios / entregables' },
+    cet_id: { lista: 'cet', texto: 'CET' }, cnc_id: { lista: 'cnc', texto: 'causas de no cumplimiento (CNC)' },
+    proyecto_id: { ruta: '#/proyectos', texto: 'proyectos / procesos' },
+  };
+  function menuTitulo(c) {
+    const d = c.editarEn || DESTINOS[c.field] || (c.lista ? { lista: c.lista, texto: c.title } : null);
+    if (!d) return null;
+    const permitido = d.ruta ? (puede('crear_proyecto') || puede('proponer_proyecto')) : puede('gestionar_listas');
+    if (!permitido) return null;
+    const ruta = d.ruta || `#/config/listas?lista=${encodeURIComponent(d.lista)}`;
+    return [{ label: `✎ Agregar, editar o eliminar ${esc(d.texto)}`, action: () => { location.hash = ruta; } }];
+  }
 
   // ---------- Columnas Tabulator ----------
   function colTabulator(c) {
@@ -123,6 +139,8 @@ export function crearGrilla(contenedor, cfg) {
       accessorClipboard: (v, fila) => c.tipo === 'lista' ? etiquetaOpcion(c, v, fila) : c.tipo === 'fecha' ? fmtFecha(v) : c.tipo === 'casilla' ? (v ? 'Sí' : '') : v,
       accessorDownload: (v, fila) => c.tipo === 'lista' ? etiquetaOpcion(c, v, fila) : c.tipo === 'casilla' ? (v ? 'Sí' : 'No') : c.exportar ? c.exportar(v, fila) : v,
     };
+    const menuT = menuTitulo(c);
+    if (menuT) { def.headerContextMenu = menuT; def.headerTooltip = `${c.ayuda || c.title} · Clic derecho para editar sus opciones`; }
     if (c.total) def.bottomCalc = 'sum', def.bottomCalcFormatter = cell => num(cell.getValue(), 1);
     const clases = [c.clase, c.calc ? 'celda-calc' : ''].filter(Boolean).join(' ');
     if (clases) def.cssClass = clases;
