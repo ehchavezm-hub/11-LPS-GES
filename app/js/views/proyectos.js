@@ -1,6 +1,6 @@
 // Proyectos (6.3): catálogo que alimenta el menú, propuesta y aprobación, ficha con indicadores e hitos.
 import { api, mensajeError } from '../data/api.js';
-import { store, cargarCatalogo, esGestor, esStaff, puede, opciones, opcionesLideres, lideres, opcionesEstado, colorEstado, textoEstado, etiqueta, nombre, proyecto, seleccionarProyecto, valoresLista } from '../core/store.js';
+import { store, cargarCatalogo, esGestor, esStaff, esAdmin, puede, opciones, opcionesLideres, lideres, opcionesEstado, colorEstado, textoEstado, etiqueta, nombre, proyecto, seleccionarProyecto, valoresLista } from '../core/store.js';
 import { esc, html, fmtFecha, hoy, num, pct, lunes, sumarSemanas } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -144,18 +144,52 @@ async function usosDeProyecto(id) {
   return tablas.map(([, t], i) => n[i] ? `${n[i]} ${t}` : '').filter(Boolean);
 }
 
+// Proyecto con historial: lo recomendado es desactivarlo. Un administrador puede además eliminarlo con todo su
+// historial (p. ej. proyectos de prueba), confirmando con el código del proyecto.
+function proyectoConHistorial(p, usos) {
+  const puedeBorrarTodo = esAdmin() && puede('eliminar_usuarios');
+  return new Promise(resolver => {
+    let resultado = false, siguePregunta = false;   // al pasar a la confirmación por código, cerrar este aviso no responde todavía
+    const botones = [{ texto: 'Cancelar' }];
+    if (p.estado !== 'cerrado') botones.push({ texto: 'Desactivar (recomendado)', clase: 'btn-primario', accion: async () => { await cambiarEstado(p, 'cerrado', { preguntar: false }); } });
+    if (puedeBorrarTodo) botones.push({ texto: 'Eliminar con todo su historial…', clase: 'btn-peligro', accion: async cerrar => {
+      siguePregunta = true; cerrar(); resultado = await eliminarConHistorial(p, usos); resolver(resultado); return false; } });
+    modal({
+      titulo: `"${p.codigo}" tiene historial`, ancho: 620, botones, alCerrar: () => { if (!siguePregunta) resolver(resultado); },
+      cuerpo: `<p><b>${esc(p.codigo)} · ${esc(p.nombre_corto)}</b> tiene: ${esc(usos.join(', '))}.</p>
+        <p>Lo recomendado es <b>desactivarlo</b>: deja de aparecer en menús y selectores, y conserva su historial y el PAC.</p>
+        ${puedeBorrarTodo ? '<p class="nota">Si es un proyecto de prueba o creado por error, puede <b>eliminarlo con todo su historial</b>: se borran también sus actividades (incluso de semanas cerradas), restricciones, cartera y plantillas, y el PAC pasado se recalcula sin ellas.</p>'
+          : '<p class="nota">Eliminarlo con su historial solo puede hacerlo un administrador.</p>'}`,
+    });
+  });
+}
+
+async function eliminarConHistorial(p, usos) {
+  const cuerpo = html(`<div><p>Se eliminará <b>${esc(p.codigo)} · ${esc(p.nombre_corto)}</b> y todo su historial: ${esc(usos.join(', '))}.
+    <b>Esta acción no se puede deshacer.</b></p><p>Para confirmar, escriba el código del proyecto:</p>
+    <input class="inp" data-cod style="width:100%" placeholder="${esc(p.codigo)}" autocomplete="off"></div>`);
+  let hecho = false;
+  await new Promise(res => modal({
+    titulo: 'Eliminar proyecto con su historial', cuerpo, ancho: 560, alCerrar: res,
+    botones: [{ texto: 'Cancelar' }, { texto: 'Eliminar definitivamente', clase: 'btn-peligro', accion: async () => {
+      if (cuerpo.querySelector('[data-cod]').value.trim() !== p.codigo) { error('El código no coincide.'); return false; }
+      try {
+        const r = await api.rpc('eliminar_proyecto_completo', { p_proyecto: p.id });
+        if (store.proyectoSel === p.id) seleccionarProyecto('');
+        ok(`Proyecto "${p.codigo}" eliminado con ${r?.actividades ?? 0} actividad(es), ${r?.restricciones ?? 0} restricción(es) y ${r?.cartera ?? 0} registro(s) de cartera.`);
+        await cargarCatalogo();
+        hecho = true;
+      } catch (e) { error(mensajeError(e)); return false; }
+    } }],
+  }));
+  return hecho;
+}
+
 // confirmaciones: cuántas preguntas hacer antes de borrar (el botón 🗑 y la ficha hacen dos)
 async function eliminarProyecto(p, { confirmaciones = 2 } = {}) {
   if (!puede('crear_proyecto')) throw new Error('No tiene permiso para eliminar proyectos.');
   const usos = await usosDeProyecto(p.id);
-  if (usos.length) {
-    if (p.estado === 'cerrado') { toast(`"${p.codigo}" tiene historial (${usos.join(', ')}) y ya está desactivado; no se elimina.`, 'warn', 7000); return false; }
-    if (await confirmar(`"${p.codigo} · ${p.nombre_corto}" tiene historial: ${usos.join(', ')}. Eliminarlo borraría ese historial y cambiaría el PAC, ` +
-      'por eso no se elimina. ¿Desactivarlo en su lugar? Dejará de aparecer en menús y selectores.', { titulo: 'No se puede eliminar', texto: 'Desactivar' })) {
-      await cambiarEstado(p, 'cerrado', { preguntar: false });
-    }
-    return false;
-  }
+  if (usos.length) return proyectoConHistorial(p, usos);
   if (confirmaciones >= 2 && !await confirmar(`¿Eliminar el proyecto "${p.codigo} · ${p.nombre_corto}"? No tiene actividades ni otros registros.`,
     { titulo: 'Eliminar proyecto (1 de 2)', texto: 'Sí, eliminar', peligro: true })) return false;
   if (confirmaciones >= 1 && !await confirmar(`Confirme nuevamente: "${p.codigo} · ${p.nombre_corto}" se eliminará definitivamente. Esta acción no se puede deshacer.`,

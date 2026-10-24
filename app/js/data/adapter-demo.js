@@ -299,6 +299,31 @@ export function crearAdaptadorDemo() {
     },
     async rpc(nombre, args = {}) {
       if (nombre === 'eliminar_usuario') return eliminarUsuarioDemo(args.p_usuario);
+      if (nombre === 'eliminar_proyecto_completo') {
+        // Emula public.eliminar_proyecto_completo(): borra el proyecto con todo su historial
+        db = cargar();
+        const id = args.p_proyecto;
+        const yo = perfil();
+        if (!['superadmin', 'admin'].includes(yo?.rol)) throw new Error('Solo un administrador puede eliminar un proyecto con su historial.');
+        const acts = new Set(tabla('actividades').filter(a => a.proyecto_id === id).map(a => a.id));
+        const rests = new Set(tabla('restricciones').filter(r => r.proyecto_id === id || acts.has(r.actividad_id)).map(r => r.id));
+        const cart = new Set(tabla('cartera').filter(c => c.proyecto_id === id).map(c => c.id));
+        const r = { actividades: acts.size, restricciones: rests.size, cartera: cart.size };
+        const ent = x => (x.entidad === 'actividad' && acts.has(x.entidad_id)) || (x.entidad === 'restriccion' && rests.has(x.entidad_id)) ||
+          (x.entidad === 'cartera' && cart.has(x.entidad_id)) || (x.entidad === 'proyecto' && x.entidad_id === id);
+        db.comentarios = tabla('comentarios').filter(x => !ent(x));
+        db.enlaces = tabla('enlaces').filter(x => !ent(x));
+        db.restricciones = tabla('restricciones').filter(x => !rests.has(x.id));
+        db.actividades = tabla('actividades').filter(x => !acts.has(x.id));
+        db.cartera = tabla('cartera').filter(x => !cart.has(x.id));
+        db.plantilla_items = tabla('plantilla_items').filter(x => x.proyecto_id !== id);
+        for (const t of ['hitos', 'proyecto_lideres', 'proyecto_favoritos']) db[t] = tabla(t).filter(x => x.proyecto_id !== id);
+        for (const v of tabla('lista_valores')) if (v.extra?.proyecto_id === id) delete v.extra.proyecto_id;
+        guardar();
+        await api.remove('proyectos', id);
+        for (const t of ['actividades', 'restricciones', 'cartera']) emitir({ tabla: t, tipo: 'DELETE', fila: null, anterior: { id: null } });
+        return r;
+      }
       if (nombre === 'exportar_respaldo') return { generado: new Date().toISOString(), version: 1, modo: 'demo', ...clon(db) };
       if (nombre === 'cerrar_semanas_vencidas') return 0;
       throw new Error(`Función no disponible en modo demo: ${nombre}`);

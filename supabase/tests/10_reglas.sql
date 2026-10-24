@@ -279,4 +279,18 @@ do $$ begin assert not exists (select 1 from proyectos where codigo = 'BORRAR-1'
 select debe_fallar($q$ delete from proyectos where id = (select proyecto_id from actividades where proyecto_id is not null limit 1) $q$, 'foreign key');
 reset role;
 
+-- ---------- Eliminar proyecto con historial (012) ----------
+set role authenticated;
+select como('equipo@x.pe');
+select debe_fallar($q$ select eliminar_proyecto_completo((select proyecto_id from actividades where proyecto_id is not null limit 1)) $q$, 'Solo un administrador');
+select como('admin@x.pe');
+do $$ declare v_p uuid; r jsonb; begin
+  select proyecto_id into v_p from actividades where proyecto_id is not null limit 1;
+  r := eliminar_proyecto_completo(v_p);
+  assert (r->>'actividades')::int >= 1, 'no contó actividades';
+  assert not exists (select 1 from proyectos where id = v_p), 'proyecto no borrado';
+  assert not exists (select 1 from actividades where proyecto_id = v_p), 'actividades no borradas';
+end $$;
+reset role;
+
 \echo 'Todas las pruebas pasaron'
