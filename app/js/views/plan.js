@@ -1,4 +1,5 @@
 // Plan semanal (6.9): compromisos de la semana, avance, cierre con CNC y HH reales, PAC.
+import { medir } from '../core/monitoreo.js';
 import { api, mensajeError } from '../data/api.js';
 import { store, on, esGestor, puede, puedeEditarActividad, lideres, nombre, proyecto, horasDia } from '../core/store.js';
 import { lunes, sumarSemanas, etiquetaSemana, esc, html, hoy, pct, num, sumarDias, fmtFecha, DIAS } from '../core/util.js';
@@ -140,7 +141,9 @@ function nuevaFila() {
   };
 }
 
-async function cargar() {
+async function cargar() { return medir('plan.cargar', cargarDatos); }
+
+async function cargarDatos() {
   const area = store.area.id;
   const [acts, rests, cierres, ubic] = await Promise.all([
     api.list('actividades', { eq: { area_id: area, semana: estado.semana }, order: [['orden', true], ['created_at', true]] }),

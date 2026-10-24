@@ -117,7 +117,7 @@ export function crearGrilla(contenedor, cfg) {
       <button class="btn btn-sm" data-a="excel" title="Exportar a Excel">⬇ Excel</button>
     </div>
     <div class="grilla-tabla"></div>
-    <div class="grilla-ayuda">Doble clic o Enter para editar · Selecciona un rango con el mouse o Shift+flechas · Ctrl+C / Ctrl+V con Excel · Supr borra · Clic derecho en una fila para más opciones, o en el título de Gerencia, Proyecto o CET / Servicio para editar sus opciones</div>
+    <div class="grilla-ayuda">Doble clic o Enter para editar · Selecciona un rango con el mouse o Shift+flechas · Ctrl+C / Ctrl+V con Excel · Supr borra · Clic derecho en una fila para más opciones, o en el título de Gerencia, Proyecto o Servicio para editar sus opciones</div>
   </div>`);
   contenedor.innerHTML = '';
   contenedor.append(raiz);

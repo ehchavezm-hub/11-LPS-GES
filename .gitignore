@@ -1,0 +1,15 @@
+# Dependencias de las pruebas
+node_modules/
+package-lock.json
+# Nunca subir datos de la empresa (el repositorio es público): planillas, respaldos y exportaciones
+*.xlsx
+*.xlsm
+*.xls
+*.csv
+respaldo*.json
+lpsgt-respaldo*
+*.dump
+# Variables locales
+.env
+.env.*
+!especificacion/plantillas/*.csv

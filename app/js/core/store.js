@@ -48,6 +48,7 @@ export async function cargarCatalogo() {
     api.list('columnas_personalizadas', { eq: { area_id: u.area_id }, order: [['orden', true]] }),
   ]);
   store.area = areas[0] || null;
+  api.fijarArea?.(store.area?.id);
   store.listas = {};
   const porLista = new Map();
   for (const l of listas.filter(l => !l.area_id || l.area_id === u.area_id)) {

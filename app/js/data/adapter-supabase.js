@@ -10,7 +10,12 @@ function aplicarFiltros(q, f = {}) {
   return q;
 }
 
+// Tablas con columna area_id (las suscripciones a ellas se filtran por área)
+const TABLAS_CON_AREA = new Set(['actividades', 'restricciones', 'cierres', 'cartera', 'proyectos', 'hitos', 'acuerdos',
+  'reuniones', 'comentarios', 'enlaces', 'organigrama_nodos', 'profiles', 'ubicaciones_dia', 'listas', 'parametros', 'permisos']);
+
 export function crearAdaptadorSupabase(url, key) {
+  let areaActual = null;
   const sb = window.supabase.createClient(url, key, {
     auth: { persistSession: true, autoRefreshToken: true },
   });
@@ -80,12 +85,23 @@ export function crearAdaptadorSupabase(url, key) {
       return data;
     },
 
+    /** Área del usuario: las suscripciones en tiempo real se filtran por ella para que el servidor
+     *  solo evalúe (y envíe) los cambios del área, en lugar de todos los de la base. */
+    fijarArea(id) { areaActual = id || null; },
+
     subscribe(tablas, cb) {
       const canal = sb.channel('lpsgt-' + Math.random().toString(36).slice(2));
       for (const t of tablas) {
-        canal.on('postgres_changes', { event: '*', schema: 'public', table: t }, p => {
-          cb({ tabla: t, tipo: p.eventType, fila: p.new && Object.keys(p.new).length ? p.new : null, anterior: p.old });
-        });
+        const aviso = p => cb({ tabla: t, tipo: p.eventType, fila: p.new && Object.keys(p.new).length ? p.new : null, anterior: p.old });
+        if (areaActual && TABLAS_CON_AREA.has(t)) {
+          // Los borrados no admiten filtro en Supabase Realtime: se escuchan aparte (solo traen el id)
+          const filter = `area_id=eq.${areaActual}`;
+          canal.on('postgres_changes', { event: 'INSERT', schema: 'public', table: t, filter }, aviso);
+          canal.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: t, filter }, aviso);
+          canal.on('postgres_changes', { event: 'DELETE', schema: 'public', table: t }, aviso);
+        } else {
+          canal.on('postgres_changes', { event: '*', schema: 'public', table: t }, aviso);
+        }
       }
       canal.subscribe();
       return () => sb.removeChannel(canal);

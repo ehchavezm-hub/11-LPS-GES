@@ -31,6 +31,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ vars.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+          SENTRY_DSN: ${{ vars.SENTRY_DSN }}
         run: |
           if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
             if [[ "$SUPABASE_ANON_KEY" == sb_secret_* ]] || printf '%s' "$SUPABASE_ANON_KEY" | cut -d. -f2 | base64 -d 2>/dev/null | grep -q '"service_role"'; then
@@ -40,6 +41,14 @@ jobs:
             echo "Configuración de Supabase aplicada."
           else
             echo "Sin variables SUPABASE_URL / SUPABASE_ANON_KEY: se publica en modo demostración."
+          fi
+          # Monitoreo de errores (opcional): variable SENTRY_DSN del repositorio
+          if [ -n "$SENTRY_DSN" ]; then
+            if [[ ! "$SENTRY_DSN" =~ ^https://[A-Za-z0-9]+@[A-Za-z0-9.-]+/[0-9]+$ ]]; then
+              echo "::error::SENTRY_DSN no tiene el formato https://clave@servidor/proyecto" ; exit 1
+            fi
+            printf "window.LPSGT_CONFIG.sentryDsn = '%s';\n" "$SENTRY_DSN" >> app/config.js
+            echo "Monitoreo con Sentry activado."
           fi
           # Versión visible en el aplicativo (menú de usuario y aviso tras la recarga forzada)
           printf "window.LPSGT_VERSION = '%s · %s';\n" "${GITHUB_SHA::7}" "$(TZ=America/Lima date '+%d/%m/%Y %H:%M')" >> app/config.js

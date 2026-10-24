@@ -25,7 +25,7 @@ capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GT_Alcance_v0.
 ### 1. Base de datos (Supabase, plan gratuito)
 1. Cree una cuenta en <https://supabase.com> y un proyecto nuevo (región: São Paulo o la más cercana). Guarde la contraseña de la base de datos.
 2. En **SQL Editor**, ejecute en orden el contenido de:
-   `001_esquema.sql`, `002_seguridad.sql`, `003_datos_iniciales.sql`, `004_permisos_funciones.sql`, `005_usuarios_admin.sql`, `006_eliminar_usuarios.sql`, `007_roles_planificadores.sql`, `008_grupos_listas.sql`, `009_super_administrador.sql`, `010_cet_servicio.sql`, `011_eliminar_proyectos.sql`, `012_eliminar_proyecto_completo.sql`, `013_cargos.sql`, `014_organigrama.sql`.
+   `001_esquema.sql`, `002_seguridad.sql`, `003_datos_iniciales.sql`, `004_permisos_funciones.sql`, `005_usuarios_admin.sql`, `006_eliminar_usuarios.sql`, `007_roles_planificadores.sql`, `008_grupos_listas.sql`, `009_super_administrador.sql`, `010_cet_servicio.sql`, `011_eliminar_proyectos.sql`, `012_eliminar_proyecto_completo.sql`, `013_cargos.sql`, `014_organigrama.sql`, `015_endurecimiento.sql`.
 3. **Cierre automático de semanas** (viernes 17:00): en **Database → Extensions** active `pg_cron` y ejecute en el SQL Editor:
    ```sql
    select cron.schedule('lpsgt-cierre', '5 * * * *', 'select public.cerrar_semanas_vencidas()');
@@ -87,3 +87,6 @@ Al cambiar archivos de `app/`, el service worker se actualiza solo al publicar (
 - La clave pública (anon) solo permite lo que las reglas RLS autorizan a cada rol; las funciones de respaldo y mantenimiento no se pueden llamar con ella.
 - El aplicativo se niega a funcionar si `config.js` contiene una clave secreta, y la publicación también la rechaza.
 - No suba Excel, respaldos ni datos reales al repositorio.
+- Aislamiento entre áreas, autoría y funciones endurecidas (migración `015_endurecimiento.sql`), con pruebas de ataque en `supabase/tests`.
+- Cada Pull Request a `main` pasa el control **Listo para producción** (secretos, librerías, sintaxis, base de datos, prueba de humo y CodeQL).
+- Preparación para 1000 usuarios, Sentry y caché: [`docs/PRODUCCION.md`](docs/PRODUCCION.md). Estado de cada función: [`docs/MATRIZ-DIAGNOSTICO.md`](docs/MATRIZ-DIAGNOSTICO.md).

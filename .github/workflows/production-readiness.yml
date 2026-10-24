@@ -1,0 +1,119 @@
+# Control de calidad y seguridad antes de publicar: se ejecuta en cada Pull Request hacia main
+# (y a pedido desde la pestaña Actions). Si un control falla, el PR no debe fusionarse.
+name: Listo para producción
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: listo-produccion-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secretos-y-datos:
+    name: Secretos y datos de la empresa
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Buscar secretos en el historial (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sin claves secretas de Supabase ni planillas en el repositorio
+        run: |
+          set -e
+          # La service_role key (JWT con rol service_role) o las claves sb_secret_ nunca deben estar en el código
+          if grep -rIlE 'sb_secret_[A-Za-z0-9_-]{10,}' --exclude-dir=.git . ; then
+            echo "::error::Se encontró una clave secreta de Supabase (sb_secret_)."; exit 1
+          fi
+          for jwt in $(grep -rIohE 'eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}' --exclude-dir=.git . | sort -u); do
+            if printf '%s' "$jwt" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | grep -q '"service_role"'; then
+              echo "::error::Se encontró una service_role key de Supabase."; exit 1
+            fi
+          done
+          # config.js del repositorio va vacío: las claves públicas las escribe el workflow de publicación
+          grep -qE "supabaseUrl: ''" app/config.js || { echo "::error::app/config.js debe quedar sin URL (se completa al publicar)."; exit 1; }
+          # Repositorio público: no se suben planillas, respaldos ni exportaciones
+          # (excepción: plantillas de importación vacías, solo con encabezados)
+          datos=$(git ls-files | grep -iE '\.(xlsx|xlsm|xls|csv|dump)$|respaldo.*\.json$' | grep -v '^especificacion/plantillas/' || true)
+          for f in $(git ls-files 'especificacion/plantillas/*.csv'); do
+            [ "$(grep -c . "$f")" -le 1 ] || datos="$datos $f"
+          done
+          if [ -n "$datos" ]; then echo "::error::Archivos de datos en el repositorio:"; echo "$datos"; exit 1; fi
+
+  librerias:
+    name: Librerías (integridad y vulnerabilidades)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Comparar con las versiones oficiales y npm audit
+        run: node pruebas/verificar-librerias.mjs
+
+  sintaxis:
+    name: Sintaxis y tipos
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Módulos del aplicativo
+        run: for f in $(find app/js pruebas -name '*.js' -o -name '*.mjs' | grep -v node_modules) app/sw.js app/config.js; do node --check "$f" || exit 1; done
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Tipos de las Edge Functions (TypeScript)
+        run: for f in supabase/functions/*/index.ts; do deno check "$f" || exit 1; done
+
+  base-de-datos:
+    name: Migraciones y reglas de seguridad (RLS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Instalar PostgreSQL 16
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-16 >/dev/null
+      - name: Migraciones, RLS, aislamiento entre áreas y reglas de negocio
+        run: sudo PGBIN=/usr/lib/postgresql/16/bin bash supabase/tests/run.sh
+
+  humo:
+    name: Prueba de humo (todas las pantallas y roles)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar Playwright y Chromium
+        working-directory: pruebas
+        run: npm install --no-audit --no-fund && npx playwright install --with-deps chromium
+      - name: Recorrer el aplicativo en modo demostración
+        run: |
+          (cd app && python3 -m http.server 8099 >/dev/null 2>&1 &)
+          for i in $(seq 1 20); do curl -sf http://localhost:8099/ >/dev/null && break; sleep 1; done
+          node pruebas/humo.mjs http://localhost:8099/
+
+  codeql:
+    name: Análisis de código (CodeQL)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          config: |
+            paths-ignore:
+              - app/vendor
+      - uses: github/codeql-action/analyze@v3

@@ -6,10 +6,31 @@
 // El usuario debe cambiar la contraseña asignada en su siguiente ingreso (profiles.debe_cambiar_clave).
 import { createClient } from 'npm:@supabase/supabase-js@2.117.3';
 
+// Monitoreo opcional: secreto SENTRY_DSN de la función (supabase secrets set SENTRY_DSN=...).
+// Sin datos personales: no se envían correos, contraseñas ni el cuerpo de la solicitud.
+const DSN = Deno.env.get('SENTRY_DSN');
+const Sentry = DSN ? await import('npm:@sentry/deno@11.9.0') : null;
+Sentry?.init({
+  dsn: DSN,
+  environment: Deno.env.get('SENTRY_ENTORNO') ?? 'produccion',
+  tracesSampleRate: 0.2,
+  defaultIntegrations: false,
+  beforeSend(evento) {
+    delete evento.request; delete evento.user;
+    for (const ex of evento.exception?.values ?? []) ex.value = ex.value?.replace(/[\w.%+-]+@[\w.-]+\.\w{2,}/g, '[correo]');
+    return evento;
+  },
+});
+
+// Orígenes permitidos (secreto ORIGENES_PERMITIDOS, separados por comas; p. ej. https://usuario.github.io).
+// Sin configurar se acepta cualquiera: la seguridad real es el token de sesión que se valida en cada llamada.
+const ORIGENES = (Deno.env.get('ORIGENES_PERMITIDOS') ?? '').split(',').map(o => o.trim()).filter(Boolean);
+const origenPermitido = (origen: string | null) =>
+  !ORIGENES.length ? '*' : (origen && ORIGENES.includes(origen) ? origen : ORIGENES[0]);
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Vary': 'Origin',
 };
 const ROLES = ['resp_equipo', 'lider', 'resp_proceso', 'resp_actividad', 'consulta', 'delegado', 'admin', 'superadmin', 'pendiente'];
 const GESTORES = ['superadmin', 'admin', 'delegado'];
@@ -19,6 +40,12 @@ const respuesta = (cuerpo: unknown, status = 200) =>
 const falla = (mensaje: string, status = 400) => respuesta({ error: mensaje }, status);
 
 Deno.serve(async (req) => {
+  const r = await atender(req);
+  r.headers.set('Access-Control-Allow-Origin', origenPermitido(req.headers.get('Origin')));
+  return r;
+});
+
+async function atender(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method !== 'POST') return falla('Método no permitido.', 405);
 
@@ -94,6 +121,7 @@ Deno.serve(async (req) => {
 
     return falla('Acción no válida.');
   } catch (e) {
+    if (Sentry) { Sentry.captureException(e); await Sentry.flush(2000); }
     return falla(e instanceof Error ? e.message : String(e), 500);
   }
-});
+}

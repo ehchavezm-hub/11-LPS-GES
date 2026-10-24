@@ -308,4 +308,59 @@ select como('consulta@x.pe');
 select debe_fallar($q$ insert into organigrama_nodos (area_id, tipo, titulo) values (mi_area(), 'unidad', 'X') $q$, 'row-level security');
 reset role;
 
+-- ---------- Endurecimiento (015): aislamiento entre áreas, autoría y funciones ----------
+select set_config('request.jwt.claim.sub', '', false);
+insert into areas (nombre) values ('Otra área');
+insert into auth.users (email, raw_user_meta_data) values ('otra@x.pe', '{"nombre":"Otra"}');
+update profiles set area_id = (select id from areas where nombre = 'Otra área'), rol = 'superadmin' where email = 'otra@x.pe';
+insert into proyectos (area_id, codigo, nombre_corto, estado)
+select id, 'AJENO-1', 'Proyecto de otra área', 'activo' from areas where nombre = 'Otra área';
+insert into proyectos (area_id, codigo, nombre_corto, estado)
+select area_id, 'P-SEG', 'Proyecto propio', 'activo' from profiles where email = 'admin@x.pe';
+set role authenticated;
+select como('otra@x.pe');
+do $$ begin
+  assert (select string_agg(codigo, ',') from proyectos) = 'AJENO-1', 'la otra área ve proyectos ajenos';
+  assert not exists (select 1 from actividades), 'la otra área ve actividades ajenas';
+  assert not exists (select 1 from profiles where email = 'admin@x.pe'), 'la otra área ve usuarios ajenos';
+end $$;
+select como('admin@x.pe');
+do $$ begin assert not exists (select 1 from proyectos where codigo = 'AJENO-1'), 've el proyecto de otra área'; end $$;
+reset role;
+-- IDs ajenos conocidos (se obtienen como superusuario para simular la manipulación de IDs)
+select set_config('prueba.proy_ajeno', (select id::text from proyectos where codigo = 'AJENO-1'), false);
+select set_config('prueba.persona_ajena', (select id::text from profiles where email = 'otra@x.pe'), false);
+set role authenticated;
+select como('admin@x.pe');
+select debe_fallar($q$ insert into actividades (area_id, semana, responsable_id, proyecto_id, descripcion)
+  values (mi_area(), date_trunc('week', current_date)::date + 14, auth.uid(), current_setting('prueba.proy_ajeno')::uuid, 'X') $q$, 'otra área');
+select debe_fallar($q$ insert into actividades (area_id, semana, responsable_id, descripcion)
+  values (mi_area(), date_trunc('week', current_date)::date + 14, current_setting('prueba.persona_ajena')::uuid, 'X') $q$, 'otra área');
+insert into actividades (area_id, semana, responsable_id, descripcion)
+values (mi_area(), date_trunc('week', current_date)::date + 21, auth.uid(), 'Para mover');
+select debe_fallar($q$ update actividades set proyecto_id = current_setting('prueba.proy_ajeno')::uuid where descripcion = 'Para mover' $q$, 'otra área');
+select debe_fallar($q$ insert into comentarios (area_id, entidad, entidad_id, texto) values (mi_area(), 'proyecto', current_setting('prueba.proy_ajeno')::uuid, 'X') $q$, 'otra área');
+select debe_fallar($q$ insert into proyecto_lideres values (current_setting('prueba.proy_ajeno')::uuid, auth.uid()) $q$, 'row-level security');
+select debe_fallar($q$ insert into proyecto_lideres values ((select id from proyectos where codigo = 'P-SEG'), current_setting('prueba.persona_ajena')::uuid) $q$, 'row-level security');
+insert into plantillas (area_id, tipo, nombre) values (mi_area(), 'servicio', 'Plantilla seg');
+select debe_fallar($q$ insert into plantilla_items (plantilla_id, descripcion, proyecto_id)
+  values ((select id from plantillas where nombre = 'Plantilla seg'), 'X', current_setting('prueba.proy_ajeno')::uuid) $q$, 'otra área');
+-- Autoría: aunque se envíe otro autor, queda el usuario real
+insert into enlaces (area_id, entidad, entidad_id, titulo, url, autor_id)
+values (mi_area(), 'proyecto', (select id from proyectos where codigo = 'P-SEG'), 'Doc', 'https://x.pe',
+        (select id from profiles where email = 'lider1@x.pe'));
+do $$ begin assert (select autor_id from enlaces where titulo = 'Doc') = auth.uid(), 'autor suplantado en enlaces'; end $$;
+-- Mención a una persona de otra área: no le llega notificación
+insert into comentarios (area_id, entidad, entidad_id, texto, menciones)
+values (mi_area(), 'proyecto', (select id from proyectos where codigo = 'P-SEG'), 'Hola', array[current_setting('prueba.persona_ajena')::uuid]);
+reset role;
+do $$ begin
+  assert not exists (select 1 from notificaciones n join profiles p on p.id = n.usuario_id where p.email = 'otra@x.pe' and n.tipo = 'mencion'), 'mención cruzó de área';
+  assert not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.proname not in ('como', 'debe_fallar')
+                      and has_function_privilege('anon', p.oid, 'execute')), 'anon puede ejecutar funciones security definer';
+  assert not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.proname not in ('como', 'debe_fallar')
+                      and not coalesce(p.proconfig::text like '%search_path=public, pg_temp%', false)), 'función definer sin search_path fijo';
+  assert not exists (select 1 from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and not c.relrowsecurity), 'tabla sin RLS';
+end $$;
+
 \echo 'Todas las pruebas pasaron'

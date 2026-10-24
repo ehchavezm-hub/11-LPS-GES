@@ -1,5 +1,6 @@
 // Tablero (6.11 y sección 10): PAC, tendencia, Pareto de CNC, PAC por líder y gerencia, carga, restricciones,
 // precisión de estimación, PAC ponderado y reconocimientos del mes (M-14).
+import { medir } from '../core/monitoreo.js';
 import { api } from '../data/api.js';
 import { store, on, esStaff, lideres, equipo, visibleParaConsulta, nombre, etiqueta, param, proyecto, valoresLista } from '../core/store.js';
 import { lunes, sumarSemanas, numeroSemana, esc, html, pct, num, agrupar, sumarDias, etiquetaSemana } from '../core/util.js';
@@ -36,7 +37,9 @@ export async function render(el) {
 
 export function destruir() { graficos.forEach(g => g.destroy()); graficos = []; desuscribir.forEach(f => f && f()); desuscribir = []; }
 
-async function cargar() {
+async function cargar() { return medir('tablero.indicadores', cargarDatos); }
+
+async function cargarDatos() {
   const desde = sumarSemanas(lunes(), -estado.semanas);
   const area = store.area.id;
   const [acts, hist, rests, cartera, ubic, cierres] = await Promise.all([

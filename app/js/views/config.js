@@ -1,5 +1,6 @@
 // Configuración (6.1, 6.2): usuarios y roles, listas configurables, parámetros, matriz de permisos,
 // columnas personalizadas, importación desde Excel, respaldo y auditoría.
+import { medir } from '../core/monitoreo.js';
 import { api, mensajeError, modoDemo } from '../data/api.js';
 import { store, on, cargarCatalogo, esAdmin, esSuperadmin, puede, opciones, opcionesProyectos, nombre, valoresLista } from '../core/store.js';
 import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista, LISTAS_RETIRADAS } from '../data/catalogos.js';
@@ -462,7 +463,7 @@ async function importarHistorico(archivo, salida) {
       cuerpo.querySelectorAll('[data-u]').forEach(s => { mapa.usuarios[s.dataset.u] = s.value; });
       cuerpo.querySelectorAll('[data-p]').forEach(s => { mapa.proyectos[s.dataset.p] = s.value; });
       try {
-        const r = await importar(a, mapa, t => { cuerpo.querySelector('[data-prog]').textContent = t; });
+        const r = await medir('importar.historico', () => importar(a, mapa, t => { cuerpo.querySelector('[data-prog]').textContent = t; }));
         salida.innerHTML = `<div class="aviso ok">Importación terminada: ${r.actividades} actividades, ${r.cierres} semanas cerradas, ${r.historico} registros de PAC histórico,
           ${r.proyectos} proyectos nuevos, ${r.valores} valores de lista nuevos${r.omitidas ? `, ${r.omitidas} duplicados omitidos` : ''}.</div>`;
         await cargarCatalogo();

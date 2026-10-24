@@ -30,7 +30,7 @@ jobs:
       - uses: supabase/setup-cli@v1
         if: env.SIN_CONFIG != '1'
         with:
-          version: latest
+          version: 2.119.0   # versión fija (reproducible); actualizar a propósito
       - name: Desplegar admin-usuarios
         if: env.SIN_CONFIG != '1'
         # La función valida la sesión por sí misma (compatible con las claves JWT nuevas de Supabase)
