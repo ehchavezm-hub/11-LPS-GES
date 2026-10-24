@@ -453,7 +453,23 @@ export function crearGrilla(contenedor, cfg) {
     return dif;
   }
 
-  const programarGuardado = debounce(guardar, 350);
+  const programarGuardado = debounce(async () => { await guardar(); guardarBorradores(); }, 350);
+
+  // Filas nuevas aún sin datos (no se guardan en la base hasta tener contenido): se conservan al recargar
+  // la grilla o la página, por usuario, grilla y pantalla (p. ej. cada semana del Plan).
+  const claveBorradores = () => (cfg.id && store.usuario ? `lpsgt-borradores:${store.usuario.id}:${cfg.id}:${location.hash.split('&')[0]}` : null);
+  const limpiarFila = d => Object.fromEntries(Object.entries(d).filter(([k]) => !['_guardando', '_nueva'].includes(k)));
+  function filasSinGuardar() { return tabla.getRows().map(r => r.getData()).filter(d => !d.id); }
+  function guardarBorradores() {
+    const k = claveBorradores(); if (!k) return;
+    try {
+      const filas = filasSinGuardar().map(limpiarFila);
+      if (filas.length) localStorage.setItem(k, JSON.stringify(filas)); else localStorage.removeItem(k);
+    } catch { /* sin almacenamiento local */ }
+  }
+  function leerBorradores() {
+    try { return JSON.parse(localStorage.getItem(claveBorradores()) || '[]'); } catch { return []; }
+  }
 
   async function guardar() {
     if (guardando) { pendiente = true; return; }
@@ -854,17 +870,19 @@ export function crearGrilla(contenedor, cfg) {
   const api_ = {
     tabla,
     listo: alListo,
-    async setDatos(filas) {
+    async setDatos(filas, { borradores = false } = {}) {
       await alListo;
+      // Las filas nuevas que aún no se guardan (sin datos) no se pierden al recargar la grilla
+      const pendientes = borradores ? leerBorradores() : filasSinGuardar().map(limpiarFila);
       servidor.clear();
       for (const f of filas) if (f.id) servidor.set(f.id, structuredClone(f));
-      await tabla.replaceData(filas);
+      await tabla.replaceData([...filas, ...pendientes.map(d => ({ ...d, _nueva: true }))]);
       tabla.clearHistory();
     },
     async inicializar(filas) {
       await alListo;
       await cargarVistas();
-      await api_.setDatos(filas);
+      await api_.setDatos(filas, { borradores: true });
     },
     /** Cambio recibido en tiempo real (de otro usuario o de otra pestaña). */
     aplicarRemoto({ tipo, fila, anterior }, pertenece) {
