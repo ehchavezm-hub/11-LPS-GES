@@ -32,7 +32,12 @@ const SIN_ID = new Set(['proyecto_lideres', 'proyecto_favoritos']);
 function cargar() {
   try {
     const s = localStorage.getItem(CLAVE);
-    if (s) return JSON.parse(s);
+    if (s) {
+      const db = JSON.parse(s);
+      // Datos de demo creados antes de la versión con Super administrador (equivale a la migración 009)
+      for (const p of db.profiles || []) if (p.es_admin_principal && p.rol === 'admin') p.rol = 'superadmin';
+      return db;
+    }
   } catch { /* datos corruptos: se regeneran */ }
   const db = crearDatosDemo();
   localStorage.setItem(CLAVE, JSON.stringify(db));
