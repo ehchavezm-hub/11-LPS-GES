@@ -41,11 +41,18 @@ export function mostrarLogin(raiz, continuar) {
     e.preventDefault();
     const clave = caja.querySelector('#r-clave').value;
     if (clave.length < 8) return error('La contraseña debe tener al menos 8 caracteres.');
+    const b = fReg.querySelector('button'); b.disabled = true;
+    const correo = caja.querySelector('#r-email').value.trim();
     try {
-      const r = await api.auth.registrar(caja.querySelector('#r-email').value.trim(), clave, caja.querySelector('#r-nombre').value.trim());
-      if (r.session) continuar();
-      else ok('Cuenta creada. Revise su correo para confirmarla y luego ingrese.');
-    } catch (err) { error(mensajeError(err)); }
+      const r = await api.auth.registrar(correo, clave, caja.querySelector('#r-nombre').value.trim());
+      if (r.session) return continuar();
+      // Aviso fijo (no solo un mensaje temporal) y vuelta al formulario de ingreso con el correo listo
+      caja.querySelector('[data-aviso-registro]')?.remove();
+      fIng.before(html(`<div class="aviso ok" data-aviso-registro>Cuenta creada. Le enviamos un correo a <b>${esc(correo)}</b>:
+        ábralo, pulse el enlace de confirmación y luego ingrese aquí. Si no llega en unos minutos, revise la carpeta de spam.</div>`));
+      caja.querySelector('#l-email').value = correo;
+      caja.querySelector('[data-a="alternar"]').click();
+    } catch (err) { error(mensajeError(err)); } finally { b.disabled = false; }
   });
   caja.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a;

@@ -36,6 +36,9 @@ export function mensajeError(e) {
   if (/violates foreign key/i.test(m)) return 'El registro está siendo usado en otra parte y no puede modificarse así.';
   if (/Failed to fetch|NetworkError/i.test(m)) return 'Sin conexión con el servidor. Intente nuevamente.';
   if (/Invalid login credentials/i.test(m)) return 'Correo o contraseña incorrectos.';
+  if (/only request this after (\d+) seconds/i.test(m)) return `Por seguridad, espere ${m.match(/after (\d+) seconds/i)[1]} segundos antes de volver a intentarlo.`;
+  if (/email rate limit|over_email_send_rate_limit/i.test(m)) return 'Se alcanzó el límite de correos de Supabase por hora. Intente más tarde o pida al administrador que confirme su cuenta.';
+  if (/User already registered|already been registered/i.test(m)) return 'Ese correo ya tiene una cuenta. Use "Ya tengo cuenta" para ingresar u "Olvidé mi contraseña".';
   if (/Email not confirmed/i.test(m)) return 'Debe confirmar su correo antes de ingresar (revise su bandeja de entrada).';
   return m;
 }
