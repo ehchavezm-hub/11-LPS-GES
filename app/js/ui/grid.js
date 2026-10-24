@@ -399,6 +399,7 @@ export function crearGrilla(contenedor, cfg) {
     // Al redibujarse (p. ej. otra grilla de la página cambia de alto) Tabulator recreaba la selección y tomaba el foco,
     // interrumpiendo la edición en otra grilla. El foco solo cambia cuando el usuario hace clic.
     selectableRangeAutoFocus: false,
+    groupUpdateOnCellEdit: true,   // al cambiar el campo agrupado (p. ej. la semana) la fila pasa a su grupo
     selectableRangeColumns: true,
     selectableRangeRows: true,
     selectableRangeClearCells: true,
