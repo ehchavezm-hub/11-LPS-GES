@@ -117,10 +117,9 @@ export function nombre(id) { return perfil(id)?.nombre || ''; }
 export function lideres({ inactivos = false } = {}) {
   return store.perfiles.filter(p => ['superadmin', 'admin', 'delegado', ...PLANIFICADORES].includes(p.rol) && !p.eliminado && (inactivos || p.activo));
 }
-/** Personas que planifican: líderes y delegado; el administrador solo si tiene actividades en 'acts'. */
-export function equipo(acts = []) {
-  const conActs = new Set(acts.map(a => a.responsable_id));
-  return lideres().filter(p => !['superadmin', 'admin'].includes(p.rol) || conActs.has(p.id));
+/** Todas las personas del equipo: administradores, delegado y roles que planifican (no consulta ni pendientes), por nombre. */
+export function equipo() {
+  return lideres().slice().sort((a, b) => a.nombre.localeCompare(b.nombre));
 }
 /** Restricción de visibilidad de consulta (en Supabase la aplica RLS; aquí también en modo demostración). */
 export function visibleParaConsulta(proyectoId) {
