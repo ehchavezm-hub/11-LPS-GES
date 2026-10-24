@@ -10,7 +10,7 @@ import { resumenPAC, colorPAC, capacidadSemana, colorCarga, restriccionesActivas
 import { abrirDetalle, abrirRestricciones, confirmarRestricciones } from './detalle.js';
 import { mostrarResumen } from '../services/resumen.js';
 import { imprimirPDF, tablaPDF, kpisPDF } from '../services/pdf.js';
-import { etiqueta, textoEstado } from '../core/store.js';
+import { etiqueta, textoEstado, cetDeProyecto } from '../core/store.js';
 
 let grilla, desuscribir = [], estado;
 
@@ -135,7 +135,7 @@ function nuevaFila() {
   return {
     area_id: store.area.id, semana: estado.semana, responsable_id: respNuevo(), comprometida: true,
     tipo: empezo ? 'no_programada' : 'programada', estado: 'programado', estado_la: 'trasladada', origen: 'manual',
-    proyecto_id: p?.id || null, gerencia_id: p?.gerencia_id || null, cet_id: p?.cet_id || null,
+    proyecto_id: p?.id || null, gerencia_id: p?.gerencia_id || null, cet_id: cetDeProyecto(p),
     hh_lu: 0, hh_ma: 0, hh_mi: 0, hh_ju: 0, hh_vi: 0, hh_sa: 0, hh_do: 0, hh_total: 0, extra: {},
   };
 }

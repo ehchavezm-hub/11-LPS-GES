@@ -1,7 +1,7 @@
 // Configuración (6.1, 6.2): usuarios y roles, listas configurables, parámetros, matriz de permisos,
 // columnas personalizadas, importación desde Excel, respaldo y auditoría.
 import { api, mensajeError, modoDemo } from '../data/api.js';
-import { store, cargarCatalogo, esAdmin, esSuperadmin, puede, opciones, nombre, valoresLista } from '../core/store.js';
+import { store, cargarCatalogo, esAdmin, esSuperadmin, puede, opciones, opcionesProyectos, nombre, valoresLista } from '../core/store.js';
 import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista } from '../data/catalogos.js';
 import { esc, html, fmtFechaHora, fmtFecha, normalizar } from '../core/util.js';
 import { ir } from '../core/router.js';
@@ -257,14 +257,21 @@ async function listas(el, claveSel) {
       { field: '_p', title: '', tipo: 'texto', ancho: 36, calc: true, filtro: false, formato: (v, x) => x.protegido ? '🔒' : '' },
       { field: 'valor', title: 'Texto visible', tipo: 'texto', ancho: 320 },
       { field: 'codigo', title: 'Código', tipo: 'texto', ancho: 120, editable: x => !x.protegido },
-      { field: 'descripcion', title: 'Descripción', tipo: 'texto', ancho: 240 },
-      { field: 'color', title: 'Color', tipo: 'texto', ancho: 100, formato: v => v ? `<span class="badge" style="--c:${esc(v)}">${esc(v)}</span>` : '' },
+      // CET: cada código se asocia a un proyecto (reemplaza el campo CET del proyecto); no usa descripción ni color
+      sel === 'cet' ? { field: '_proyecto', title: 'Proyecto', tipo: 'lista', ancho: 280, opciones: opcionesProyectos,
+        ayuda: 'Proyecto al que corresponde este CET: al elegir el proyecto en una actividad, el CET se completa solo' } : null,
+      sel === 'cet' ? null : { field: 'descripcion', title: 'Descripción', tipo: 'texto', ancho: 240 },
+      sel === 'cet' ? null : { field: 'color', title: 'Color', tipo: 'texto', ancho: 100, formato: v => v ? `<span class="badge" style="--c:${esc(v)}">${esc(v)}</span>` : '' },
       { field: 'orden', title: 'Orden', tipo: 'numero', ancho: 70, paso: 1 },
       { field: 'activo', title: 'Activo', tipo: 'casilla', ancho: 70, editable: x => !x.protegido },
       sel === 'ubicaciones' ? { field: '_cuenta', title: 'Cuenta para capacidad', tipo: 'casilla', ancho: 150,
         ayuda: 'Desmarque para días que no suman capacidad (vacaciones, feriado)' } : null,
     ],
-    derivar: (x, cambios) => '_cuenta' in cambios ? { extra: { ...(x.extra || {}), cuenta_capacidad: !!cambios._cuenta } } : {},
+    derivar: (x, cambios) => {
+      if ('_cuenta' in cambios) return { extra: { ...(x.extra || {}), cuenta_capacidad: !!cambios._cuenta } };
+      if ('_proyecto' in cambios) return { extra: { ...(x.extra || {}), proyecto_id: cambios._proyecto || null } };
+      return {};
+    },
     puedeEditarFila: () => editable,
     nuevaFila: () => ({ lista_id: lista.id, valor: '', activo: true, orden: (store.listas[sel].valores.length + 1) * 10, extra: {} }),
     listaParaCrear: x => !!(x.valor && x.valor.trim()),
@@ -273,7 +280,7 @@ async function listas(el, claveSel) {
     alGuardar: () => cargarCatalogo(),
   });
   const valores = await api.list('lista_valores', { eq: { lista_id: lista.id }, order: [['orden', true]] });
-  await grilla.inicializar(valores.map(v => ({ ...v, _cuenta: v.extra?.cuenta_capacidad !== false })));
+  await grilla.inicializar(valores.map(v => ({ ...v, _cuenta: v.extra?.cuenta_capacidad !== false, _proyecto: v.extra?.proyecto_id || store.proyectos.find(x => x.cet_id === v.id)?.id || null })));
 }
 
 // ---------- Parámetros ----------

@@ -1,5 +1,5 @@
 // Definición de columnas de la grilla de actividades (Plan semanal y Look Ahead) + columnas personalizadas.
-import { store, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, esGestor, textoEstado } from '../core/store.js';
+import { store, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, cetDeProyecto, esGestor, textoEstado } from '../core/store.js';
 import { DIAS, DIAS_CORTOS, sumarDias, fmtCorto, esc, etiquetaSemana } from '../core/util.js';
 import { semanasPendiente } from './indicadores.js';
 
@@ -85,7 +85,7 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
   return cols.filter(Boolean);
 }
 
-/** Al elegir un proyecto se completan gerencia y CET si están vacíos; si se completa, se limpia la CNC. */
+/** Al elegir un proyecto se completan su gerencia y su CET (según la lista CET); si se completa, se limpia la CNC. */
 export function derivarActividad(fila, cambios) {
   const d = {};
   if (Object.keys(cambios).some(k => k.startsWith('hh_') && k !== 'hh_real' && k !== 'hh_total')) {
@@ -94,7 +94,8 @@ export function derivarActividad(fila, cambios) {
   if ('proyecto_id' in cambios && cambios.proyecto_id) {
     const p = proyecto(cambios.proyecto_id);
     if (p?.gerencia_id) d.gerencia_id = p.gerencia_id;
-    if (p?.cet_id && !fila.cet_id) d.cet_id = p.cet_id;
+    const cet = cetDeProyecto(p);
+    if (cet) d.cet_id = cet;
   }
   if ('estado' in cambios && cambios.estado !== 'no_completado' && fila.cnc_id) d.cnc_id = null;
   if ('estado' in cambios && cambios.estado === 'completado' && fila.hh_real == null && fila.hh_total) d.hh_real = fila.hh_total;
