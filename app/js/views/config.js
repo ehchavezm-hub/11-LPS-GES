@@ -2,7 +2,7 @@
 // columnas personalizadas, importación desde Excel, respaldo y auditoría.
 import { api, mensajeError, modoDemo } from '../data/api.js';
 import { store, cargarCatalogo, esAdmin, puede, opciones, nombre, valoresLista } from '../core/store.js';
-import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL } from '../data/catalogos.js';
+import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista } from '../data/catalogos.js';
 import { esc, html, fmtFechaHora, fmtFecha, normalizar } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -205,20 +205,47 @@ async function rotarDelegado(perfiles) {
 // ---------- Listas configurables ----------
 async function listas(el, claveSel) {
   const todas = Object.values(store.listas).map(x => x.lista).sort((a, b) => a.nombre.localeCompare(b.nombre));
-  const sel = claveSel || todas[0]?.clave;
+  const sel = claveSel || todas.find(l => l.clave === 'gerencias')?.clave || todas[0]?.clave;
   const editable = puede('gestionar_listas');
-  el.innerHTML = `<div class="barra" style="margin-bottom:10px"><label>Lista: <select class="sel" data-l>${todas.map(l => `<option value="${l.clave}"${l.clave === sel ? ' selected' : ''}>${esc(l.nombre)}</option>`).join('')}</select></label>
-    ${editable ? '<button class="btn btn-sm" data-a="nueva">＋ Nueva lista</button>' : ''}<span class="flex"></span>
+  // Grupos: los iniciales en su orden, luego los creados por el usuario y al final "Otras listas"
+  const grupos = [...new Set([...GRUPOS_LISTAS.slice(0, 3), ...todas.map(grupoDeLista).sort(), GRUPOS_LISTAS[3]])];
+  const opcionesGrupo = grupos.map(g => {
+    const del = todas.filter(l => grupoDeLista(l) === g);
+    const opcion = l => `<option value="${l.clave}"${l.clave === sel ? ' selected' : ''}>${esc(l.nombre)}</option>`;
+    if (g !== GRUPOS_LISTAS[0]) return del.length ? `<optgroup label="${esc(g)}">${del.map(opcion).join('')}</optgroup>` : '';
+    // Primer grupo: Gerencias, Proyectos / Procesos y Servicios / Entregables primero
+    const primero = c => del.filter(l => l.clave === c).map(opcion).join('');
+    return `<optgroup label="${esc(g)}">${primero('gerencias')}<option value="__proyectos">🏗 Proyectos / Procesos (catálogo) →</option>${primero('servicios')}
+      ${del.filter(l => !['gerencias', 'servicios'].includes(l.clave)).map(opcion).join('')}</optgroup>`;
+  }).join('');
+  el.innerHTML = `<div class="barra" style="margin-bottom:10px"><label>Lista: <select class="sel" data-l>${opcionesGrupo}</select></label>
+    ${editable ? '<button class="btn btn-sm" data-a="grupo" title="Cambiar el grupo de esta lista">✎ Grupo</button><button class="btn btn-sm" data-a="nueva">＋ Nueva lista</button>' : ''}<span class="flex"></span>
     <span class="nota">🔒 = valor usado por los cálculos: puede renombrarse, no eliminarse.</span></div><div data-g></div>`;
-  el.querySelector('[data-l]').onchange = e => listas(el, e.target.value);
+  el.querySelector('[data-l]').onchange = e => {
+    if (e.target.value === '__proyectos') { location.hash = '#/proyectos'; return; }
+    listas(el, e.target.value);
+  };
+  const camposGrupo = valor => [
+    { name: 'grupo', label: 'Grupo', type: 'select', options: grupos.map(g => ({ value: g, label: g })), value: valor },
+    { name: 'grupo_nuevo', label: 'O escriba un grupo nuevo', placeholder: 'Ej.: Calidad' },
+  ];
   el.querySelector('[data-a="nueva"]')?.addEventListener('click', async () => {
-    const d = await pedirDatos({ titulo: 'Nueva lista', campos: [{ name: 'nombre', label: 'Nombre', required: true, full: true }, { name: 'descripcion', label: 'Descripción', full: true }],
+    const d = await pedirDatos({ titulo: 'Nueva lista', campos: [{ name: 'nombre', label: 'Nombre', required: true, full: true }, { name: 'descripcion', label: 'Descripción', full: true },
+      ...camposGrupo(grupoDeLista(store.listas[sel]?.lista || {}))],
       alGuardar: async v => {
         const clave = normalizar(v.nombre).replace(/[^a-z0-9]+/g, '_').slice(0, 40);
-        await api.insert('listas', { area_id: store.area.id, clave, nombre: v.nombre, descripcion: v.descripcion, sistema: false });
+        await api.insert('listas', { area_id: store.area.id, clave, nombre: v.nombre, descripcion: v.descripcion, sistema: false,
+          grupo: (v.grupo_nuevo || '').trim() || v.grupo });
         await cargarCatalogo();
       } });
     if (d) listas(el, normalizar(d.nombre).replace(/[^a-z0-9]+/g, '_').slice(0, 40));
+  });
+  el.querySelector('[data-a="grupo"]')?.addEventListener('click', async () => {
+    const l = store.listas[sel]?.lista;
+    if (!l) return;
+    const d = await pedirDatos({ titulo: `Grupo de "${l.nombre}"`, campos: camposGrupo(grupoDeLista(l)),
+      alGuardar: async v => { await api.update('listas', l.id, { grupo: (v.grupo_nuevo || '').trim() || v.grupo }); await cargarCatalogo(); } });
+    if (d) listas(el, sel);
   });
   const lista = store.listas[sel]?.lista;
   if (!lista) return;

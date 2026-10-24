@@ -1,6 +1,15 @@
 // Valores iniciales de listas, parámetros y permisos. Deben coincidir con
 // supabase/migrations/003_datos_iniciales.sql (se usan en el modo demostración).
 
+// Grupos de listas en Configuración → Listas (el grupo de cada lista se puede cambiar; este es el inicial)
+export const GRUPOS_LISTAS = ['Gerencias, proyectos y servicios', 'Detalle de actividades y seguimiento', 'Configuración general del aplicativo', 'Otras listas'];
+export const GRUPO_INICIAL = {
+  gerencias: 0, servicios: 0, categorias_servicio: 0, cet: 0, tipos_proyecto: 0, fases: 0, paises: 0,
+  cnc: 1, tipos_restriccion: 1, criticidad: 1, tipos_cartera: 1, ubicaciones: 1,
+  estados_compromiso: 2, tipos_actividad: 2, estados_la: 2, estados_proyecto: 2, estados_restriccion: 2, estados_cartera: 2,
+};
+export const grupoDeLista = l => l.grupo || GRUPOS_LISTAS[GRUPO_INICIAL[l.clave] ?? 3];
+
 export const LISTAS_INICIALES = [
   ['gerencias', 'Gerencias (clientes internos)', [
     ['GI', 'Gerencia de Ingeniería'], ['GOI', 'Gerencia de Obras Industriales'], ['GOC', 'Gerencia de Obras Civiles'],
