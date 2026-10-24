@@ -261,3 +261,7 @@ body.pantalla-completa .contenido { padding: 24px 34px; font-size: 16px; }
   .selector-semana span { min-width: 140px; }
 }
 @media print { .cabecera, .lateral, .grilla-barra, .grilla-ayuda { display: none; } }
+
+/* Datos de acceso entregados por el administrador */
+.credenciales { background: var(--fondo, #F4F6FA); border: 1px solid var(--borde, #E2E8F0); border-radius: 8px; padding: 10px 12px;
+  font-family: ui-monospace, Consolas, monospace; font-size: 13px; white-space: pre-wrap; user-select: all; }

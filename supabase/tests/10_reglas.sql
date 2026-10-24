@@ -182,4 +182,12 @@ set role service_role;
 do $$ begin assert jsonb_array_length(exportar_respaldo()->'areas') >= 1, 'service_role sin respaldo'; end $$;
 reset role;
 
+-- ---------- Usuario creado por el administrador (Edge Function) ----------
+insert into auth.users (email, raw_user_meta_data, raw_app_meta_data)
+values ('creado@x.pe', '{"nombre":"Creado por admin"}', jsonb_build_object('creado_por', (select id from profiles where email = 'admin@x.pe')));
+do $$ begin
+  assert (select debe_cambiar_clave and rol = 'pendiente' from profiles where email = 'creado@x.pe'), 'perfil creado por admin';
+  assert not exists (select 1 from notificaciones where texto like '%creado@x.pe%'), 'no debe avisar al crear por admin';
+end $$;
+
 \echo 'Todas las pruebas pasaron'

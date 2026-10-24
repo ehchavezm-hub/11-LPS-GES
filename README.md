@@ -25,7 +25,7 @@ capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GT_Alcance_v0.
 ### 1. Base de datos (Supabase, plan gratuito)
 1. Cree una cuenta en <https://supabase.com> y un proyecto nuevo (región: São Paulo o la más cercana). Guarde la contraseña de la base de datos.
 2. En **SQL Editor**, ejecute en orden el contenido de:
-   `001_esquema.sql`, `002_seguridad.sql`, `003_datos_iniciales.sql`, `004_permisos_funciones.sql`.
+   `001_esquema.sql`, `002_seguridad.sql`, `003_datos_iniciales.sql`, `004_permisos_funciones.sql`, `005_usuarios_admin.sql`.
 3. **Cierre automático de semanas** (viernes 17:00): en **Database → Extensions** active `pg_cron` y ejecute en el SQL Editor:
    ```sql
    select cron.schedule('lpsgt-cierre', '5 * * * *', 'select public.cerrar_semanas_vencidas()');
@@ -35,6 +35,15 @@ capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GT_Alcance_v0.
 5. **Authentication → URL Configuration**: *Site URL* = la dirección del aplicativo en GitHub Pages (paso 2), p. ej. `https://ehchavezm-hub.github.io/11-LPS_GT/`.
 6. **Project Settings → API**: copie la *Project URL* y la *anon / publishable key*. **Nunca** use la *service_role / secret key* en el aplicativo.
 
+7. **Alta de usuarios por el administrador** (crear usuarios con contraseña y restablecerlas). Instale la función `admin-usuarios` de una de estas dos formas:
+   - **Desde Supabase (sin herramientas):** *Edge Functions → Deploy a new function → Via Editor*, nombre **`admin-usuarios`**,
+     pegue el contenido de [`supabase/functions/admin-usuarios/index.ts`](supabase/functions/admin-usuarios/index.ts) y pulse *Deploy function*.
+     Luego, en *Details* de la función, desactive **Verify JWT with legacy secret** (la función valida la sesión por sí misma).
+   - **Desde GitHub:** cree los secrets `SUPABASE_ACCESS_TOKEN` (token de <https://supabase.com/dashboard/account/tokens>) y `SUPABASE_PROJECT_REF`
+     (el texto `xxxx` de `https://xxxx.supabase.co`) y ejecute **Actions → Funciones Supabase → Run workflow**.
+
+   Sin esta función, los usuarios igual pueden registrarse solos con el enlace de invitación.
+
 ### 2. Publicación (GitHub Pages)
 1. En el repositorio: **Settings → Pages → Source: GitHub Actions**.
 2. **Settings → Secrets and variables → Actions → Variables**: cree `SUPABASE_URL` y `SUPABASE_ANON_KEY` con los valores del paso 1.6.
@@ -43,8 +52,10 @@ capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GT_Alcance_v0.
 
 ### 3. Primer ingreso
 1. Abra el aplicativo y use **Crear cuenta**. **El primer usuario registrado queda como Administrador principal.**
-2. Los siguientes usuarios se registran solos y quedan *Pendientes* hasta que el administrador les asigne rol
-   (Configuración → Usuarios): Delegado, Líder o Consulta. Desde ahí también se rota el delegado.
+2. Configuración → Usuarios → **＋ Nuevo usuario**: cree a cada persona con su rol y una contraseña temporal (se genera sola);
+   el aplicativo muestra los datos de acceso para copiarlos y entregarlos. Al ingresar, la persona define su propia contraseña.
+   Con el botón **🔑** se restablece la contraseña de cualquier usuario. Desde ahí también se rota el delegado.
+   Alternativa: enviar el enlace (**✉ Invitar**); quien se registra solo queda *Pendiente* hasta que se le asigne rol.
 3. Configuración → Importar: cargue el catálogo de proyectos y el histórico de PAC desde los Excel anteriores
    (se procesan en el navegador y van directo a la base de datos).
 

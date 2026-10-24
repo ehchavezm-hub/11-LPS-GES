@@ -53,6 +53,9 @@ async function arrancar() {
       ? 'Su cuenta fue registrada. El administrador debe asignarle un rol para que pueda ingresar.'
       : 'Su cuenta está desactivada. Comuníquese con el administrador.');
   }
+  if (store.usuario.debe_cambiar_clave) {
+    return mostrarNuevaClave(raiz, 'El administrador le asignó una contraseña temporal. Defina su propia contraseña para continuar.');
+  }
   try { await cargarCatalogo(); } catch (e) { error(mensajeError(e)); }
 
   const contenido = montarLayout(raiz, {

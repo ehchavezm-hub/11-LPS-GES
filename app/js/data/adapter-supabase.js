@@ -65,6 +65,21 @@ export function crearAdaptadorSupabase(url, key) {
       return ok(await sb.rpc(nombre, args));
     },
 
+    // Alta de usuarios y restablecimiento de contraseña: Edge Function "admin-usuarios" (servidor)
+    async adminUsuarios(accion, datos = {}) {
+      const { data, error } = await sb.functions.invoke('admin-usuarios', { body: { accion, ...datos } });
+      if (error) {
+        const status = error.context?.status;
+        let msg = error.message;
+        try { msg = (await error.context.json()).error || msg; } catch { /* sin cuerpo JSON */ }
+        if (status === 404 || error.name === 'FunctionsFetchError' || error.name === 'FunctionsRelayError') {
+          msg = 'La función "admin-usuarios" no está instalada en Supabase. Vea el README: "Alta de usuarios por el administrador".';
+        }
+        throw new Error(msg);
+      }
+      return data;
+    },
+
     subscribe(tablas, cb) {
       const canal = sb.channel('lpsgt-' + Math.random().toString(36).slice(2));
       for (const t of tablas) {
@@ -99,8 +114,9 @@ export function crearAdaptadorSupabase(url, key) {
         if (error) throw error;
       },
       async cambiarClave(password) {
-        const { error } = await sb.auth.updateUser({ password });
+        const { data, error } = await sb.auth.updateUser({ password });
         if (error) throw error;
+        await sb.from('profiles').update({ debe_cambiar_clave: false }).eq('id', data.user.id);
       },
       async salir() { await sb.auth.signOut(); },
       alCambiar(cb) { sb.auth.onAuthStateChange((evento, sesion) => cb(evento, sesion?.user || null)); },

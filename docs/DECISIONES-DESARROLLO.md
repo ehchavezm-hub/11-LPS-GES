@@ -22,6 +22,9 @@ salvo donde se dice lo contrario.
 - **Restricciones**: advierten pero no bloquean ("Comprometer igual"), según el alcance.
 - **Arrastre**: al cerrar se ofrece copiar los no completados a la semana siguiente; la copia guarda la semana original para medir reprogramaciones.
 - **Rotación del delegado**: al nombrar un nuevo delegado, el anterior vuelve a *Líder*. El historial queda registrado. Nadie puede quitar el rol al administrador principal ni eliminar usuarios (solo desactivarlos).
+- **Alta de usuarios por el administrador** (pedido del Gerente Técnico): el administrador y quien tenga el permiso *Gestionar usuarios* crean cuentas con
+  contraseña temporal y la restablecen con 🔑. El delegado no puede restablecer la de administradores ni la de otro delegado. La persona debe cambiar la
+  contraseña temporal en su primer ingreso. Esto se hace con la Edge Function `admin-usuarios`, porque la clave secreta de Supabase no puede estar en el navegador.
 - **Primer usuario** que se registra en un área = administrador principal. Los demás quedan *Pendientes* hasta que se les asigne rol.
 - **Proyectos propuestos** por líderes: pueden recibir actividades mientras están en revisión (marcados ⏳). Al rechazarlos se notifica el motivo.
 - **Importación de los Excel anteriores**: los responsables del Excel se asocian a usuarios (sugerencia automática, revisable). Lo no asociado se guarda como

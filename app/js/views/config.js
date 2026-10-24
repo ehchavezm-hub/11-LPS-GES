@@ -39,29 +39,103 @@ async function usuarios(el) {
     <div class="tarjeta" style="margin-bottom:12px">
       <div class="barra" style="margin-bottom:10px"><h2 style="margin:0">Usuarios</h2><span class="flex"></span>
         ${principal ? '<button class="btn btn-sm btn-azul" data-a="delegado">⭐ Asignar / rotar administrador delegado</button>' : ''}
-        <button class="btn btn-sm" data-a="invitar">✉ Invitar usuarios</button></div>
+        <button class="btn btn-sm btn-primario" data-a="nuevo">＋ Nuevo usuario</button>
+        <button class="btn btn-sm" data-a="invitar" title="Enlace para que la persona se registre sola">✉ Invitar</button></div>
       <table class="simple"><tr><th>Nombre</th><th>Correo</th><th>Código</th><th>Rol</th><th>Gerencias (consulta)</th><th class="num">H/día</th><th>Estado</th><th></th></tr>
       ${perfiles.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.es_admin_principal ? ' ' + badge('Principal', '#E8762B') : ''}</td><td>${esc(p.email || '')}</td><td>${esc(p.codigo || '')}</td>
         <td>${badge(ROLES[p.rol] || p.rol, { admin: '#E8762B', delegado: '#4E79A7', lider: '#59A14F', consulta: '#76B7B2', pendiente: '#EDC948' }[p.rol])}</td>
         <td>${esc((p.gerencia_ids || []).map(g => store.valores.get(g)?.codigo || '').join(', '))}</td><td class="num">${p.horas_dia ?? '—'}</td>
         <td>${p.activo ? 'Activo' : '<span style="color:var(--rojo)">Inactivo</span>'}</td>
-        <td><button class="btn btn-sm" data-editar="${p.id}">Editar</button></td></tr>`).join('')}</table></div>
+        <td style="white-space:nowrap"><button class="btn btn-sm" data-editar="${p.id}">Editar</button>
+          ${puedeRestablecer(p) ? `<button class="btn btn-sm" data-clave="${p.id}" title="Restablecer contraseña">🔑</button>` : ''}</td></tr>`).join('')}</table></div>
     <details class="tarjeta"><summary><b>Historial del administrador delegado</b></summary>
       <table class="simple" style="margin-top:8px"><tr><th>Persona</th><th>Desde</th><th>Hasta</th><th>Otorgado por</th></tr>
       ${historial.map(h => `<tr><td>${esc(nombre(h.usuario_id))}</td><td>${fmtFechaHora(h.desde)}</td><td>${h.hasta ? fmtFechaHora(h.hasta) : 'Vigente'}</td><td>${esc(nombre(h.otorgado_por))}</td></tr>`).join('') || '<tr><td colspan="4" class="nota">Sin registros.</td></tr>'}</table></details>`;
   el.addEventListener('click', async e => {
     const id = e.target.closest('[data-editar]')?.dataset.editar;
+    const idClave = e.target.closest('[data-clave]')?.dataset.clave;
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (id) await editarUsuario(perfiles.find(p => p.id === id));
+    if (idClave) await restablecerClave(perfiles.find(p => p.id === idClave));
+    if (a === 'nuevo') await nuevoUsuario();
     if (a === 'invitar') {
       const url = location.origin + location.pathname;
       modal({ titulo: 'Invitar usuarios', ancho: 560, cuerpo: `<p>Envíe este enlace a las personas que deben usar LPS-GT. Al registrarse quedan <b>pendientes</b> y usted les asigna el rol aquí.</p>
         <p><input class="inp" style="width:100%" readonly value="${esc(url)}"></p>
-        <p class="nota">Por seguridad, las cuentas no se crean desde el navegador: cada persona define su propia contraseña.</p>`,
+        <p class="nota">También puede crear la cuenta usted mismo con "＋ Nuevo usuario" y entregarle una contraseña temporal.</p>`,
         botones: [{ texto: 'Copiar enlace', clase: 'btn-primario', accion: async () => { await navigator.clipboard?.writeText(url).catch(() => {}); ok('Enlace copiado.'); } }] });
     }
     if (a === 'delegado') await rotarDelegado(perfiles);
   });
+}
+
+// Contraseña temporal legible (sin caracteres que se confunden: 0/O, 1/l/I)
+function generarClave() {
+  const c = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const n = crypto.getRandomValues(new Uint32Array(10));
+  return Array.from(n, x => c[x % c.length]).join('');
+}
+
+function puedeRestablecer(p) {
+  const yo = store.usuario;
+  if (p.id === yo.id) return false;   // la propia se cambia desde el menú de usuario
+  if (p.es_admin_principal) return false;
+  return yo.es_admin_principal || !['admin', 'delegado'].includes(p.rol);
+}
+
+function mostrarCredenciales(titulo, email, clave) {
+  const texto = `LPS-GT\nEnlace: ${location.origin + location.pathname}\nUsuario: ${email}\nContraseña temporal: ${clave}\n(Se le pedirá cambiarla al ingresar)`;
+  modal({
+    titulo, ancho: 520,
+    cuerpo: `<p>Entregue estos datos a la persona por un medio privado. Al ingresar se le pedirá definir su propia contraseña.</p>
+      <pre class="credenciales">${esc(texto)}</pre>`,
+    botones: [{ texto: 'Cerrar' }, { texto: 'Copiar', clase: 'btn-primario', accion: async () => {
+      await navigator.clipboard?.writeText(texto).catch(() => {}); ok('Datos copiados.'); return false; } }],
+  });
+}
+
+async function nuevoUsuario() {
+  const principal = store.usuario.es_admin_principal;
+  const roles = Object.entries(ROLES).filter(([k]) => k !== 'pendiente' && (principal || !['admin', 'delegado'].includes(k)));
+  let creado = null;
+  await pedirDatos({
+    titulo: 'Nuevo usuario', texto: 'Crear usuario',
+    valores: { rol: 'lider', clave: generarClave() },
+    campos: [
+      { name: 'nombre', label: 'Nombre y apellido', required: true },
+      { name: 'email', label: 'Correo (usuario de ingreso)', type: 'email', required: true },
+      { name: 'codigo', label: 'Código corto (iniciales)' },
+      { name: 'rol', label: 'Rol', type: 'select', required: true, options: roles.map(([value, label]) => ({ value, label })) },
+      { name: 'clave', label: 'Contraseña temporal (mínimo 8)', required: true, help: 'Se generó una al azar; puede cambiarla. La persona la cambiará al ingresar.' },
+      { name: 'horas_dia', label: 'Horas disponibles por día', type: 'number', min: 0, max: 24, step: 0.5, help: 'Vacío = valor general del área' },
+      { name: 'gerencia_ids', label: 'Gerencias visibles (solo usuarios de consulta)', type: 'multiselect', options: opciones('gerencias', { vacio: false }) },
+    ],
+    alGuardar: async d => {
+      if (String(d.clave).length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
+      await api.adminUsuarios('crear', d);
+      creado = d;
+    },
+  });
+  if (!creado) return;
+  await cargarCatalogo();
+  await render(document.getElementById('contenido'), { seccion: 'usuarios' });
+  mostrarCredenciales(`Usuario creado: ${creado.nombre}`, creado.email.trim().toLowerCase(), creado.clave);
+}
+
+async function restablecerClave(p) {
+  let hecho = null;
+  await pedirDatos({
+    titulo: `Restablecer contraseña: ${p.nombre}`, texto: 'Restablecer',
+    antes: 'La contraseña actual dejará de funcionar. Se le pedirá cambiar la nueva al ingresar.',
+    valores: { clave: generarClave() },
+    campos: [{ name: 'clave', label: 'Nueva contraseña temporal (mínimo 8)', required: true, full: true }],
+    alGuardar: async d => {
+      if (String(d.clave).length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
+      await api.adminUsuarios('clave', { usuario_id: p.id, clave: d.clave });
+      hecho = d.clave;
+    },
+  });
+  if (hecho) mostrarCredenciales(`Contraseña restablecida: ${p.nombre}`, p.email || '', hecho);
 }
 
 async function editarUsuario(p) {

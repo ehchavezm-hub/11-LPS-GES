@@ -266,6 +266,31 @@ export function crearAdaptadorDemo() {
       if (nombre === 'cerrar_semanas_vencidas') return 0;
       throw new Error(`Función no disponible en modo demo: ${nombre}`);
     },
+    // Emula la Edge Function "admin-usuarios" (en demo la contraseña no se usa)
+    async adminUsuarios(accion, d = {}) {
+      db = cargar();
+      const yo = perfil();
+      if (!yo || !['admin', 'delegado'].includes(yo.rol)) throw new Error('No tiene permiso para gestionar usuarios.');
+      if (String(d.clave || '').length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
+      if (accion === 'crear') {
+        const email = String(d.email || '').trim().toLowerCase();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Correo no válido.');
+        if (tabla('profiles').some(p => p.email === email)) throw new Error('Ya existe un usuario con ese correo.');
+        if (['admin', 'delegado'].includes(d.rol) && !yo.es_admin_principal) throw new Error('Solo el administrador principal asigna los roles de administrador y delegado.');
+        const [p] = await api.insert('profiles', { area_id: yo.area_id, email, nombre: String(d.nombre || '').trim(), rol: d.rol || 'lider',
+          codigo: d.codigo || null, gerencia_ids: d.gerencia_ids || [], horas_dia: d.horas_dia === '' || d.horas_dia == null ? null : Number(d.horas_dia),
+          activo: true, es_admin_principal: false, debe_cambiar_clave: true, tour_visto: false });
+        return { id: p.id };
+      }
+      if (accion === 'clave') {
+        const obj = perfil(d.usuario_id);
+        if (!obj) throw new Error('Usuario no encontrado.');
+        if (obj.id !== yo.id && (obj.es_admin_principal || (['admin', 'delegado'].includes(obj.rol) && !yo.es_admin_principal))) throw new Error('No puede restablecer la contraseña de ese usuario.');
+        await api.update('profiles', obj.id, { debe_cambiar_clave: obj.id !== yo.id });
+        return { ok: true };
+      }
+      throw new Error('Acción no válida.');
+    },
     subscribe(tablas, cb) {
       const f = ev => { if (tablas.includes(ev.tabla)) cb(ev); };
       oyentes.add(f);
@@ -290,7 +315,7 @@ export function crearAdaptadorDemo() {
       },
       async registrar() { throw new Error('En modo demostración elija uno de los usuarios de ejemplo.'); },
       async recuperar() { throw new Error('No disponible en modo demostración.'); },
-      async cambiarClave() { throw new Error('No disponible en modo demostración.'); },
+      async cambiarClave() { const p = perfil(); if (p) await api.update('profiles', p.id, { debe_cambiar_clave: false }); },
       async salir() { localStorage.removeItem(CLAVE_SESION); },
       alCambiar() { /* sin eventos externos en demo */ },
     },

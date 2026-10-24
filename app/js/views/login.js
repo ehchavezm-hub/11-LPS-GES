@@ -94,15 +94,18 @@ export function mostrarPendiente(raiz, mensaje) {
   caja.querySelector('[data-a="salir"]').onclick = async () => { await api.auth.salir(); location.reload(); };
 }
 
-export function mostrarNuevaClave(raiz) {
+export function mostrarNuevaClave(raiz, motivo = '') {
   raiz.innerHTML = '';
   const caja = html(`<div class="login"><div class="login-caja">
     <div class="logo"><span>LPS<b style="color:var(--naranja)">-GT</b></span></div>
     <div class="lema">Defina su nueva contraseña</div>
+    ${motivo ? `<div class="aviso">${esc(motivo)}</div>` : ''}
     <form><div class="campo"><label for="n1">Nueva contraseña</label><input id="n1" type="password" minlength="8" required autocomplete="new-password"></div>
     <div class="campo"><label for="n2">Repetir</label><input id="n2" type="password" minlength="8" required autocomplete="new-password"></div>
-    <button class="btn btn-primario" type="submit">Guardar</button></form></div></div>`);
+    <button class="btn btn-primario" type="submit">Guardar</button></form>
+    <button class="btn btn-sm" data-a="salir" style="margin-top:10px">Cerrar sesión</button></div></div>`);
   raiz.append(caja);
+  caja.querySelector('[data-a="salir"]').onclick = async () => { await api.auth.salir(); location.hash = ''; location.reload(); };
   caja.querySelector('form').addEventListener('submit', async e => {
     e.preventDefault();
     const a = caja.querySelector('#n1').value, b = caja.querySelector('#n2').value;
