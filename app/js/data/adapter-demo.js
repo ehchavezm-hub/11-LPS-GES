@@ -38,6 +38,8 @@ function cargar() {
       for (const p of db.profiles || []) if (p.es_admin_principal && p.rol === 'admin') p.rol = 'superadmin';
       // "Servicios / Entregables" pasó a llamarse "CET / Servicio" (migración 010)
       for (const l of db.listas || []) if (l.clave === 'servicios' && l.nombre === 'Servicios / Entregables') l.nombre = 'CET / Servicio';
+      // Proyectos pegados sin estado (antes una celda vacía lo borraba): quedan activos
+      for (const p of db.proyectos || []) if (!p.estado) p.estado = 'activo';
       return db;
     }
   } catch { /* datos corruptos: se regeneran */ }

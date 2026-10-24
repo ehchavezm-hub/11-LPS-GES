@@ -7,7 +7,7 @@ import { esc, html, fmtFechaHora, fmtFecha, normalizar } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
 import { ok, error, confirmar, pedirDatos, modal, badge, toast } from '../ui/ui.js';
-import { leerLibro, analizar, importar, sugerirUsuario, sugerirProyecto, leerProyectos, gerenciaDe } from '../services/importar.js';
+import { leerLibro, analizar, importar, sugerirUsuario, sugerirProyecto } from '../services/importar.js';
 
 const SECCIONES = [
   ['usuarios', '👤 Usuarios y roles'], ['listas', '📋 Listas'], ['parametros', '🔧 Parámetros'], ['permisos', '🔐 Permisos'],
@@ -408,11 +408,13 @@ async function importarVista(el) {
       Las semanas pasadas quedan cerradas como histórico. Puede importar varios archivos, uno por uno; los duplicados se omiten.</p>
       <input type="file" accept=".xlsx,.xlsm,.xls" data-f="hist"><div data-res-hist style="margin-top:10px"></div></div>
     <div class="tarjeta"><h2>Catálogo de proyectos (Excel)</h2>
-      <p>Lee hojas con columnas <b>Código</b> y <b>Proyecto</b> (y opcionalmente Nombre completo y Gerencia), como la hoja "Listas" del libro OT_LA.</p>
-      <input type="file" accept=".xlsx,.xlsm,.xls" data-f="proy"><div data-res-proy style="margin-top:10px"></div></div></div>
+      <p>Reconoce las columnas por su título, en cualquier orden y hoja: <b>Código</b>, <b>Nombre corto</b> (o Proyecto), Nombre completo,
+        Gerencia, Fase, País, Estado, Inicio y Fin. Agrega los proyectos nuevos, puede actualizar los existentes (mismo código)
+        y ofrece agregar a las listas las gerencias, fases o países nuevos. Antes de importar muestra una vista previa.</p>
+      <input type="file" accept=".xlsx,.xlsm,.xls,.csv" data-f="proy"><div data-res-proy style="margin-top:10px"></div></div></div>
     <p class="nota" style="margin-top:10px">Los archivos se procesan en su navegador y los datos van directo a la base de datos; no se guardan en el repositorio.</p>`;
   el.querySelector('[data-f="hist"]').onchange = e => e.target.files[0] && importarHistorico(e.target.files[0], el.querySelector('[data-res-hist]'));
-  el.querySelector('[data-f="proy"]').onchange = e => e.target.files[0] && importarProyectos(e.target.files[0], el.querySelector('[data-res-proy]'));
+  el.querySelector('[data-f="proy"]').onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) import('./importar-proyectos.js').then(m => m.importarProyectos(f)); };
 }
 
 async function importarHistorico(archivo, salida) {
@@ -447,30 +449,6 @@ async function importarHistorico(archivo, salida) {
       } catch (e) { error(mensajeError(e)); return false; }
     } }],
   });
-}
-
-export async function importarProyectos(archivo, salida) {
-  if (!archivo) {
-    const inp = html('<input type="file" accept=".xlsx,.xlsm,.xls">');
-    inp.onchange = () => inp.files[0] && importarProyectos(inp.files[0], null);
-    inp.click();
-    return;
-  }
-  const filas = await leerProyectos(archivo);
-  const nuevos = filas.filter(f => !store.proyectos.some(p => p.codigo === f.codigo || normalizar(p.nombre_corto) === normalizar(f.nombre_corto)));
-  if (!nuevos.length) { (salida ? (salida.innerHTML = '<div class="aviso">No hay proyectos nuevos en el archivo.</div>') : toast('No hay proyectos nuevos en el archivo.', 'info')); return; }
-  const cuerpo = html(`<div><p>${nuevos.length} proyecto(s) nuevos:</p><table class="simple"><tr><th></th><th>Código</th><th>Nombre</th><th>Gerencia</th></tr>
-    ${nuevos.map((f, i) => `<tr><td><input type="checkbox" data-i="${i}" checked></td><td>${esc(f.codigo)}</td><td>${esc(f.nombre_corto)}</td><td>${esc(f.gerencia || '')}</td></tr>`).join('')}</table></div>`);
-  modal({ titulo: 'Importar proyectos', cuerpo, ancho: 760, botones: [{ texto: 'Cancelar' }, { texto: 'Importar', clase: 'btn-primario', accion: async () => {
-    const sel = [...cuerpo.querySelectorAll('[data-i]:checked')].map(c => nuevos[Number(c.dataset.i)]);
-    try {
-      await api.insert('proyectos', sel.map(f => ({ area_id: store.area.id, codigo: f.codigo, nombre_corto: f.nombre_corto, nombre_completo: f.nombre_completo,
-        gerencia_id: f.gerencia ? gerenciaDe(f.gerencia) : null, estado: 'activo', tipo_id: valoresLista('tipos_proyecto')[0]?.id || null })));
-      await cargarCatalogo();
-      ok(`${sel.length} proyecto(s) importados.`);
-      if (salida) salida.innerHTML = `<div class="aviso ok">${sel.length} proyecto(s) importados.</div>`;
-    } catch (e) { error(mensajeError(e)); return false; }
-  } }] });
 }
 
 // ---------- Respaldo ----------

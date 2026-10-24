@@ -10,6 +10,7 @@ import { resumenPAC, colorPAC, resumenRestricciones } from '../services/indicado
 import { panelColaboracion } from './detalle.js';
 import { imprimirPDF, tablaPDF, kpisPDF } from '../services/pdf.js';
 import { ROLES } from '../data/catalogos.js';
+import { elegirArchivoProyectos } from './importar-proyectos.js';
 
 let grilla;
 
@@ -29,7 +30,7 @@ export async function render(el, params) {
     <div data-grilla></div></div>`);
   el.append(pag);
   pag.querySelector('[data-a="nuevo"]')?.addEventListener('click', () => formularioProyecto());
-  pag.querySelector('[data-a="importar"]')?.addEventListener('click', () => import('./config.js').then(m => m.importarProyectos()));
+  pag.querySelector('[data-a="importar"]')?.addEventListener('click', () => elegirArchivoProyectos());
   pag.querySelector('[data-a="pdf"]').addEventListener('click', () => imprimirPDF('Catálogo de proyectos', tablaPDF([
     { titulo: 'Código', valor: p => p.codigo }, { titulo: 'Nombre', valor: p => p.nombre_corto }, { titulo: 'Gerencia', valor: p => etiqueta(p.gerencia_id) },
     { titulo: 'Fase', valor: p => etiqueta(p.fase_id) }, { titulo: 'Estado', valor: p => textoEstado('estados_proyecto', p.estado) },

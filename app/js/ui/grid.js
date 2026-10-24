@@ -269,7 +269,7 @@ export function crearGrilla(contenedor, cfg) {
       (async () => {
         for (const valores of sobrantes) {
           const fila = await tabla.addRow({ ...(cfg.nuevaFila?.() || {}), _nueva: true }, false);
-          aplicarValores(fila, p.columnas, valores);
+          aplicarValores(fila, p.columnas, valores, true);
           nuevas++;
         }
         toast(`${nuevas} fila(s) nuevas agregadas desde el portapapeles.`, 'ok');
@@ -277,12 +277,13 @@ export function crearGrilla(contenedor, cfg) {
         await agregarDesconocidos(pend);
       })();
     }
-    function aplicarValores(fila, columnas, valores) {
+    function aplicarValores(fila, columnas, valores, esNueva = false) {
       const datos = fila.getData();
       const cambios = {};
       valores.forEach((texto, j) => {
         const colT = columnas[j];
         if (!colT) return;
+        if (esNueva && !String(texto ?? '').trim()) return;   // fila nueva: una celda vacía no borra el valor por defecto
         const col = porCampo.get(colT.getField());
         if (!editableCampo(datos, col)) { omitidas++; return; }
         const v = convertir(col, texto, { ...datos, ...cambios });
@@ -589,7 +590,7 @@ export function crearGrilla(contenedor, cfg) {
             const cambios = {};
             valores.forEach((texto, j) => {
               const colT = columnas[j];
-              if (!colT) return;
+              if (!colT || !String(texto ?? '').trim()) return;   // celda vacía: se conserva el valor por defecto
               const col = porCampo.get(colT.getField());
               if (!editableCampo({ ...d, ...cambios }, col)) return;
               const v = convertir(col, texto, { ...d, ...cambios });
