@@ -293,4 +293,10 @@ do $$ declare v_p uuid; r jsonb; begin
 end $$;
 reset role;
 
+-- ---------- Cargos (013) ----------
+do $$ begin
+  assert (select count(*) from lista_valores v join listas l on l.id = v.lista_id where l.clave = 'cargos') = 6, 'lista de cargos';
+end $$;
+update profiles set cargo_id = (select v.id from lista_valores v join listas l on l.id = v.lista_id where l.clave = 'cargos' limit 1) where email = 'admin@x.pe';
+
 \echo 'Todas las pruebas pasaron'

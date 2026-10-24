@@ -69,6 +69,7 @@ Deno.serve(async (req) => {
       const id = creado.user.id;
       const datos: Record<string, unknown> = { nombre, rol };
       if (d.codigo) datos.codigo = String(d.codigo).trim();
+      if (d.cargo_id) datos.cargo_id = String(d.cargo_id);
       if (Array.isArray(d.gerencia_ids)) datos.gerencia_ids = d.gerencia_ids;
       if (d.horas_dia !== undefined && d.horas_dia !== null && d.horas_dia !== '') datos.horas_dia = Number(d.horas_dia);
       const { error: ePerfil } = await comoUsuario.from('profiles').update(datos).eq('id', id);

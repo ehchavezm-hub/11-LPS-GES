@@ -1,6 +1,7 @@
 // Adaptador de demostración: misma interfaz que Supabase, datos ficticios en localStorage.
 // Replica las reglas de negocio de la base de datos (cierre de semana, bloqueo, valores protegidos,
 // notificaciones) para que el aplicativo se comporte igual. No aplica seguridad real.
+import { LISTAS_INICIALES } from './catalogos.js';
 import { uuid, lunes, hoy } from '../core/util.js';
 import { crearDatosDemo } from './demo-seed.js';
 
@@ -40,6 +41,15 @@ function cargar() {
       for (const l of db.listas || []) if (l.clave === 'servicios' && l.nombre === 'Servicios / Entregables') l.nombre = 'CET / Servicio';
       // Proyectos pegados sin estado (antes una celda vacía lo borraba): quedan activos
       for (const p of db.proyectos || []) if (!p.estado) p.estado = 'activo';
+      // Lista "Cargos" (migración 013) en datos de demo creados antes
+      if (db.listas && !db.listas.some(l => l.clave === 'cargos')) {
+        const def = LISTAS_INICIALES.find(l => l[0] === 'cargos');
+        const ahora = new Date().toISOString(), lid = crypto.randomUUID();
+        db.listas.push({ id: lid, area_id: db.listas[0]?.area_id, clave: 'cargos', nombre: def[1], sistema: true, created_at: ahora, updated_at: ahora });
+        def[2].forEach(([codigo, valor], i) => db.lista_valores.push({ id: crypto.randomUUID(), lista_id: lid, codigo, valor, orden: (i + 1) * 10,
+          color: null, activo: true, protegido: false, extra: {}, created_at: ahora, updated_at: ahora }));
+        localStorage.setItem(CLAVE, JSON.stringify(db));
+      }
       return db;
     }
   } catch { /* datos corruptos: se regeneran */ }
@@ -340,7 +350,7 @@ export function crearAdaptadorDemo() {
         if (tabla('profiles').some(p => p.email === email)) throw new Error('Ya existe un usuario con ese correo.');
         if (GESTORES.includes(d.rol) && !esSuper(yo)) throw new Error('Solo el super administrador asigna los roles de super administrador, administrador y delegado.');
         const [p] = await api.insert('profiles', { area_id: yo.area_id, email, nombre: String(d.nombre || '').trim(), rol: d.rol || 'lider',
-          codigo: d.codigo || null, gerencia_ids: d.gerencia_ids || [], horas_dia: d.horas_dia === '' || d.horas_dia == null ? null : Number(d.horas_dia),
+          codigo: d.codigo || null, cargo_id: d.cargo_id || null, gerencia_ids: d.gerencia_ids || [], horas_dia: d.horas_dia === '' || d.horas_dia == null ? null : Number(d.horas_dia),
           activo: true, es_admin_principal: false, debe_cambiar_clave: true, tour_visto: false });
         return { id: p.id };
       }

@@ -79,7 +79,8 @@ async function pintar() {
       const cap = capacidadSemana(p.id, estado.semana, ubic);
       const hh = acts.filter(a => a.responsable_id === p.id && a.comprometida).reduce((s, a) => s + (Number(a.hh_total) || 0), 0);
       const r = cap ? hh / cap : null;
-      return `<tr><td><b>${esc(p.nombre)}</b></td>${dias.map(i => {
+      const cargo = p.cargo_id ? store.valores.get(p.cargo_id)?.valor : '';
+      return `<tr><td><b>${esc(p.nombre)}</b>${cargo ? `<div class="nota">${esc(cargo)}</div>` : ''}</td>${dias.map(i => {
         const f = sumarDias(estado.semana, i);
         const u = ubic.find(x => x.usuario_id === p.id && x.fecha === f);
         const color = u ? store.valores.get(u.ubicacion_id)?.color : null;

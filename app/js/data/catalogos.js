@@ -10,9 +10,12 @@ export const GRUPO_INICIAL = {
 };
 // Listas retiradas: no se muestran (sus datos se conservan por el historial). La lista CET se fusionó con "CET / Servicio".
 export const LISTAS_RETIRADAS = ['cet'];
-export const grupoDeLista = l => l.grupo || GRUPOS_LISTAS[GRUPO_INICIAL[l.clave] ?? 3];
+const GRUPO_PROPIO = { cargos: 'Equipo y organización' };
+export const grupoDeLista = l => l.grupo || GRUPO_PROPIO[l.clave] || GRUPOS_LISTAS[GRUPO_INICIAL[l.clave] ?? 3];
 
 export const LISTAS_INICIALES = [
+  ['cargos', 'Cargos', [[null, 'Gerente Técnico'], [null, 'Gerente Técnico en Geotecnia y Pavimentos'], [null, 'Líder BIM'], [null, 'Ingeniero BIM'],
+    [null, 'Especialista en Métodos Constructivos - Encofrados y Andamios'], [null, 'Administrador de Información de Proyectos']]],
   ['gerencias', 'Gerencias (clientes internos)', [
     ['GI', 'Gerencia de Ingeniería'], ['GOI', 'Gerencia de Obras Industriales'], ['GOC', 'Gerencia de Obras Civiles'],
     ['GOF', 'Gerencia de Obras de Infraestructura'], ['PyL', 'Propuestas y Licitaciones'],
