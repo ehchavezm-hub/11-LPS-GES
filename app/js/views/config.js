@@ -306,6 +306,8 @@ async function parametros(el) {
     { name: 'horas_dia', label: 'Horas disponibles por día (por defecto)', type: 'number', min: 1, max: 24, step: 0.5, value: p.horas_dia },
     { name: 'dias_laborables', label: 'Días laborables', type: 'multiselect', value: (p.dias_laborables || []).map(String),
       options: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((d, i) => ({ value: String(i + 1), label: d })) },
+    { name: 'trabajo_fin_semana', label: 'Trabajo en sábado y domingo', type: 'checkbox', value: p.trabajo_fin_semana,
+      texto: 'Mostrar sábado y domingo en Equipo y capacidad, Plan semanal y Look Ahead (suman capacidad los días con lugar de trabajo registrado)' },
     { name: 'cierre_dia', label: 'Día de cierre semanal', type: 'select', value: String(p.cierre?.dia || 5), options: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((d, i) => ({ value: String(i + 1), label: d })) },
     { name: 'cierre_hora', label: 'Hora de cierre', type: 'time', value: p.cierre?.hora || '17:00' },
     { name: 'reunion_dia', label: 'Día de la reunión semanal', type: 'select', value: String(p.reunion?.dia || 5), options: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((d, i) => ({ value: String(i + 1), label: d })) },
@@ -332,7 +334,7 @@ async function parametros(el) {
       const d = f.leer();
       const valores = {
         meta_pac: (d.meta_pac ?? 80) / 100, umbral_ambar: (d.umbral_ambar ?? 60) / 100, semanas_lookahead: d.semanas_lookahead ?? 3,
-        horas_dia: d.horas_dia ?? 8, dias_laborables: d.dias_laborables.map(Number).sort(), cierre: { dia: Number(d.cierre_dia), hora: d.cierre_hora || '17:00' },
+        horas_dia: d.horas_dia ?? 8, dias_laborables: d.dias_laborables.map(Number).sort(), trabajo_fin_semana: !!d.trabajo_fin_semana, cierre: { dia: Number(d.cierre_dia), hora: d.cierre_hora || '17:00' },
         reunion: { dia: Number(d.reunion_dia), hora: d.reunion_hora || '08:00' }, cierre_automatico: d.cierre_automatico, alerta_dias: d.alerta_dias ?? 3,
         arrastre_alerta: d.arrastre_alerta ?? 2, version_app: d.version_app || 'LPS_GT V1.00.01', firma_pdf: d.firma_pdf || 'By EHCM',
         reunion_minutos: Object.fromEntries(Object.keys(p.reunion_minutos || PARAMETROS_INICIALES.reunion_minutos).map(k => [k, d['rm_' + k] ?? 10])),

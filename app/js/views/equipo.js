@@ -1,8 +1,8 @@
 // Equipo y capacidad (6.12): ubicación diaria (reemplaza la hoja "Sitios") y capacidad semanal (M-02).
 import { api, mensajeError } from '../data/api.js';
-import { store, equipo, esGestor, lideres, valoresLista, horasDia, param } from '../core/store.js';
+import { store, equipo, esGestor, lideres, valoresLista, horasDia, param, puede, cargarCatalogo } from '../core/store.js';
 import { lunes, sumarSemanas, sumarDias, etiquetaSemana, esc, html, num, pct, DIAS_NOMBRE, fmtCorto } from '../core/util.js';
-import { error } from '../ui/ui.js';
+import { error, ok } from '../ui/ui.js';
 import { capacidadSemana, colorCarga } from '../services/indicadores.js';
 import { imprimirPDF } from '../services/pdf.js';
 
@@ -15,7 +15,7 @@ export async function render(el, { query }) {
       <div class="selector-semana"><button class="btn-icono" data-a="ant">◀</button><span data-sem></span><button class="btn-icono" data-a="sig">▶</button></div>
       <button class="btn btn-sm" data-a="hoy">Semana actual</button>
       <button class="btn btn-sm" data-a="copiar" title="Copiar la ubicación de la semana anterior">⧉ Copiar semana anterior</button>
-      <span class="flex"></span><button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
+      <span class="flex"></span><span data-finde></span><button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <div class="aviso">Registre dónde estará cada persona cada día. Los días de vacaciones, licencia o feriado se descuentan de la capacidad semanal
       (días laborables × horas por día). Cada líder edita su fila; el administrador puede editar todas.</div>
     <div class="tarjeta" data-tabla></div></div>`));
@@ -25,6 +25,15 @@ export async function render(el, { query }) {
     if (a === 'sig') { estado.semana = sumarSemanas(estado.semana, 1); pintar(); }
     if (a === 'hoy') { estado.semana = lunes(); pintar(); }
     if (a === 'copiar') copiar();
+    if (a === 'finde') {
+      // Activa o desactiva el trabajo en sábado y domingo para toda el área (parámetro "trabajo_fin_semana")
+      try {
+        await api.upsert('parametros', { area_id: store.area.id, clave: 'trabajo_fin_semana', valor: !param('trabajo_fin_semana') }, 'area_id,clave');
+        await cargarCatalogo();
+        ok(param('trabajo_fin_semana') ? 'Sábado y domingo activados.' : 'Sábado y domingo desactivados.');
+        await pintar();
+      } catch (err) { error(mensajeError(err)); }
+    }
     if (a === 'pdf') imprimirPDF('Equipo y capacidad', `<p>${esc(etiquetaSemana(estado.semana))}</p>` + document.querySelector('[data-tabla]').innerHTML.replace(/<select[\s\S]*?<\/select>/g, m => {
       const sel = /value="([^"]*)" selected/.exec(m); return sel ? esc(store.valores.get(sel[1])?.valor || '') : '';
     }), { proyectoTexto: 'Todos los proyectos', orientacion: 'landscape' });
@@ -53,11 +62,15 @@ async function pintar() {
   estado.ubic = ubic;
   document.querySelector('[data-sem]').textContent = etiquetaSemana(estado.semana);
   const laborables = (param('dias_laborables') || [1, 2, 3, 4, 5]).map(Number);
-  const dias = Array.from({ length: 7 }, (_, i) => i).filter(i => laborables.includes(i + 1) || i < 5);
+  const finde = !!param('trabajo_fin_semana');
+  const dias = Array.from({ length: 7 }, (_, i) => i).filter(i => laborables.includes(i + 1) || i < 5 || finde);
+  document.querySelector('[data-finde]').innerHTML = puede('gestionar_parametros')
+    ? `<button class="btn btn-sm${finde ? ' btn-azul' : ''}" data-a="finde" title="Mostrar u ocultar sábado y domingo para registrar trabajo esos días">${finde ? '✓ Sábado y domingo activos' : '＋ Activar sábado y domingo'}</button>`
+    : (finde ? '<span class="nota">Sábado y domingo activos</span>' : '');
   const ops = valoresLista('ubicaciones');
   const personas = equipo(acts);
   document.querySelector('[data-tabla]').innerHTML = `<div style="overflow-x:auto"><table class="simple"><tr><th>Persona</th>
-    ${dias.map(i => `<th>${DIAS_NOMBRE[i]} ${fmtCorto(sumarDias(estado.semana, i))}</th>`).join('')}
+    ${dias.map(i => `<th class="${i >= 5 ? 'dia-finde' : ''}">${DIAS_NOMBRE[i]} ${fmtCorto(sumarDias(estado.semana, i))}</th>`).join('')}
     <th class="num">H/día</th><th class="num">Capacidad</th><th class="num">HH comprometidas</th><th>Carga</th></tr>
     ${personas.map(p => {
       const editable = esGestor() || p.id === store.usuario.id;

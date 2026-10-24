@@ -64,6 +64,7 @@ export const PARAMETROS_INICIALES = {
   semanas_lookahead: 3,
   horas_dia: 8,
   dias_laborables: [1, 2, 3, 4, 5],
+  trabajo_fin_semana: false,   // muestra sábado y domingo para registrar trabajo esos días
   cierre: { dia: 5, hora: '17:00' },
   reunion: { dia: 5, hora: '08:00' },
   cierre_automatico: true,

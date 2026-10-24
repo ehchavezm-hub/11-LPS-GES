@@ -296,3 +296,4 @@ body.pantalla-completa .contenido { padding: 24px 34px; font-size: 16px; }
 .ventana-activo .ventana-tit { color: #2F7D32; }
 .ventana-en_pausa .ventana-tit { color: #8A6D00; }
 .ventana-cerrado .ventana-tit { color: var(--azul-ejec, #1A365D); }
+.dia-finde { color: #8A6D00; }

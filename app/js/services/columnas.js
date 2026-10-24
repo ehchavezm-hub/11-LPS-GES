@@ -1,5 +1,5 @@
 // Definición de columnas de la grilla de actividades (Plan semanal y Look Ahead) + columnas personalizadas.
-import { store, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, servicioDeProyecto, esGestor, textoEstado } from '../core/store.js';
+import { store, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, servicioDeProyecto, esGestor, textoEstado, param } from '../core/store.js';
 import { DIAS, DIAS_CORTOS, sumarDias, fmtCorto, esc, etiquetaSemana } from '../core/util.js';
 import { semanasPendiente } from './indicadores.js';
 
@@ -23,7 +23,7 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
   const dias = DIAS.map((d, i) => ({
     field: `hh_${d}`, alias: [d, DIAS_CORTOS[i], `hh ${d}`, ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'][i]], title: modo === 'plan' && semana ? `${DIAS_CORTOS[i]} ${fmtCorto(sumarDias(semana, i))}` : DIAS_CORTOS[i],
     tipo: 'numero', ancho: 74, ocultarCero: true, total: true, vacioCero: true, paso: 0.5, filtro: false,
-    visible: i < 5 || undefined, ayuda: `HH del ${['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'][i]}`,
+    visible: i < 5 || !!param('trabajo_fin_semana') || (param('dias_laborables') || []).map(Number).includes(i + 1), ayuda: `HH del ${['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'][i]}`,
   }));
   const cols = [
     modo === 'lookahead' ? {
