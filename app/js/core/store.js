@@ -1,6 +1,6 @@
 // Estado de la sesión y catálogo en memoria (listas, parámetros, permisos, usuarios, proyectos).
 import { api } from '../data/api.js';
-import { PARAMETROS_INICIALES, PLANIFICADORES } from '../data/catalogos.js';
+import { PARAMETROS_INICIALES, PLANIFICADORES, AYUDA_ESTADOS } from '../data/catalogos.js';
 
 const bus = new EventTarget();
 
@@ -108,7 +108,9 @@ export function valorPorCodigo(clave, codigo) { return valoresLista(clave, { ina
 /** Texto visible de un estado protegido (renombrable desde listas configurables). */
 export function textoEstado(clave, codigo) { return valorPorCodigo(clave, codigo)?.valor || codigo || ''; }
 export function colorEstado(clave, codigo) { return valorPorCodigo(clave, codigo)?.color || '#BAB0AC'; }
-export function opcionesEstado(clave) { return valoresLista(clave, { inactivos: true }).map(v => ({ value: v.codigo, label: v.valor })); }
+export function opcionesEstado(clave) {
+  return valoresLista(clave, { inactivos: true }).map(v => ({ value: v.codigo, label: v.valor, ayuda: v.descripcion || AYUDA_ESTADOS[clave]?.[v.codigo] || '' }));
+}
 
 export function param(clave) { return store.parametros[clave] ?? PARAMETROS_INICIALES[clave]; }
 

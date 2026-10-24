@@ -9,6 +9,27 @@ import { toast, error, confirmar, modal } from './ui.js';
 
 const SOLO_LOCAL = k => k.startsWith('_');
 
+// Globo de ayuda para las opciones de las listas desplegables (data-ayuda): aparece al pasar el mouse
+if (!window.__lpsgtAyudaOpciones) {
+  window.__lpsgtAyudaOpciones = true;
+  let globo = null;
+  const quitar = () => { globo?.remove(); globo = null; };
+  document.addEventListener('mouseover', e => {
+    const item = e.target.closest?.('[data-ayuda]');
+    if (!item) return quitar();
+    if (globo?.dataset.de === item.dataset.ayuda) return;
+    quitar();
+    globo = document.createElement('div');
+    globo.className = 'globo-ayuda'; globo.dataset.de = item.dataset.ayuda; globo.textContent = item.dataset.ayuda;
+    document.body.append(globo);
+    const r = item.getBoundingClientRect(), g = globo.getBoundingClientRect();
+    const izq = r.right + 8 + g.width < innerWidth ? r.right + 8 : Math.max(8, r.left - g.width - 8);
+    globo.style.left = izq + 'px'; globo.style.top = Math.min(innerHeight - g.height - 8, Math.max(8, r.top)) + 'px';
+  });
+  document.addEventListener('mousedown', quitar, true);
+  document.addEventListener('keydown', quitar, true);
+}
+
 // Tabulator enfoca celdas y la tabla al hacer clic; el navegador desplazaba entonces la página para mostrar el elemento
 // enfocado y el segundo clic de un doble clic (o el clic derecho) caía en otra fila. Dentro de una grilla, enfocar
 // nunca desplaza la página: Tabulator ya se encarga de mostrar la celda activa dentro de su propio scroll.
@@ -219,12 +240,23 @@ export function crearGrilla(contenedor, cfg) {
       case 'casilla': def.editor = 'tickCross'; def.formatter = 'tickCross'; def.hozAlign = 'center'; break;
       case 'lista':
         def.editor = 'list';
-        def.editorParams = cell => ({
+        def.editorParams = cell => {
           // opcionesEdicion: lo que se puede elegir (p. ej. solo 3 estados); opciones: lo que se puede mostrar
-          values: (c.opcionesEdicion ? c.opcionesEdicion(cell.getRow().getData()) : opcionesDe(c, cell.getRow().getData())).map(o => ({ label: o.label, value: o.value })),
-          autocomplete: true, allowEmpty: true, listOnEmpty: true, clearable: true, freetext: false,
-          filterFunc: (term, label) => normalizar(label).includes(normalizar(term)),
-        });
+          const ops = c.opcionesEdicion ? c.opcionesEdicion(cell.getRow().getData()) : opcionesDe(c, cell.getRow().getData());
+          const ayudas = new Map(ops.filter(o => o.ayuda).map(o => [String(o.value), o.ayuda]));
+          return {
+            values: ops.map(o => ({ label: o.label, value: o.value })),
+            autocomplete: true, allowEmpty: true, listOnEmpty: true, clearable: true, freetext: false,
+            filterFunc: (term, label) => normalizar(label).includes(normalizar(term)),
+            // Significado de cada opción: aparece al pasar el mouse
+            itemFormatter: (label, value, item, el) => {
+              const a = ayudas.get(String(value));
+              if (a && el) { el.dataset.ayuda = a; el.removeAttribute('title'); }
+              return esc(label ?? '');
+            },
+          };
+        };
+
         break;
       default: break;
     }
@@ -232,11 +264,11 @@ export function crearGrilla(contenedor, cfg) {
     else if (c.tipo === 'lista') def.formatter = cell => {
       const v = val(cell.getValue(), cell.getRow().getData());
       const t = etiquetaOpcion(c, v, cell.getRow().getData());
-      if (c.colorear && v) {
-        const color = (opcionesDe(c, cell.getRow().getData()).find(o => o.value === v) || {}).color;
-        if (color) return `<span class="badge" style="--c:${color}">${esc(t)}</span>`;
-      }
-      return esc(t);
+      const op = v != null ? opcionesDe(c, cell.getRow().getData()).find(o => o.value === v) : null;
+      // La celda también muestra el significado de su valor al pasar el mouse
+      const ayuda = op?.ayuda ? ` data-ayuda="${esc(op.ayuda)}"` : '';
+      if (c.colorear && op?.color) return `<span class="badge" style="--c:${op.color}"${ayuda}>${esc(t)}</span>`;
+      return ayuda ? `<span${ayuda}>${esc(t)}</span>` : esc(t);
     };
     else if (c.tipo === 'fecha') def.formatter = cell => fmtFecha(cell.getValue());
     else if (c.tipo === 'numero') def.formatter = cell => {

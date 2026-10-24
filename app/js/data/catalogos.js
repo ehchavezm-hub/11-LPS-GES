@@ -13,6 +13,28 @@ export const LISTAS_RETIRADAS = ['cet'];
 const GRUPO_PROPIO = { cargos: 'Equipo y organización' };
 export const grupoDeLista = l => l.grupo || GRUPO_PROPIO[l.clave] || GRUPOS_LISTAS[GRUPO_INICIAL[l.clave] ?? 3];
 
+// Significado de cada estado (se muestra al pasar el mouse por la opción o la celda).
+// Si en Configuración → Listas el valor tiene descripción, se usa esa.
+export const AYUDA_ESTADOS = {
+  estados_la: {
+    pendiente: 'Registrada, pero aún no se revisa si puede hacerse. Estado inicial de toda actividad nueva.',
+    con_restriccion: 'Algo impide hacerla (información, planos, aprobaciones, recursos…). Se marca sola al registrar una restricción 🚧.',
+    lista: 'Sin impedimentos: se puede comprometer. Se marca sola al levantar la última restricción. Solo las "Lista" pasan al Plan con «Comprometer semana siguiente».',
+    trasladada: 'Ya pasó al Plan semanal como compromiso (se marca sola al comprometer la semana siguiente).',
+    cancelada: 'Ya no se hará. No cuenta en la carga ni en la capacidad.',
+  },
+  estados_compromiso: {
+    programado: 'Comprometido para la semana; falta indicar cómo terminó.',
+    completado: 'Se cumplió en la semana. Suma al PAC.',
+    no_completado: 'No se cumplió. Requiere la causa de no cumplimiento (CNC). Resta al PAC.',
+    cancelado: 'Se dejó de hacer por decisión del equipo. No cuenta en el PAC.',
+  },
+  tipos_actividad: {
+    programada: 'Planificada desde el Look Ahead o al inicio de la semana.',
+    no_programada: 'Surgió durante la semana sin estar planificada (urgencia o pedido nuevo).',
+  },
+};
+
 export const LISTAS_INICIALES = [
   ['cargos', 'Cargos', [[null, 'Gerente Técnico'], [null, 'Gerente Técnico en Geotecnia y Pavimentos'], [null, 'Líder BIM'], [null, 'Ingeniero BIM'],
     [null, 'Especialista en Métodos Constructivos - Encofrados y Andamios'], [null, 'Administrador de Información de Proyectos']]],
