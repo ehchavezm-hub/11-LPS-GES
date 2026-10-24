@@ -1,0 +1,51 @@
+# Publica el aplicativo (carpeta app/) en GitHub Pages.
+# La URL y la anon key de Supabase se toman de las *variables* del repositorio
+# (Settings → Secrets and variables → Actions → Variables): SUPABASE_URL y SUPABASE_ANON_KEY.
+# Si no existen, se publica en modo demostración.
+name: Publicar aplicativo
+
+on:
+  push:
+    branches: [main]
+    paths: ['app/**', '.github/workflows/publicar.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Escribir config.js
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -n "$SUPABASE_URL" ] && [ -n "$SUPABASE_ANON_KEY" ]; then
+            if [[ "$SUPABASE_ANON_KEY" == sb_secret_* ]] || printf '%s' "$SUPABASE_ANON_KEY" | cut -d. -f2 | base64 -d 2>/dev/null | grep -q '"service_role"'; then
+              echo "::error::SUPABASE_ANON_KEY contiene una clave secreta (service_role / sb_secret). Use la anon key o la publishable key." ; exit 1
+            fi
+            printf "window.LPSGT_CONFIG = {\n  supabaseUrl: '%s',\n  supabaseAnonKey: '%s',\n};\n" "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > app/config.js
+            echo "Configuración de Supabase aplicada."
+          else
+            echo "Sin variables SUPABASE_URL / SUPABASE_ANON_KEY: se publica en modo demostración."
+          fi
+          # Versión de caché del service worker = commit, para que los usuarios reciban la actualización
+          sed -i "s/const VERSION = '[^']*'/const VERSION = 'lpsgt-${GITHUB_SHA::8}'/" app/sw.js
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app
+      - id: deploy
+        uses: actions/deploy-pages@v4

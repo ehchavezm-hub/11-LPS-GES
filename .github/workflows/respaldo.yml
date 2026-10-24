@@ -1,0 +1,70 @@
+# Respaldo semanal de la base de datos en Google Drive + mantener activo Supabase (plan gratuito)
+# + cierre automático de semanas vencidas (respaldo de pg_cron).
+#
+# Secrets requeridos (Settings → Secrets and variables → Actions → Secrets):
+#   SUPABASE_URL               https://xxxx.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY  service_role key (NUNCA en el código ni en config.js)
+#   RCLONE_CONF                contenido de rclone.conf con un remoto "gdrive" (Google Drive)
+# Variable opcional:
+#   GDRIVE_CARPETA             carpeta destino en Drive (por defecto LPS-GT/respaldos)
+#
+# Los respaldos NO se guardan en el repositorio (es público): solo en Google Drive.
+name: Respaldo y mantenimiento
+
+on:
+  schedule:
+    - cron: '17 11 * * 1,4'   # lunes y jueves 06:17 (Lima): mantiene activo el proyecto
+    - cron: '23 4 * * 6'      # sábado 23:23 (viernes, Lima): respaldo semanal tras el cierre
+  workflow_dispatch:
+    inputs:
+      respaldo:
+        description: 'Generar respaldo ahora'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  mantenimiento:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Verificar configuración
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::notice::Faltan los secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY. Nada que hacer."; echo "SIN_CONFIG=1" >> "$GITHUB_ENV"
+          fi
+      - name: Cierre automático de semanas vencidas
+        if: env.SIN_CONFIG != '1'
+        run: |
+          curl -fsS -X POST "$SUPABASE_URL/rest/v1/rpc/cerrar_semanas_vencidas" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" -d '{}'
+          echo
+      - name: Exportar respaldo
+        if: env.SIN_CONFIG != '1' && (github.event.schedule == '23 4 * * 6' || inputs.respaldo)
+        run: |
+          mkdir -p salida
+          ARCHIVO="salida/lpsgt_respaldo_$(TZ=America/Lima date +%Y-%m-%d_%H%M).json"
+          curl -fsS -X POST "$SUPABASE_URL/rest/v1/rpc/exportar_respaldo" \
+            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" -d '{}' -o "$ARCHIVO"
+          python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print({k: len(v) for k, v in d.items() if isinstance(v, list)})" "$ARCHIVO"
+          gzip "$ARCHIVO"
+          echo "HAY_RESPALDO=1" >> "$GITHUB_ENV"
+      - name: Subir a Google Drive
+        if: env.HAY_RESPALDO == '1'
+        env:
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+          CARPETA: ${{ vars.GDRIVE_CARPETA || 'LPS-GT/respaldos' }}
+        run: |
+          if [ -z "$RCLONE_CONF" ]; then echo "::warning::Falta el secret RCLONE_CONF: el respaldo no se subió."; exit 0; fi
+          sudo apt-get install -y -qq rclone >/dev/null
+          mkdir -p ~/.config/rclone && printf '%s' "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
+          rclone copy salida "gdrive:$CARPETA" --no-traverse
+          rclone delete "gdrive:$CARPETA" --min-age 365d || true
+          echo "Respaldo subido a gdrive:$CARPETA"
+          rm -rf salida ~/.config/rclone/rclone.conf
