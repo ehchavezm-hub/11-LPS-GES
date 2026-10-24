@@ -38,7 +38,7 @@ export function montarLayout(raiz, { alSalir }) {
       <span class="cab-area">${esc(store.area?.nombre || '')}</span>
       ${modoDemo ? '<span class="demo-chip" title="Datos ficticios guardados solo en este navegador">MODO DEMOSTRACIÓN</span>' : ''}
       <span class="flex"></span>
-      <span class="btn-actualizar"><button class="btn-icono" data-a="actualizar" title="Actualizar la página" aria-label="Actualizar">⟳</button><button class="btn-icono btn-flecha" data-a="actualizar-menu" title="Más opciones de actualización" aria-label="Opciones de actualización">▾</button></span>
+      <span class="btn-actualizar"><button class="btn-texto-cab" data-a="actualizar" title="Actualizar la página">Actualizar</button><button class="btn-icono btn-flecha" data-a="actualizar-menu" title="Más opciones de actualización" aria-label="Opciones de actualización">▾</button></span>
       <button class="btn-icono" data-a="ayuda" title="Ayuda y recorrido guiado" aria-label="Ayuda">❔</button>
       <button class="btn-icono" data-a="notif" title="Notificaciones" aria-label="Notificaciones">🔔<span class="contador oculto"></span></button>
       <button class="usuario-btn" data-a="usuario"><span class="avatar">${esc(iniciales)}</span><span class="nom">${esc(u.nombre)}</span></button>
