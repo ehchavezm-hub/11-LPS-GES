@@ -655,7 +655,8 @@ export function crearGrilla(contenedor, cfg) {
   const usuarioId = () => store.usuario?.id;
   function estadoVista() {
     return {
-      columnas: tabla.getColumnLayout(),
+      // Solo orden, ancho, visibilidad y fijación: el título lo pone la pantalla (p. ej. "L 26/10" cambia con la semana)
+      columnas: tabla.getColumnLayout().map(({ title, ...c }) => c),
       orden: tabla.getSorters().map(s => ({ column: s.field, dir: s.dir })),
       agrupar: tabla.options.groupBy || '',
     };
@@ -664,7 +665,8 @@ export function crearGrilla(contenedor, cfg) {
     if (!cfgVista) return;
     try {
       if (cfgVista.columnas?.length) {
-        const conocidas = cfgVista.columnas.filter(c => porCampo.has(c.field));
+        // Las vistas guardadas antes también traían el título: se descarta y se usa el actual
+        const conocidas = cfgVista.columnas.filter(c => porCampo.has(c.field)).map(({ title, ...c }) => c);
         const faltantes = columnasCfg.filter(c => !conocidas.some(k => k.field === c.field)).map(c => ({ field: c.field }));
         tabla.setColumnLayout([...conocidas, ...faltantes]);
       }
