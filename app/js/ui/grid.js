@@ -189,6 +189,8 @@ export function crearGrilla(contenedor, cfg) {
 
   // ---------- Columnas Tabulator ----------
   function colTabulator(c) {
+    // c.valor(fila): columna cuyo valor se toma de otro campo (p. ej. CET = el servicio de la fila)
+    const val = (v, fila) => (c.valor ? c.valor(fila) : v);
     const def = {
       field: c.field, title: c.title, width: c.ancho, minWidth: c.minAncho || 40, frozen: !!c.fijo,
       visible: c.visible !== false, headerSort: c.ordenable !== false, hozAlign: c.align || (c.tipo === 'numero' ? 'right' : 'left'),
@@ -198,11 +200,11 @@ export function crearGrilla(contenedor, cfg) {
       headerFilterPlaceholder: '',
       headerFilterFunc: (term, valor, fila) => {
         const t = normalizar(term);
-        const texto = c.tipo === 'lista' ? etiquetaOpcion(c, valor, fila) : c.tipo === 'fecha' ? fmtFecha(valor) : String((c.exportar ? c.exportar(valor, fila) : valor) ?? '');
+        const texto = c.tipo === 'lista' ? etiquetaOpcion(c, val(valor, fila), fila) : c.tipo === 'fecha' ? fmtFecha(valor) : String((c.exportar ? c.exportar(valor, fila) : valor) ?? '');
         return normalizar(texto).includes(t);
       },
-      accessorClipboard: (v, fila) => c.tipo === 'lista' ? etiquetaOpcion(c, v, fila) : c.tipo === 'fecha' ? fmtFecha(v) : c.tipo === 'casilla' ? (v ? 'Sí' : '') : c.exportar ? c.exportar(v, fila) : v,
-      accessorDownload: (v, fila) => c.tipo === 'lista' ? etiquetaOpcion(c, v, fila) : c.tipo === 'casilla' ? (v ? 'Sí' : 'No') : c.exportar ? c.exportar(v, fila) : v,
+      accessorClipboard: (v, fila) => c.tipo === 'lista' ? etiquetaOpcion(c, val(v, fila), fila) : c.tipo === 'fecha' ? fmtFecha(v) : c.tipo === 'casilla' ? (v ? 'Sí' : '') : c.exportar ? c.exportar(v, fila) : v,
+      accessorDownload: (v, fila) => c.tipo === 'lista' ? etiquetaOpcion(c, val(v, fila), fila) : c.tipo === 'casilla' ? (v ? 'Sí' : 'No') : c.exportar ? c.exportar(v, fila) : v,
     };
     const menuT = menuTitulo(c);
     if (menuT) { def.headerContextMenu = menuT; def.headerTooltip = `${c.ayuda || c.title} · Clic derecho para editar sus opciones`; }
@@ -228,7 +230,7 @@ export function crearGrilla(contenedor, cfg) {
     }
     if (c.formato) def.formatter = cell => c.formato(cell.getValue(), cell.getRow().getData(), cell);
     else if (c.tipo === 'lista') def.formatter = cell => {
-      const v = cell.getValue();
+      const v = val(cell.getValue(), cell.getRow().getData());
       const t = etiquetaOpcion(c, v, cell.getRow().getData());
       if (c.colorear && v) {
         const color = (opcionesDe(c, cell.getRow().getData()).find(o => o.value === v) || {}).color;
@@ -242,8 +244,8 @@ export function crearGrilla(contenedor, cfg) {
       return v === 0 && c.ocultarCero ? '' : num(v, 2);
     };
     if (c.tipo === 'lista' || c.formato) def.sorter = (a, b, ra, rb) => {
-      const x = normalizar(c.tipo === 'lista' ? etiquetaOpcion(c, a, ra.getData()) : c.exportar ? c.exportar(a, ra.getData()) : a);
-      const y = normalizar(c.tipo === 'lista' ? etiquetaOpcion(c, b, rb.getData()) : c.exportar ? c.exportar(b, rb.getData()) : b);
+      const x = normalizar(c.tipo === 'lista' ? etiquetaOpcion(c, val(a, ra.getData()), ra.getData()) : c.exportar ? c.exportar(a, ra.getData()) : a);
+      const y = normalizar(c.tipo === 'lista' ? etiquetaOpcion(c, val(b, rb.getData()), rb.getData()) : c.exportar ? c.exportar(b, rb.getData()) : b);
       return x > y ? 1 : x < y ? -1 : 0;
     };
     if (c.click) def.cellClick = (e, cell) => c.click(cell.getRow().getData(), e, cell);

@@ -1,5 +1,5 @@
 // Definición de columnas de la grilla de actividades (Plan semanal y Look Ahead) + columnas personalizadas.
-import { store, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, servicioDeProyecto, esGestor, textoEstado, param } from '../core/store.js';
+import { store, opciones, valoresLista, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, servicioDeProyecto, esGestor, textoEstado, param } from '../core/store.js';
 import { DIAS, DIAS_CORTOS, sumarDias, fmtCorto, esc, etiquetaSemana } from '../core/util.js';
 import { semanasPendiente } from './indicadores.js';
 
@@ -38,8 +38,13 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
       ayuda: 'Responsable (el PAC se atribuye a esta persona)' },
     { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 95, opciones: () => opciones('gerencias').map(o => ({ ...o, label: o.value ? (store.valores.get(o.value)?.codigo || o.label) : o.label })) },
     { field: 'proyecto_id', title: 'Proyecto / Proceso', tipo: 'lista', ancho: 190, opciones: opcionesProyectos },
-    { field: '_cet', title: 'CET', tipo: 'texto', ancho: 90, calc: true, posicionFija: true, ayuda: 'CET del servicio seleccionado',
-      formato: (v, d) => esc(store.valores.get(d.servicio_id)?.codigo || ''), exportar: (v, d) => store.valores.get(d.servicio_id)?.codigo || '' },
+    // CET y Servicio van juntos (como nombre y apellido): son el mismo valor de la lista "CET / Servicio" visto por su código
+    // o por su nombre. Elegir o pegar uno completa el otro.
+    { field: '_cet', title: 'CET', tipo: 'lista', ancho: 100, posicionFija: true, ayuda: 'CET del servicio (al elegirlo se completa el Servicio)',
+      valor: d => d.servicio_id ?? null,
+      opciones: () => [{ value: null, label: '—' }, ...valoresLista('servicios').map(v => ({ value: v.id, label: v.codigo || '' }))],
+      opcionesEdicion: () => [{ value: null, label: '—' }, ...valoresLista('servicios').filter(v => v.codigo)
+        .map(v => ({ value: v.id, label: `${v.codigo} · ${v.valor}` }))] },
     { field: 'servicio_id', title: 'Servicio', tipo: 'lista', ancho: 180, opciones: () => opciones('servicios') },
     { field: 'descripcion', title: 'Actividad', tipo: 'texto', ancho: 300, minAncho: 160 },
     ...dias,
@@ -100,6 +105,8 @@ export function derivarActividad(fila, cambios) {
     const serv = servicioDeProyecto(p);
     if (serv && !fila.servicio_id) d.servicio_id = serv;
   }
+  if ('_cet' in cambios) d.servicio_id = cambios._cet ?? null;            // CET elegido → su Servicio
+  if ('servicio_id' in d || 'servicio_id' in cambios) d._cet = d.servicio_id ?? cambios.servicio_id ?? null;
   if ('estado' in cambios && cambios.estado !== 'no_completado' && fila.cnc_id) d.cnc_id = null;
   if ('estado' in cambios && cambios.estado === 'completado' && fila.hh_real == null && fila.hh_total) d.hh_real = fila.hh_total;
   return d;
