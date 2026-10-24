@@ -17,15 +17,24 @@ const VENTANAS = [['activo', 'Activos'], ['en_pausa', 'En pausa'], ['cerrado', '
 const ESTADOS_EDITABLES = ['activo', 'en_pausa', 'cerrado'];
 const ventanaDe = p => (p.estado === 'en_pausa' ? 'en_pausa' : ['cerrado', 'rechazado'].includes(p.estado) ? 'cerrado' : 'activo');
 let grillas = {};
+// El catálogo vive en Configuración → Listas → Proyectos / Procesos (se dibuja dentro de ese contenedor)
+export const RUTA_CATALOGO = '#/config/listas?lista=__proyectos';
+const rutaCatalogo = () => (esGestor() ? RUTA_CATALOGO : '#/tablero');
+let contenedor = null;
+/** Vuelve a dibujar el catálogo donde esté abierto (Configuración o página propia). */
+export function refrescarCatalogo() { if (contenedor?.isConnected) render(contenedor, { incrustado: contenedor.id !== 'contenido' }); }
 const todasLasGrillas = () => Object.values(grillas);
 
 export async function render(el, params) {
   destruir();
   el.innerHTML = '';
   if (params.id) return ficha(el, params.id);
+  // Desde el menú ya no hay página propia: el catálogo se administra en Configuración → Listas
+  if (!params.incrustado && esGestor()) { location.hash = RUTA_CATALOGO; return; }
+  contenedor = el;
   const puedeCrear = puede('crear_proyecto');
   const pag = html(`<div>
-    <div class="pagina-cab"><h1>Proyectos</h1>
+    <div class="pagina-cab">${params.incrustado ? '<h2 style="margin:0">Proyectos / Procesos</h2>' : '<h1>Proyectos</h1>'}
       <span class="pagina-sub">Catálogo que alimenta el menú de selección y las listas de todas las grillas</span>
       <span class="flex"></span>
       ${puedeCrear || puede('proponer_proyecto') ? `<button class="btn btn-primario" data-a="nuevo">＋ ${puedeCrear ? 'Nuevo proyecto' : 'Proponer proyecto'}</button>` : ''}
@@ -61,7 +70,16 @@ function pintarCuentas() {
 // Vuelve a cargar las tres ventanas desde el catálogo (p. ej. tras cambiar un estado: el proyecto pasa a su ventana)
 async function redistribuir() {
   await cargarCatalogo();
-  await Promise.all(VENTANAS.map(([e]) => grillas[e]?.setDatos(proyectosDe(e))));
+  // Si alguien está editando una celda, se espera: redibujar ahora cerraría su edición
+  if (document.querySelector('[data-grilla] .tabulator-cell.tabulator-editing')) { setTimeout(redistribuir, 800); return; }
+  await Promise.all(VENTANAS.map(([e]) => {
+    const g = grillas[e];
+    if (!g) return null;
+    const nuevos = proyectosDe(e);
+    // Eco de un cambio propio (mismas filas y versiones): no hace falta redibujar
+    const firma = l => l.filter(p => p.id).map(p => p.id + p.updated_at).sort().join();
+    return firma(g.filas()) === firma(nuevos) ? null : g.setDatos(nuevos);
+  }));
   pintarCuentas();
 }
 
@@ -95,6 +113,7 @@ function configGrilla(estado, puedeCrear) {
     alEditar: async (p, campo) => {
       if (campo !== 'estado' || ventanaDe(p) === estado) return;
       await grillas[estado].guardarAhora();
+      await new Promise(r => setTimeout(r, 150));   // deja cerrar la lista desplegable antes de mover la fila
       await redistribuir();
       toast(`"${p.codigo}" pasó a ${VENTANAS.find(x => x[0] === ventanaDe(p))[1]}.`, 'ok');
     },
@@ -132,7 +151,7 @@ async function cambiarEstado(p, estado, { preguntar = true } = {}) {
     await api.update('proyectos', p.id, { estado });
     ok(desactiva ? 'Proyecto desactivado.' : 'Proyecto reactivado.');
     await cargarCatalogo();
-    if (location.hash.startsWith('#/proyectos')) render(document.getElementById('contenido'), {});
+    refrescarCatalogo();
   } catch (e) { error(mensajeError(e)); }
   return true;
 }
@@ -222,7 +241,7 @@ function pintarPropuestos(pag) {
     try {
       await api.update('proyectos', b.dataset.aprobar, { estado: 'activo', aprobado_por: store.usuario.id, aprobado_at: new Date().toISOString() });
       ok('Proyecto aprobado. Ya aparece en el menú.');
-      await cargarCatalogo(); render(document.getElementById('contenido'), {});
+      await cargarCatalogo(); refrescarCatalogo();
     } catch (e) { error(mensajeError(e)); }
   });
   cont.querySelectorAll('[data-rechazar]').forEach(b => b.onclick = async () => {
@@ -231,7 +250,7 @@ function pintarPropuestos(pag) {
     try {
       await api.update('proyectos', b.dataset.rechazar, { estado: 'rechazado', motivo_rechazo: d.motivo });
       ok('Proyecto rechazado.');
-      await cargarCatalogo(); render(document.getElementById('contenido'), {});
+      await cargarCatalogo(); refrescarCatalogo();
     } catch (e) { error(mensajeError(e)); }
   });
 }
@@ -271,7 +290,7 @@ export async function formularioProyecto(p = null) {
       await cargarCatalogo();
     },
   });
-  if (d && location.hash.startsWith('#/proyectos')) render(document.getElementById('contenido'), {});
+  if (d) refrescarCatalogo();
 }
 
 async function asignarLideres(p) {
@@ -301,7 +320,7 @@ async function ficha(el, id) {
   const ult = acts.filter(a => a.semana >= sumarSemanas(lunes(), -4) && a.semana < lunes());
   const r4 = resumenPAC(ult);
   const pag = html(`<div>
-    <div class="pagina-cab"><a href="#/proyectos" class="btn btn-sm">‹ Proyectos</a>
+    <div class="pagina-cab"><a href="${rutaCatalogo()}" class="btn btn-sm">‹ Proyectos</a>
       <h1>${esc(p.codigo)} · ${esc(p.nombre_corto)}</h1>${badge(textoEstado('estados_proyecto', p.estado), colorEstado('estados_proyecto', p.estado))}
       <span class="flex"></span>
       <button class="btn btn-sm" data-a="menu">🏗 Seleccionar en el menú</button>
@@ -350,7 +369,7 @@ async function ficha(el, id) {
     if (a === 'editar') { await formularioProyecto(p); el.innerHTML = ''; ficha(el, id); }
     if (a === 'desactivar' || a === 'reactivar') { if (await cambiarEstado(p, a === 'desactivar' ? 'cerrado' : 'activo') !== false) { el.innerHTML = ''; ficha(el, id); } }
     if (a === 'eliminar') {
-      try { if (await eliminarProyecto(p, { confirmaciones: 2 })) ir('#/proyectos'); else { el.innerHTML = ''; ficha(el, id); } } catch (err) { error(mensajeError(err)); }
+      try { if (await eliminarProyecto(p, { confirmaciones: 2 })) ir(rutaCatalogo()); else { el.innerHTML = ''; ficha(el, id); } } catch (err) { error(mensajeError(err)); }
     }
     if (a === 'hito') {
       await pedirDatos({ titulo: 'Nuevo hito', campos: [{ name: 'nombre', label: 'Hito / entregable', required: true, full: true }, { name: 'fecha', label: 'Fecha', type: 'date', required: true }],

@@ -195,7 +195,7 @@ export async function importarProyectos(archivo) {
         }
         await cargarCatalogo();
         ok(`Importación terminada: ${a.nuevos.length} proyecto(s) nuevo(s), ${actualizados} actualizado(s)${valoresNuevos ? `, ${valoresNuevos} valor(es) agregados a las listas` : ''}.`);
-        if (location.hash.startsWith('#/proyectos')) (await import('./proyectos.js')).render(document.getElementById('contenido'), {});
+        (await import('./proyectos.js')).refrescarCatalogo();
       } catch (e) { error(mensajeError(e)); return false; }
     } }],
   });

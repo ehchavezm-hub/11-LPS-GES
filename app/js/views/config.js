@@ -17,6 +17,7 @@ let grilla;
 
 export async function render(el, { seccion, query }) {
   grilla?.destruir(); grilla = null;
+  catalogoProyectos?.destruir(); catalogoProyectos = null;
   dejarCatalogo?.();
   dejarCatalogo = on('catalogo', () => grilla?.refrescar());
   el.innerHTML = '';
@@ -28,7 +29,8 @@ export async function render(el, { seccion, query }) {
   const f = { usuarios, listas, parametros, permisos, columnas, importar: importarVista, respaldo, auditoria }[seccion];
   if (f) await f(cont, query?.get('lista') || undefined); else cont.textContent = 'Sección no encontrada.';
 }
-export function destruir() { grilla?.destruir(); grilla = null; dejarCatalogo?.(); dejarCatalogo = null; }
+export function destruir() { grilla?.destruir(); grilla = null; dejarCatalogo?.(); dejarCatalogo = null; catalogoProyectos?.destruir(); catalogoProyectos = null; }
+let catalogoProyectos = null;   // módulo de Proyectos cuando se muestra dentro de Listas
 // Cuando cambian los proyectos o las listas (aquí, en otra pestaña u otro usuario), la grilla abierta se actualiza sola
 let dejarCatalogo = null;
 
@@ -220,14 +222,13 @@ async function listas(el, claveSel) {
     if (g !== GRUPOS_LISTAS[0]) return del.length ? `<optgroup label="${esc(g)}">${del.map(opcion).join('')}</optgroup>` : '';
     // Primer grupo: Gerencias, Proyectos / Procesos y CET / Servicio primero
     const primero = c => del.filter(l => l.clave === c).map(opcion).join('');
-    return `<optgroup label="${esc(g)}">${primero('gerencias')}<option value="__proyectos">🏗 Proyectos / Procesos (catálogo) →</option>${primero('servicios')}
+    return `<optgroup label="${esc(g)}">${primero('gerencias')}<option value="__proyectos"${sel === '__proyectos' ? ' selected' : ''}>🏗 Proyectos / Procesos</option>${primero('servicios')}
       ${del.filter(l => !['gerencias', 'servicios'].includes(l.clave)).map(opcion).join('')}</optgroup>`;
   }).join('');
   el.innerHTML = `<div class="barra" style="margin-bottom:10px"><label>Lista: <select class="sel" data-l>${opcionesGrupo}</select></label>
     ${editable ? '<button class="btn btn-sm" data-a="grupo" title="Cambiar el grupo de esta lista">✎ Grupo</button><button class="btn btn-sm" data-a="nueva">＋ Nueva lista</button>' : ''}<span class="flex"></span>
     <span class="nota">🔒 = valor usado por los cálculos: puede renombrarse, no eliminarse.</span></div><div data-g></div>`;
   el.querySelector('[data-l]').onchange = e => {
-    if (e.target.value === '__proyectos') { location.hash = '#/proyectos'; return; }
     listas(el, e.target.value);
   };
   const camposGrupo = valor => [
@@ -252,6 +253,17 @@ async function listas(el, claveSel) {
       alGuardar: async v => { await api.update('listas', l.id, { grupo: (v.grupo_nuevo || '').trim() || v.grupo }); await cargarCatalogo(); } });
     if (d) listas(el, sel);
   });
+  // Proyectos / Procesos: el catálogo completo (tres ventanas, importar, eliminar) se dibuja aquí mismo
+  if (sel === '__proyectos') {
+    grilla?.destruir(); grilla = null;
+    el.querySelector('[data-a="grupo"]')?.remove();
+    el.querySelector('.barra .nota')?.remove();
+    const m = await import('./proyectos.js');
+    catalogoProyectos = m;
+    await m.render(el.querySelector('[data-g]'), { incrustado: true });
+    return;
+  }
+  catalogoProyectos?.destruir(); catalogoProyectos = null;
   const lista = store.listas[sel]?.lista;
   if (!lista) return;
   grilla?.destruir();

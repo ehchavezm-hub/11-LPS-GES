@@ -130,14 +130,14 @@ export function crearGrilla(contenedor, cfg) {
     gerencia_id: { lista: 'gerencias', texto: 'gerencias' }, servicio_id: { lista: 'servicios', texto: 'CET / servicios' },
     cnc_id: { lista: 'cnc', texto: 'causas de no cumplimiento (CNC)' },
     fase_id: { lista: 'fases', texto: 'fases' }, pais_id: { lista: 'paises', texto: 'países' },
-    proyecto_id: { ruta: '#/proyectos', texto: 'proyectos / procesos' },
+    proyecto_id: { ruta: '#/config/listas?lista=__proyectos', rutaSinConfig: '#/proyectos', texto: 'proyectos / procesos' },
   };
   function menuTitulo(c) {
     const d = c.editarEn || DESTINOS[c.field] || (c.lista ? { lista: c.lista, texto: c.title } : null);
     if (!d) return null;
     const permitido = d.ruta ? (puede('crear_proyecto') || puede('proponer_proyecto')) : puede('gestionar_listas');
     if (!permitido) return null;
-    const ruta = d.ruta || `#/config/listas?lista=${encodeURIComponent(d.lista)}`;
+    const ruta = (d.rutaSinConfig && !esGestor() ? d.rutaSinConfig : d.ruta) || `#/config/listas?lista=${encodeURIComponent(d.lista)}`;
     return [{ label: `✎ Agregar, editar o eliminar ${esc(d.texto)}`, action: () => { location.hash = ruta; } }];
   }
 
@@ -325,6 +325,9 @@ export function crearGrilla(contenedor, cfg) {
     columnDefaults: { headerHozAlign: 'left', tooltip: false },
     columns: columnasCfg.map(colTabulator),
     selectableRange: 1,
+    // Al redibujarse (p. ej. otra grilla de la página cambia de alto) Tabulator recreaba la selección y tomaba el foco,
+    // interrumpiendo la edición en otra grilla. El foco solo cambia cuando el usuario hace clic.
+    selectableRangeAutoFocus: false,
     selectableRangeColumns: true,
     selectableRangeRows: true,
     selectableRangeClearCells: true,

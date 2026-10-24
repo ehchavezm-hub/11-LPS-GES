@@ -16,7 +16,6 @@ export const NAV = [
   { ruta: '/tablero', ico: '📊', texto: 'Tablero', si: () => puede('ver_tablero') },
   { ruta: '/reunion', ico: '👥', texto: 'Reunión semanal', si: esStaff },
   { ruta: '/equipo', ico: '🧭', texto: 'Equipo y capacidad', si: esStaff },
-  { ruta: '/proyectos', ico: '🏗', texto: 'Proyectos', si: () => true },
   { grupo: 'Más' },
   { ruta: '/config/usuarios', ico: '⚙', texto: 'Configuración', si: esGestor, prefijo: '/config' },
   { ruta: '/plantillas', ico: '🧩', texto: 'Plantillas', si: esStaff },
