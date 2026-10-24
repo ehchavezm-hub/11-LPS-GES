@@ -7,9 +7,9 @@ Inventario al 24/10/2026 (versión publicada en `main`).
 Todas las ventanas emergentes se mueven **arrastrando su barra de título** (también con el dedo en el celular). No salen de la pantalla y la ✕ sigue cerrándolas.
 Como todas usan la misma ventana base (`ui/ui.js → modal()`), la mejora llega a todas a la vez, incluidas las que se agreguen en el futuro.
 
-**Estado: ✅ completada**: 49 ventanas emergentes movibles de 49.
+**Estado: ✅ completada**: 52 ventanas emergentes movibles de 52.
 
-### Ventanas emergentes (49)
+### Ventanas emergentes (52)
 
 | # | Pantalla | Ventana | Movible |
 |---|---|---|:-:|
@@ -62,6 +62,9 @@ Como todas usan la misma ventana base (`ui/ui.js → modal()`), la mejora llega 
 | 47 | Configuración → Usuarios | Invitar usuarios | ✅ |
 | 48 | Configuración → Listas | Nueva lista / Grupo de la lista | ✅ |
 | 49 | Configuración → Importar | Importar histórico de Excel | ✅ |
+| 50 | Configuración → Usuarios (Organigrama) | Agregar / editar unidad o persona | ✅ |
+| 51 | Configuración → Usuarios (Organigrama) | Quitar del organigrama | ✅ |
+| 52 | Configuración → Usuarios (Organigrama) | Generar desde usuarios | ✅ |
 
 Los menús desplegables (clic derecho, menú de usuario, menú Actualizar) no son ventanas: se cierran al hacer clic fuera, por eso no se mueven.
 
@@ -87,4 +90,4 @@ Los menús desplegables (clic derecho, menú de usuario, menú Actualizar) no so
 | 23 | Proyectos / Procesos (tres ventanas: Activos, En pausa, Cerrados) | Configuración → Listas |
 | 24 | Pendiente de aprobación / cuenta desactivada | Al ingresar |
 
-**Total: 24 pantallas y 49 ventanas emergentes.**
+**Total: 24 pantallas y 52 ventanas emergentes.** Además, la sección Usuarios y roles incluye el *Organigrama del equipo* (lienzo con pantalla completa).

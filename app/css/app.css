@@ -302,3 +302,26 @@ body.pantalla-completa .contenido { padding: 24px 34px; font-size: 16px; }
 .modal-cab.arrastrable { cursor: move; user-select: none; }
 .modal-cab.moviendo { cursor: grabbing; }
 .tour h3, .notif-cab { cursor: move; user-select: none; }
+
+/* Organigrama del equipo (Configuración → Usuarios y roles) */
+.org .org-sep { width: 1px; height: 20px; background: var(--borde); margin: 0 4px; }
+.org-vista { position: relative; overflow: auto; height: 520px; border: 1px solid var(--borde); border-radius: 10px;
+  background: radial-gradient(circle, #E2E8F0 1px, transparent 1px) 0 0 / 22px 22px, #F8FAFC; }
+.org-lienzo { position: relative; transform-origin: 0 0; min-height: 100%; }
+.org-lineas { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+.org-lineas path { fill: none; stroke: #A0AEC0; stroke-width: 1.6; }
+.org-nodo { position: absolute; box-sizing: border-box; border: 2px solid; border-radius: 12px; padding: 8px 10px; text-align: center;
+  font-size: 12.5px; cursor: grab; user-select: none; box-shadow: 0 2px 6px rgba(0,0,0,.06); display: flex; flex-direction: column; justify-content: center; gap: 2px; }
+.org-nodo.moviendo { cursor: grabbing; box-shadow: 0 8px 24px rgba(0,0,0,.18); z-index: 5; }
+.org-unidad { border-color: #2B6CB0; background: #EBF4FF; color: #2B6CB0; }
+.org-persona { border-color: #2F855A; background: #F0FFF4; color: #22543D; }
+.org-ico { font-size: 18px; line-height: 1; }
+.org-tit { font-weight: 700; line-height: 1.2; }
+.org-sub { font-size: 11px; color: var(--texto-2); line-height: 1.2; }
+.org-rol { font-size: 10.5px; color: var(--texto-3); }
+.org-acciones { position: absolute; top: 3px; right: 4px; display: none; gap: 2px; }
+.org-nodo:hover .org-acciones { display: flex; }
+.org-acciones button { border: none; background: rgba(255,255,255,.85); border-radius: 5px; cursor: pointer; font-size: 11px; padding: 1px 4px; }
+.org-vacio { position: static; border: 1px dashed var(--borde); color: var(--texto-2); cursor: default; margin: 20px; padding: 20px; }
+.org.org-completa { position: fixed; inset: 8px; z-index: 1200; margin: 0; overflow: auto; }
+.org.org-completa .org-vista { height: calc(100vh - 110px); }

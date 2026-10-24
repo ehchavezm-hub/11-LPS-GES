@@ -16,6 +16,7 @@ const SECCIONES = [
 let grilla;
 
 export async function render(el, { seccion, query }) {
+  desmontarOrg?.();
   grilla?.destruir(); grilla = null;
   catalogoProyectos?.destruir(); catalogoProyectos = null;
   dejarCatalogo?.();
@@ -29,8 +30,9 @@ export async function render(el, { seccion, query }) {
   const f = { usuarios, listas, parametros, permisos, columnas, importar: importarVista, respaldo, auditoria }[seccion];
   if (f) await f(cont, query?.get('lista') || undefined); else cont.textContent = 'Sección no encontrada.';
 }
-export function destruir() { grilla?.destruir(); grilla = null; dejarCatalogo?.(); dejarCatalogo = null; catalogoProyectos?.destruir(); catalogoProyectos = null; }
-let catalogoProyectos = null;   // módulo de Proyectos cuando se muestra dentro de Listas
+export function destruir() { desmontarOrg?.(); grilla?.destruir(); grilla = null; dejarCatalogo?.(); dejarCatalogo = null; catalogoProyectos?.destruir(); catalogoProyectos = null; }
+let catalogoProyectos = null;
+let desmontarOrg = null;        // organigrama del equipo (Usuarios y roles)   // módulo de Proyectos cuando se muestra dentro de Listas
 // Cuando cambian los proyectos o las listas (aquí, en otra pestaña u otro usuario), la grilla abierta se actualiza sola
 let dejarCatalogo = null;
 
@@ -56,9 +58,11 @@ async function usuarios(el) {
         <td style="white-space:nowrap"><button class="btn btn-sm" data-editar="${p.id}">Editar</button>
           ${puedeRestablecer(p) ? `<button class="btn btn-sm" data-clave="${p.id}" title="Restablecer contraseña">🔑</button>` : ''}
           ${puedeEliminar(p) ? `<button class="btn btn-sm" data-eliminar="${p.id}" title="Eliminar usuario">🗑</button>` : ''}</td></tr>`).join('')}</table></div>
+    <div data-organigrama style="margin-bottom:12px"></div>
     <details class="tarjeta"><summary><b>Historial del administrador delegado</b></summary>
       <table class="simple" style="margin-top:8px"><tr><th>Persona</th><th>Desde</th><th>Hasta</th><th>Otorgado por</th></tr>
       ${historial.map(h => `<tr><td>${esc(nombre(h.usuario_id))}</td><td>${fmtFechaHora(h.desde)}</td><td>${h.hasta ? fmtFechaHora(h.hasta) : 'Vigente'}</td><td>${esc(nombre(h.otorgado_por))}</td></tr>`).join('') || '<tr><td colspan="4" class="nota">Sin registros.</td></tr>'}</table></details>`;
+  import('./organigrama.js').then(m => { desmontarOrg = m.desmontarOrganigrama; return m.montarOrganigrama(el.querySelector('[data-organigrama]')); });
   el.addEventListener('click', async e => {
     const id = e.target.closest('[data-editar]')?.dataset.editar;
     const idClave = e.target.closest('[data-clave]')?.dataset.clave;

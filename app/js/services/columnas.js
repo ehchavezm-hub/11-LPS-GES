@@ -33,7 +33,6 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
     } : null,
     { field: 'responsable_id', title: 'Resp. 1', tipo: 'lista', ancho: 130, opciones: opcionesLideres, editable: () => esGestor(),
       ayuda: 'Responsable (el PAC se atribuye a esta persona)' },
-    { field: 'resp2', title: 'Resp. 2', tipo: 'texto', ancho: 110, ayuda: 'Persona de apoyo (solo dato)' },
     { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 95, opciones: () => opciones('gerencias').map(o => ({ ...o, label: o.value ? (store.valores.get(o.value)?.codigo || o.label) : o.label })) },
     { field: 'proyecto_id', title: 'Proyecto / Proceso', tipo: 'lista', ancho: 190, opciones: opcionesProyectos },
     { field: 'servicio_id', title: 'CET / Servicio', tipo: 'lista', ancho: 180, opciones: () => opciones('servicios') },

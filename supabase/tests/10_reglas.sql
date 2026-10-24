@@ -299,4 +299,13 @@ do $$ begin
 end $$;
 update profiles set cargo_id = (select v.id from lista_valores v join listas l on l.id = v.lista_id where l.clave = 'cargos' limit 1) where email = 'admin@x.pe';
 
+-- ---------- Organigrama (014) ----------
+set role authenticated;
+select como('admin@x.pe');
+insert into organigrama_nodos (area_id, tipo, titulo) values (mi_area(), 'unidad', 'Gerencia Técnica');
+do $$ begin assert jsonb_array_length(exportar_respaldo()->'organigrama_nodos') = 1, 'organigrama en el respaldo'; end $$;
+select como('consulta@x.pe');
+select debe_fallar($q$ insert into organigrama_nodos (area_id, tipo, titulo) values (mi_area(), 'unidad', 'X') $q$, 'row-level security');
+reset role;
+
 \echo 'Todas las pruebas pasaron'
