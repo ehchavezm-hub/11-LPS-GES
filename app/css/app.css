@@ -265,3 +265,9 @@ body.pantalla-completa .contenido { padding: 24px 34px; font-size: 16px; }
 /* Datos de acceso entregados por el administrador */
 .credenciales { background: var(--fondo, #F4F6FA); border: 1px solid var(--borde, #E2E8F0); border-radius: 8px; padding: 10px 12px;
   font-family: ui-monospace, Consolas, monospace; font-size: 13px; white-space: pre-wrap; user-select: all; }
+
+/* Botón actualizar (cabecera) */
+.btn-actualizar { display: inline-flex; align-items: center; }
+.btn-actualizar [data-a="actualizar"] { font-size: 20px; }
+.btn-actualizar .btn-flecha { width: auto; min-width: 0; padding: 0 4px; font-size: 11px; margin-left: -6px; opacity: .8; }
+.menu-actualizar { min-width: 300px; }

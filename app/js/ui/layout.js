@@ -38,6 +38,7 @@ export function montarLayout(raiz, { alSalir }) {
       <span class="cab-area">${esc(store.area?.nombre || '')}</span>
       ${modoDemo ? '<span class="demo-chip" title="Datos ficticios guardados solo en este navegador">MODO DEMOSTRACIÓN</span>' : ''}
       <span class="flex"></span>
+      <span class="btn-actualizar"><button class="btn-icono" data-a="actualizar" title="Actualizar la página" aria-label="Actualizar">⟳</button><button class="btn-icono btn-flecha" data-a="actualizar-menu" title="Más opciones de actualización" aria-label="Opciones de actualización">▾</button></span>
       <button class="btn-icono" data-a="ayuda" title="Ayuda y recorrido guiado" aria-label="Ayuda">❔</button>
       <button class="btn-icono" data-a="notif" title="Notificaciones" aria-label="Notificaciones">🔔<span class="contador oculto"></span></button>
       <button class="usuario-btn" data-a="usuario"><span class="avatar">${esc(iniciales)}</span><span class="nom">${esc(u.nombre)}</span></button>
@@ -98,6 +99,8 @@ export function montarLayout(raiz, { alSalir }) {
     if (a === 'menu') document.body.classList.toggle('menu-abierto');
     if (a === 'notif') panelNotificaciones();
     if (a === 'usuario') menuUsuario(alSalir);
+    if (a === 'actualizar') location.reload();
+    if (a === 'actualizar-menu') menuActualizar();
     if (a === 'ayuda') import('../views/ayuda.js').then(m => m.iniciarRecorrido(true));
   });
   app.querySelector('[data-a="nuevo-proy"]')?.addEventListener('click', () => import('../views/proyectos.js').then(m => m.formularioProyecto()));
@@ -155,7 +158,39 @@ async function cargarNotificaciones() {
   if (c) { c.textContent = n > 99 ? '99+' : n; c.classList.toggle('oculto', !n); }
 }
 
-function cerrarFlotantes() { document.querySelectorAll('.panel-notif,.menu-usuario').forEach(x => x.remove()); }
+// Botón actualizar: recarga normal o forzada (vacía la caché del aplicativo y del service worker).
+// No borra la sesión ni los datos: solo los archivos guardados del aplicativo.
+function menuActualizar() {
+  if (document.querySelector('.menu-actualizar')) return cerrarFlotantes();
+  cerrarFlotantes();
+  const m = html(`<div class="menu-usuario menu-actualizar">
+    <button data-op="normal">⟳ Actualizar página</button>
+    <button data-op="forzado">🧹 Vaciar caché y volver a cargar de manera forzada</button></div>`);
+  const r = document.querySelector('[data-a="actualizar-menu"]').getBoundingClientRect();
+  m.style.right = Math.max(8, innerWidth - r.right) + 'px';
+  document.body.append(m);
+  m.addEventListener('click', async e => {
+    const op = e.target.closest('[data-op]')?.dataset.op;
+    if (op === 'normal') location.reload();
+    if (op === 'forzado') await recargaForzada();
+  });
+  setTimeout(() => document.addEventListener('click', function f(e) {
+    if (!e.target.closest('.menu-actualizar,[data-a="actualizar-menu"]')) { cerrarFlotantes(); document.removeEventListener('click', f); }
+  }), 0);
+}
+
+export async function recargaForzada() {
+  try {
+    const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
+    await Promise.all(regs.map(r => r.unregister()));
+    if (window.caches) await Promise.all((await caches.keys()).map(k => caches.delete(k)));
+  } catch { /* si falla, igual se recarga */ }
+  const url = new URL(location.href);
+  url.searchParams.set('v', Date.now().toString(36));   // evita la caché del navegador
+  location.replace(url.toString());
+}
+
+function cerrarFlotantes() { document.querySelectorAll('.panel-notif,.menu-usuario,.menu-actualizar').forEach(x => x.remove()); }
 
 function panelNotificaciones() {
   if (document.querySelector('.panel-notif')) return cerrarFlotantes();
