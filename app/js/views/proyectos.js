@@ -271,19 +271,16 @@ export async function formularioProyecto(p = null) {
       { name: 'pais_id', label: 'País', type: 'select', options: opciones('paises') },
       { name: 'fecha_inicio', label: 'Inicio previsto', type: 'date' },
       { name: 'fecha_fin', label: 'Fin previsto', type: 'date' },
-      ...(crea ? [{ name: 'lideres', label: 'Líderes asignados', type: 'multiselect', unaColumna: true, options: opcionesEquipo(), value: p ? lideresDe(p.id) : [store.usuario.id] }] : []),
       { name: 'observaciones', label: 'Observaciones', type: 'textarea' },
     ],
     alGuardar: async v => {
-      const { lideres, ...datos } = v;
+      const datos = v;
       if (store.proyectos.some(x => x.codigo === datos.codigo && x.id !== p?.id)) throw new Error('Ya existe un proyecto con ese código.');
       let reg;
       if (p) reg = await api.update('proyectos', p.id, datos);
       else [reg] = await api.insert('proyectos', { ...datos, area_id: store.area.id, estado: crea ? 'activo' : 'propuesto', propuesto_por: crea ? null : store.usuario.id });
-      if (crea && lideres) {
-        await api.removeWhere('proyecto_lideres', { eq: { proyecto_id: reg.id } });
-        if (lideres.length) await api.insert('proyecto_lideres', lideres.map(u => ({ proyecto_id: reg.id, usuario_id: u })));
-      } else if (!crea && !p) {
+      // Los líderes se asignan aparte (clic derecho → "Asignar líderes…"); quien propone queda como líder
+      if (!crea && !p) {
         await api.insert('proyecto_lideres', { proyecto_id: reg.id, usuario_id: store.usuario.id }).catch(() => {});
       }
       ok(crea || p ? 'Proyecto guardado.' : 'Propuesta enviada al administrador.');

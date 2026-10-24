@@ -4,7 +4,7 @@ import { store, on, esGestor, esStaff, puede, seleccionarProyecto, misProyectos,
 import { ROLES } from '../data/catalogos.js';
 import { esc, html, normalizar, agrupar, fmtFechaHora } from '../core/util.js';
 import { ir } from '../core/router.js';
-import { pedirDatos, ok, error } from './ui.js';
+import { pedirDatos, ok, error, arrastrable } from './ui.js';
 
 export const NAV = [
   { grupo: 'Planificación' },
@@ -219,11 +219,12 @@ function panelNotificaciones() {
   if (document.querySelector('.panel-notif')) return cerrarFlotantes();
   cerrarFlotantes();
   const p = html(`<div class="panel-notif" role="dialog" aria-label="Notificaciones">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--borde)">
+    <div class="notif-cab" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--borde)">
       <b>Notificaciones</b><button class="btn btn-sm" data-a="todas">Marcar todas como leídas</button></div>
     ${store.notificaciones.length ? store.notificaciones.map(n => `<div class="item${n.leida ? '' : ' no-leida'}" data-id="${n.id}" data-ruta="${esc(n.ruta || '')}">
       ${esc(n.texto)}<small>${fmtFechaHora(n.created_at)}</small></div>`).join('') : '<p class="nota" style="padding:14px">Sin notificaciones.</p>'}</div>`);
   document.body.append(p);
+  arrastrable(p, p.querySelector('.notif-cab'));
   p.addEventListener('click', async e => {
     if (e.target.closest('[data-a="todas"]')) {
       await Promise.all(store.notificaciones.filter(n => !n.leida).map(n => api.update('notificaciones', n.id, { leida: true }).catch(() => {})));

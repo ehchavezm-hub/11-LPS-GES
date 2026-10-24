@@ -1,4 +1,5 @@
 // Ayuda en línea, guía rápida en PDF y recorrido guiado la primera vez (M-11).
+import { arrastrable } from '../ui/ui.js';
 import { api } from '../data/api.js';
 import { store, param, esStaff } from '../core/store.js';
 import { esc, html } from '../core/util.js';
@@ -77,7 +78,8 @@ export function iniciarRecorrido(forzar = false) {
       <span class="nota">${i + 1} de ${pasos.length}</span><span><button class="btn btn-sm" data-t="saltar">Saltar</button>
       <button class="btn btn-sm btn-primario" data-t="sig">${i === pasos.length - 1 ? 'Terminar' : 'Siguiente'}</button></span></div>`;
     const top = Math.min(innerHeight - 200, r.top + Math.min(r.height, 300) + 14);
-    Object.assign(caja.style, { top: top + 'px', left: Math.max(12, Math.min(innerWidth - 350, r.left)) + 'px' });
+    Object.assign(caja.style, { top: top + 'px', left: Math.max(12, Math.min(innerWidth - 350, r.left)) + 'px', transform: '' });
+    arrastrable(caja, caja.querySelector('h3'));
   };
   caja.addEventListener('click', e => {
     const t = e.target.closest('[data-t]')?.dataset.t;
