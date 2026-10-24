@@ -1,10 +1,10 @@
 // Proyectos (6.3): catálogo que alimenta el menú, propuesta y aprobación, ficha con indicadores e hitos.
 import { api, mensajeError } from '../data/api.js';
-import { store, cargarCatalogo, esGestor, esStaff, puede, opciones, opcionesLideres, lideres, opcionesEstado, colorEstado, textoEstado, etiqueta, nombre, proyecto, seleccionarProyecto } from '../core/store.js';
+import { store, cargarCatalogo, esGestor, esStaff, puede, opciones, opcionesLideres, lideres, opcionesEstado, colorEstado, textoEstado, etiqueta, nombre, proyecto, seleccionarProyecto, valoresLista } from '../core/store.js';
 import { esc, html, fmtFecha, hoy, num, pct, lunes, sumarSemanas } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
-import { kpi, badge, pedirDatos, ok, error, confirmar, modal, vacio } from '../ui/ui.js';
+import { kpi, badge, pedirDatos, ok, error, confirmar, modal, vacio, toast } from '../ui/ui.js';
 import { columnasPersonalizadas } from '../services/columnas.js';
 import { resumenPAC, colorPAC, resumenRestricciones } from '../services/indicadores.js';
 import { panelColaboracion } from './detalle.js';
@@ -59,8 +59,13 @@ export async function render(el, params) {
     listaParaCrear: p => !!(p.codigo && p.nombre_corto),
     camposCalc: ['created_at', 'updated_at', 'created_by', 'aprobado_at'],
     alGuardar: () => cargarCatalogo(),
+    // Eliminar (clic derecho → Eliminar fila): solo sin historial; si lo tiene, se ofrece desactivarlo
+    eliminar: p => eliminarProyecto(p),
     menuFila: p => [
       { label: '📄 Ver ficha', action: () => p.id && ir('#/proyectos/' + p.id) },
+      ...(p.id && puede('crear_proyecto') ? [p.estado === 'cerrado'
+        ? { label: '▶ Reactivar proyecto', action: () => cambiarEstado(p, 'activo') }
+        : { label: '⛔ Desactivar proyecto (Cerrado)', action: () => cambiarEstado(p, 'cerrado') }] : []),
       { label: '👥 Asignar líderes…', action: () => p.id && asignarLideres(p), disabled: !puede('crear_proyecto') },
       { label: '🏗 Seleccionar en el menú', action: () => p.id && seleccionarProyecto(p.id) },
     ],
@@ -73,6 +78,50 @@ export function destruir() { grilla?.destruir(); grilla = null; }
 // Todas las personas del equipo (todos los roles que planifican, delegado y administradores), por nombre, con su rol
 function opcionesEquipo() {
   return lideres().slice().sort((a, b) => a.nombre.localeCompare(b.nombre)).map(p => ({ value: p.id, label: p.nombre, nota: ROLES[p.rol] || p.rol }));
+}
+
+// ---------- Desactivar / eliminar ----------
+// Desactivar (estado "Cerrado") es lo recomendado: el proyecto sale de menús y selectores pero conserva su historial.
+async function cambiarEstado(p, estado, { preguntar = true } = {}) {
+  const desactiva = estado === 'cerrado';
+  if (desactiva && preguntar && !await confirmar(`¿Desactivar "${p.codigo} · ${p.nombre_corto}"? Dejará de aparecer en el menú de proyectos y en los selectores ` +
+    '(actividades, CET / Servicio, cartera). Su historial y PAC se conservan y puede reactivarlo cuando quiera.', { titulo: 'Desactivar proyecto', texto: 'Desactivar' })) return false;
+  try {
+    await api.update('proyectos', p.id, { estado });
+    ok(desactiva ? 'Proyecto desactivado.' : 'Proyecto reactivado.');
+    await cargarCatalogo();
+    if (location.hash.startsWith('#/proyectos')) render(document.getElementById('contenido'), {});
+  } catch (e) { error(mensajeError(e)); }
+  return true;
+}
+
+/** Cuántos registros usan el proyecto (si hay alguno, no se elimina). */
+async function usosDeProyecto(id) {
+  const tablas = [['actividades', 'actividad(es)'], ['cartera', 'registro(s) de cartera'], ['restricciones', 'restricción(es)'], ['plantilla_items', 'ítem(s) de plantilla']];
+  const n = await Promise.all(tablas.map(([t]) => api.list(t, { eq: { proyecto_id: id }, limit: 1000 }).then(r => r.length).catch(() => 0)));
+  return tablas.map(([, t], i) => n[i] ? `${n[i]} ${t}` : '').filter(Boolean);
+}
+
+async function eliminarProyecto(p) {
+  if (!puede('crear_proyecto')) throw new Error('No tiene permiso para eliminar proyectos.');
+  const usos = await usosDeProyecto(p.id);
+  if (usos.length) {
+    if (p.estado === 'cerrado') { toast(`"${p.codigo}" tiene historial (${usos.join(', ')}) y ya está desactivado; no se elimina.`, 'warn', 7000); return false; }
+    if (await confirmar(`"${p.codigo} · ${p.nombre_corto}" tiene historial: ${usos.join(', ')}. Eliminarlo borraría ese historial y cambiaría el PAC, ` +
+      'por eso no se elimina. ¿Desactivarlo en su lugar? Dejará de aparecer en menús y selectores.', { titulo: 'No se puede eliminar', texto: 'Desactivar' })) {
+      await cambiarEstado(p, 'cerrado', { preguntar: false });
+    }
+    return false;
+  }
+  // Sin historial: se borra y se quita su asociación en la lista CET / Servicio
+  for (const v of valoresLista('servicios', { inactivos: true }).filter(x => x.extra?.proyecto_id === p.id)) {
+    await api.update('lista_valores', v.id, { extra: { ...v.extra, proyecto_id: null } });
+  }
+  await api.remove('proyectos', p.id);
+  if (store.proyectoSel === p.id) seleccionarProyecto('');
+  ok(`Proyecto "${p.codigo}" eliminado.`);
+  await cargarCatalogo();
+  return true;
 }
 
 function lideresDe(id) { return store.proyectoLideres.filter(l => l.proyecto_id === id).map(l => l.usuario_id); }
@@ -176,6 +225,9 @@ async function ficha(el, id) {
       <span class="flex"></span>
       <button class="btn btn-sm" data-a="menu">🏗 Seleccionar en el menú</button>
       ${puede('crear_proyecto') || (p.estado === 'propuesto' && p.propuesto_por === store.usuario.id) ? '<button class="btn btn-sm" data-a="editar">✏ Editar</button>' : ''}
+      ${puede('crear_proyecto') ? (p.estado === 'cerrado' ? '<button class="btn btn-sm" data-a="reactivar">▶ Reactivar</button>'
+        : '<button class="btn btn-sm" data-a="desactivar" title="Recomendado: sale de menús y selectores y conserva el historial">⛔ Desactivar</button>') +
+        '<button class="btn btn-sm btn-peligro-borde" data-a="eliminar" title="Solo si no tiene actividades ni otros registros">🗑 Eliminar</button>' : ''}
       <button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <p class="pagina-sub">${esc(p.nombre_completo || '')}</p>
     <div class="kpis">
@@ -215,6 +267,13 @@ async function ficha(el, id) {
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'menu') { seleccionarProyecto(id); ok('Proyecto seleccionado en el menú.'); }
     if (a === 'editar') { await formularioProyecto(p); el.innerHTML = ''; ficha(el, id); }
+    if (a === 'desactivar' || a === 'reactivar') { if (await cambiarEstado(p, a === 'desactivar' ? 'cerrado' : 'activo') !== false) { el.innerHTML = ''; ficha(el, id); } }
+    if (a === 'eliminar') {
+      const usos = await usosDeProyecto(id);
+      if (!usos.length && !await confirmar(`¿Eliminar "${p.codigo} · ${p.nombre_corto}"? No tiene actividades ni otros registros. Esta acción no se puede deshacer.`,
+        { titulo: 'Eliminar proyecto', texto: 'Eliminar', peligro: true })) return;
+      try { if (await eliminarProyecto(p)) ir('#/proyectos'); else { el.innerHTML = ''; ficha(el, id); } } catch (err) { error(mensajeError(err)); }
+    }
     if (a === 'hito') {
       await pedirDatos({ titulo: 'Nuevo hito', campos: [{ name: 'nombre', label: 'Hito / entregable', required: true, full: true }, { name: 'fecha', label: 'Fecha', type: 'date', required: true }],
         alGuardar: async v => { await api.insert('hitos', { ...v, area_id: store.area.id, proyecto_id: id }); } });

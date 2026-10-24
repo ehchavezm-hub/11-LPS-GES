@@ -16,7 +16,11 @@ function opcionesDe(col, fila) {
 function etiquetaOpcion(col, v, fila) {
   if (v == null || v === '') return '';
   const o = opcionesDe(col, fila).find(x => String(x.value) === String(v));
-  return o ? o.label : (col.tipo === 'lista' ? etiqueta(v) : String(v));
+  if (o) return o.label;
+  // Valor que ya no está entre las opciones (p. ej. proyecto desactivado): se sigue mostrando su nombre
+  const pr = store.proyectos.find(x => x.id === v);
+  if (pr) return `${pr.codigo} · ${pr.nombre_corto}${pr.estado === 'cerrado' ? ' (desactivado)' : ''}`;
+  return col.tipo === 'lista' ? etiqueta(v) : String(v);
 }
 /** Convierte el texto pegado o escrito al valor que guarda la columna. */
 function convertir(col, texto, fila) {
@@ -501,7 +505,8 @@ export function crearGrilla(contenedor, cfg) {
     for (const r of propias) {
       const d = r.getData();
       try {
-        if (d.id) await (cfg.eliminar ? cfg.eliminar(d) : api.remove(cfg.tabla, d.id));
+        // cfg.eliminar puede devolver false: no se eliminó (p. ej. se desactivó en su lugar) y la fila se conserva
+        if (d.id && (await (cfg.eliminar ? cfg.eliminar(d) : api.remove(cfg.tabla, d.id))) === false) continue;
         servidor.delete(d.id);
         r.delete();
       } catch (e) { error(mensajeError(e)); }

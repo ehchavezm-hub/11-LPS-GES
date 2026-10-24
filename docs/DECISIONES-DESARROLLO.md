@@ -58,6 +58,11 @@ El renombre no cambia datos: el código interno de "Líder de especialidad" sigu
 asociarse a un proyecto (columna *Proyecto*); al elegir ese proyecto en una actividad, el CET / Servicio se completa solo si estaba vacío.
 La antigua lista CET ya no se muestra; sus valores se conservan por las actividades antiguas que pudieran usarlos.
 
+## Proyectos: desactivar o eliminar
+Lo recomendado es **desactivar** (estado *Cerrado*): el proyecto sale del menú y de los selectores (actividades, CET / Servicio,
+cartera) pero conserva su historial y su PAC, y se puede reactivar. **Eliminar** solo se permite si el proyecto no tiene actividades,
+cartera, restricciones ni plantillas (proyectos creados por error); si tiene historial, el aplicativo ofrece desactivarlo.
+
 ## Seguridad
 - Toda regla de permisos se aplica en la base de datos (RLS), no solo en pantalla: aunque alguien manipule el navegador no puede ver ni cambiar lo que su rol no permite.
 - Las funciones de respaldo y mantenimiento no pueden llamarse con la clave pública.

@@ -265,4 +265,18 @@ select como('admin2@x.pe');
 do $$ begin assert not puede('gestionar_listas'), 'superadmin no pudo restringir al admin'; end $$;
 reset role;
 
+-- ---------- Eliminar proyectos (011) ----------
+reset role;
+do $$ begin perform set_config('request.jwt.claim.sub', '', false); end $$;
+insert into proyectos (area_id, codigo, nombre_corto, estado) select id, 'BORRAR-1', 'Sin historial', 'activo' from areas limit 1;
+set role authenticated;
+select como('consulta@x.pe');
+delete from proyectos where codigo = 'BORRAR-1';            -- consulta: RLS no lo permite
+select como('admin@x.pe');
+do $$ begin assert exists (select 1 from proyectos where codigo = 'BORRAR-1'), 'consulta borró un proyecto'; end $$;
+delete from proyectos where codigo = 'BORRAR-1';
+do $$ begin assert not exists (select 1 from proyectos where codigo = 'BORRAR-1'), 'admin no pudo borrar proyecto sin historial'; end $$;
+select debe_fallar($q$ delete from proyectos where id = (select proyecto_id from actividades where proyecto_id is not null limit 1) $q$, 'foreign key');
+reset role;
+
 \echo 'Todas las pruebas pasaron'

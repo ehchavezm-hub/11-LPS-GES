@@ -285,3 +285,4 @@ body.pantalla-completa .contenido { padding: 24px 34px; font-size: 16px; }
 .multi.una-columna label.chk span:first-of-type { flex: 1; }
 .multi.una-columna label.chk:hover { background: var(--surface-2); }
 .multi.una-columna label.chk .nota { margin-left: auto; font-size: 11px; }
+.btn-peligro-borde { color: var(--rojo); border-color: color-mix(in srgb, var(--rojo) 45%, white); }
