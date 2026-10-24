@@ -255,7 +255,7 @@ const acciones = {
     if (!cands.length) return toast('No hay actividades del Look Ahead pendientes de comprometer en esta semana.', 'info');
     const cuerpo = html(`<div><p>Seleccione las actividades que se comprometen esta semana:</p>
       <table class="simple"><tr><th></th><th>Responsable</th><th>Actividad</th><th>Estado LA</th><th class="num">HH</th></tr>
-      ${cands.map(a => `<tr><td><input type="checkbox" value="${a.id}" ${a.estado_la === 'lista' ? 'checked' : ''}></td><td>${esc(nombre(a.responsable_id))}</td>
+      ${cands.map(a => `<tr><td><input type="checkbox" value="${a.id}" ${['lista', 'trasladada'].includes(a.estado_la) ? 'checked' : ''}></td><td>${esc(nombre(a.responsable_id))}</td>
         <td>${esc(a.descripcion)}</td><td>${esc(textoEstado('estados_la', a.estado_la))}${restriccionesActivas(a.id, estado.rests).length ? ' 🚧' : ''}</td>
         <td class="num">${num(a.hh_total)}</td></tr>`).join('')}</table></div>`);
     modal({

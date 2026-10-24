@@ -18,10 +18,12 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
   caja.value = cell.getValue() ?? '';
   caja.rows = 1;
   caja.style.cssText = 'display:block;width:100%;box-sizing:border-box;padding:4px;border:0;outline:none;resize:none;' +
-    'white-space:pre-wrap;overflow:hidden;font:inherit;line-height:1.35;background:#fff;';
+    'white-space:pre-wrap;overflow-wrap:anywhere;overflow:hidden;font:inherit;line-height:1.35;background:#fff;align-self:stretch;';
+  // Alto = todo el texto ajustado al ancho de la columna (nunca menos que la celda): se ve completo mientras se edita
   const crecer = () => {
     caja.style.height = 'auto';
-    caja.style.height = caja.scrollHeight + 'px';
+    const celda = cell.getElement();
+    caja.style.height = Math.max(caja.scrollHeight, celda ? celda.clientHeight - 2 : 0) + 'px';
     try { cell.checkHeight(); } catch { /* la fila se ajusta al guardar */ }
   };
   let listo = false;
@@ -42,7 +44,12 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
       e.stopPropagation();   // flechas, Inicio, Fin… se mueven dentro del texto (Tab sigue pasando a la celda siguiente)
     }
   });
-  onRendered(() => { crecer(); caja.focus({ preventScroll: true }); caja.setSelectionRange(caja.value.length, caja.value.length); });
+  onRendered(() => {
+    crecer();
+    caja.focus({ preventScroll: true }); caja.setSelectionRange(caja.value.length, caja.value.length);
+    // Se vuelve a medir cuando el navegador terminó de dibujar la celda (antes el ancho puede no ser el final)
+    requestAnimationFrame(crecer); setTimeout(crecer, 60);
+  });
   return caja;
 }
 

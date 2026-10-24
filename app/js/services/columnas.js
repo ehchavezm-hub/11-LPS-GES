@@ -79,7 +79,7 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
         return d.id ? `<button class="mini-btn" title="Comentarios y enlaces">${n || '＋'}</button>` : '';
       },
       click: (d, e) => { if (d.id && e.target.closest('button')) extras.abrirDetalle?.(d); } },
-    { field: 'comentario', title: 'Comentario', tipo: 'texto', ancho: 200 },
+    { field: 'comentario', title: 'Comentario', tipo: 'textoLargo', ancho: 220 },   // varias líneas, como Actividad
   );
   if (modo === 'plan') {
     cols.push({ field: '_pend', title: 'Sem. pend.', tipo: 'numero', ancho: 70, calc: true, ayuda: 'Semanas que el compromiso lleva pendiente (RN-06)',
@@ -107,6 +107,12 @@ export function derivarActividad(fila, cambios) {
   }
   if ('_cet' in cambios) d.servicio_id = cambios._cet ?? null;            // CET elegido → su Servicio
   if ('servicio_id' in d || 'servicio_id' in cambios) d._cet = d.servicio_id ?? cambios.servicio_id ?? null;
+  // Estado LA elegido a mano: "Trasladada al plan" compromete la actividad (aparece en el Plan semanal);
+  // volver a Pendiente, Con restricción o Lista la saca del Plan. Cancelada no cambia el compromiso.
+  if ('estado_la' in cambios) {
+    if (cambios.estado_la === 'trasladada') { d.comprometida = true; d.tipo = fila.tipo || 'programada'; }
+    else if (['pendiente', 'con_restriccion', 'lista'].includes(cambios.estado_la) && fila.comprometida) d.comprometida = false;
+  }
   if ('estado' in cambios && cambios.estado !== 'no_completado' && fila.cnc_id) d.cnc_id = null;
   if ('estado' in cambios && cambios.estado === 'completado' && fila.hh_real == null && fila.hh_total) d.hh_real = fila.hh_total;
   return d;
