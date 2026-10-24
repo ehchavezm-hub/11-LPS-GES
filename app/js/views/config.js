@@ -282,7 +282,7 @@ async function listas(el, claveSel) {
         // CET / Servicio: Proyecto (del catálogo de Proyectos), Código (CET) y Servicio; sin descripción ni color
         { field: '_proyecto', title: 'Proyecto', tipo: 'lista', ancho: 300, opciones: opcionesProyectos,
           ayuda: 'Se elige del catálogo de Proyectos (se actualiza al instante). Al elegir ese proyecto en una actividad, el CET / Servicio se completa solo' },
-        { field: 'codigo', title: 'Código (CET)', tipo: 'texto', ancho: 140, editable: x => !x.protegido },
+        { field: 'codigo', title: 'CET', tipo: 'texto', ancho: 140, editable: x => !x.protegido },
         { field: 'valor', title: 'Servicio', tipo: 'texto', ancho: 340 },
       ] : [
         { field: 'valor', title: 'Texto visible', tipo: 'texto', ancho: 320 },
