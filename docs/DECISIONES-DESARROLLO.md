@@ -41,7 +41,8 @@ salvo donde se dice lo contrario.
 ## Roles (versión 1.1, pedido del Gerente Técnico)
 | Rol | Permisos iniciales (editables en Configuración → Permisos) |
 |---|---|
-| Administrador | Todo. |
+| **Super administrador** | Todo, siempre. Es el administrador principal. Único que asigna o retira super administrador, administrador y delegado, y que edita la columna *Administrador* de la matriz. |
+| Administrador | Lo que indique su columna de la matriz (por defecto, todo). No edita su propia columna ni modifica a otro administrador. |
 | Administrador delegado | Todo lo de la matriz; no rota el delegado, no elimina usuarios ni toca al administrador principal. |
 | **Responsable del equipo** | Lo del líder + editar actividades y cerrar la semana de otros, gestionar reuniones y plantillas de servicio. |
 | **Líder de especialidad** (antes "Líder de proceso") | Planifica su trabajo, propone proyectos, acepta solicitudes dirigidas a él, comenta, exporta, ve el tablero. |

@@ -96,13 +96,17 @@ export const ACCIONES = [
   ['ver_auditoria', 'Ver el historial de cambios (auditoría)'],
   ['importar_historico', 'Importar histórico y datos desde Excel'],
   ['gestionar_solicitudes_cambio', 'Gestionar solicitudes de cambio del aplicativo'],
+  ['eliminar_usuarios', 'Eliminar usuarios'],
+  ['exportar_respaldo', 'Descargar el respaldo completo de la base de datos'],
 ];
 
 const PERMISOS_LIDER = ['proponer_proyecto', 'aceptar_solicitudes', 'registrar_solicitud', 'comentar', 'exportar', 'ver_tablero'];
 const conPermisos = lista => Object.fromEntries(ACCIONES.map(([a]) => [a, lista.includes(a)]));
 
+// El super administrador tiene todo siempre; la columna "admin" la edita solo él (por defecto, todo permitido)
 export const PERMISOS_INICIALES = {
-  delegado: Object.fromEntries(ACCIONES.map(([a]) => [a, true])),
+  admin: Object.fromEntries(ACCIONES.map(([a]) => [a, true])),
+  delegado: Object.fromEntries(ACCIONES.map(([a]) => [a, !['eliminar_usuarios', 'exportar_respaldo'].includes(a)])),
   resp_equipo: conPermisos([...PERMISOS_LIDER, 'editar_actividades_otros', 'cerrar_semana_otros', 'gestionar_reuniones', 'gestionar_plantillas_servicio']),
   lider: conPermisos(PERMISOS_LIDER),
   resp_proceso: conPermisos(PERMISOS_LIDER),
@@ -113,6 +117,7 @@ export const PERMISOS_INICIALES = {
 // El orden define cómo se muestran en listas y en la matriz de permisos.
 // "lider" conserva su código interno; desde la versión 1.1 se muestra como "Líder de especialidad".
 export const ROLES = {
+  superadmin: 'Super administrador',
   admin: 'Administrador',
   delegado: 'Administrador delegado',
   resp_equipo: 'Responsable del equipo',
@@ -125,5 +130,5 @@ export const ROLES = {
 
 /** Roles que planifican: tienen plan semanal, Look Ahead y PAC (equivale a public.rol_planifica). */
 export const PLANIFICADORES = ['resp_equipo', 'lider', 'resp_proceso', 'resp_actividad'];
-export const COLOR_ROL = { admin: '#E8762B', delegado: '#4E79A7', resp_equipo: '#B07AA1', lider: '#59A14F', resp_proceso: '#9C755F',
+export const COLOR_ROL = { superadmin: '#1A365D', admin: '#E8762B', delegado: '#4E79A7', resp_equipo: '#B07AA1', lider: '#59A14F', resp_proceso: '#9C755F',
   resp_actividad: '#EDC948', consulta: '#76B7B2', pendiente: '#BAB0AC' };

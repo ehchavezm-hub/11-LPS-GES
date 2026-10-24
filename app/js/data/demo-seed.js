@@ -42,7 +42,7 @@ export function crearDatosDemo() {
   const persona = (nombre, codigo, rol, extra = {}) => ({
     id: uuid(), area_id: area, email: codigo.toLowerCase() + '@demo.lpsgt', nombre, codigo, rol, es_admin_principal: false,
     gerencia_ids: [], horas_dia: null, activo: true, tour_visto: true, created_at: ahora, updated_at: ahora, ...extra });
-  const admin = persona('Gerente Técnico (demo)', 'GT', 'admin', { es_admin_principal: true });
+  const admin = persona('Gerente Técnico (demo)', 'GT', 'superadmin', { es_admin_principal: true });
   const delegado = persona('Diana Rojas', 'DR', 'delegado');
   const lideres = [
     persona('Ana Torres', 'AT', 'resp_equipo'), persona('Bruno Salas', 'BS', 'lider'), persona('Carla Medina', 'CM', 'resp_proceso'),

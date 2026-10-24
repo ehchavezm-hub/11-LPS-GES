@@ -75,11 +75,14 @@ export async function cargarCatalogo() {
 
 // ---------- Permisos ----------
 export function rol() { return store.usuario?.rol || 'anonimo'; }
-export function esAdmin() { return rol() === 'admin'; }
-export function esGestor() { return ['admin', 'delegado'].includes(rol()); }
-export function esStaff() { return ['admin', 'delegado', ...PLANIFICADORES].includes(rol()); }
+export function esSuperadmin() { return rol() === 'superadmin' || !!store.usuario?.es_admin_principal; }
+export function esAdmin() { return ['superadmin', 'admin'].includes(rol()); }
+export function esGestor() { return ['superadmin', 'admin', 'delegado'].includes(rol()); }
+export function esStaff() { return ['superadmin', 'admin', 'delegado', ...PLANIFICADORES].includes(rol()); }
 export function puede(accion) {
-  if (rol() === 'admin') return true;
+  if (esSuperadmin()) return true;
+  // El administrador usa su columna de la matriz (la edita el super administrador); sin fila, permitido
+  if (rol() === 'admin') return store.permisos.admin?.[accion] ?? true;
   const propio = store.permisos[rol()]?.[accion];
   // Igual que public.puede(): un rol de planificación sin fila propia usa los permisos de "lider"
   if (propio === undefined && PLANIFICADORES.includes(rol())) return !!store.permisos.lider?.[accion];
@@ -112,12 +115,12 @@ export function param(clave) { return store.parametros[clave] ?? PARAMETROS_INIC
 export function perfil(id) { return store.perfiles.find(p => p.id === id); }
 export function nombre(id) { return perfil(id)?.nombre || ''; }
 export function lideres({ inactivos = false } = {}) {
-  return store.perfiles.filter(p => ['admin', 'delegado', ...PLANIFICADORES].includes(p.rol) && !p.eliminado && (inactivos || p.activo));
+  return store.perfiles.filter(p => ['superadmin', 'admin', 'delegado', ...PLANIFICADORES].includes(p.rol) && !p.eliminado && (inactivos || p.activo));
 }
 /** Personas que planifican: líderes y delegado; el administrador solo si tiene actividades en 'acts'. */
 export function equipo(acts = []) {
   const conActs = new Set(acts.map(a => a.responsable_id));
-  return lideres().filter(p => p.rol !== 'admin' || conActs.has(p.id));
+  return lideres().filter(p => !['superadmin', 'admin'].includes(p.rol) || conActs.has(p.id));
 }
 /** Restricción de visibilidad de consulta (en Supabase la aplica RLS; aquí también en modo demostración). */
 export function visibleParaConsulta(proyectoId) {

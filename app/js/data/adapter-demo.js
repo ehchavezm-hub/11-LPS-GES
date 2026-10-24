@@ -63,15 +63,18 @@ export function crearAdaptadorDemo() {
   function perfil(id = usuarioId()) { return tabla('profiles').find(p => p.id === id); }
 
   // Emula public.eliminar_usuario(): borra si no tiene historial; si tiene, conserva el perfil como eliminado
+  const esSuper = p => p?.rol === 'superadmin' || !!p?.es_admin_principal;
+  const GESTORES = ['superadmin', 'admin', 'delegado'];
   const SIN_HISTORIAL = new Set(['profiles', 'notificaciones', 'proyecto_favoritos', 'vistas', 'proyecto_lideres', 'auditoria']);
   async function eliminarUsuarioDemo(id) {
     db = cargar();
     const yo = perfil();
     const obj = perfil(id);
-    if (!yo || yo.rol !== 'admin') throw new Error('Solo el administrador puede eliminar usuarios.');
+    if (!yo || !['superadmin', 'admin'].includes(yo.rol)) throw new Error('Solo el administrador puede eliminar usuarios.');
     if (!obj) throw new Error('Usuario no encontrado.');
     if (obj.id === yo.id) throw new Error('No puede eliminarse a sí mismo.');
     if (obj.es_admin_principal) throw new Error('El administrador principal no se puede eliminar.');
+    if (['superadmin', 'admin'].includes(obj.rol) && !esSuper(yo)) throw new Error('Solo el super administrador elimina a un administrador.');
     const conHistorial = Object.entries(db).some(([t, filas]) => !SIN_HISTORIAL.has(t) && Array.isArray(filas) &&
       filas.some(f => f && typeof f === 'object' && Object.entries(f).some(([k, v]) => k !== 'id' && v === id)));
     if (!conHistorial) {
@@ -82,7 +85,7 @@ export function crearAdaptadorDemo() {
     }
     db.proyecto_lideres = tabla('proyecto_lideres').filter(f => f.usuario_id !== id);
     guardar();
-    await api.update('profiles', id, { eliminado: true, activo: false, email: null, rol: ['admin', 'delegado'].includes(obj.rol) ? 'lider' : obj.rol });
+    await api.update('profiles', id, { eliminado: true, activo: false, email: null, rol: GESTORES.includes(obj.rol) ? 'lider' : obj.rol });
     return 'desactivado';
   }
 
@@ -108,7 +111,7 @@ export function crearAdaptadorDemo() {
       emitir({ tabla: 'notificaciones', tipo: 'INSERT', fila: n });
     }
   }
-  const gestores = area => tabla('profiles').filter(p => p.area_id === area && ['admin', 'delegado'].includes(p.rol) && p.activo).map(p => p.id);
+  const gestores = area => tabla('profiles').filter(p => p.area_id === area && GESTORES.includes(p.rol) && p.activo).map(p => p.id);
 
   function auditar(t, accion, fila, cambios) {
     if (!['actividades', 'restricciones', 'proyectos', 'cartera', 'cierres', 'profiles', 'permisos', 'parametros', 'lista_valores', 'acuerdos'].includes(t)) return;
@@ -133,7 +136,7 @@ export function crearAdaptadorDemo() {
     if (t === 'cierres' && nueva) {
       if (op === 'UPDATE' && vieja.cerrada && !nueva.cerrada) {
         const yo = perfil();
-        if (!['admin', 'delegado'].includes(yo?.rol)) throw new Error('Solo el administrador o el delegado pueden reabrir una semana.');
+        if (!GESTORES.includes(yo?.rol)) throw new Error('Solo el administrador o el delegado pueden reabrir una semana.');
         nueva.reabierto_at = new Date().toISOString();
         nueva.reabierto_por = usuarioId();
       } else if (nueva.cerrada && !nueva.automatico) {
@@ -151,11 +154,11 @@ export function crearAdaptadorDemo() {
     if (t === 'profiles' && op === 'UPDATE') {
       const yo = perfil();
       if (nueva.es_admin_principal !== vieja.es_admin_principal) throw new Error('El administrador principal solo se cambia desde la base de datos.');
-      if (nueva.rol !== vieja.rol && (['admin', 'delegado'].includes(nueva.rol) || ['admin', 'delegado'].includes(vieja.rol)) && !yo?.es_admin_principal) {
-        throw new Error('Solo el administrador principal asigna o retira los roles de administrador y delegado.');
+      if (vieja.es_admin_principal && (nueva.rol !== vieja.rol || !nueva.activo)) {
+        throw new Error('El administrador principal no puede perder su rol ni desactivarse.');
       }
-      if (vieja.es_admin_principal && (nueva.rol !== vieja.rol || nueva.activo !== vieja.activo) && !yo?.es_admin_principal) {
-        throw new Error('Solo el administrador principal puede modificar su propio rol o estado.');
+      if (nueva.rol !== vieja.rol && (GESTORES.includes(nueva.rol) || GESTORES.includes(vieja.rol)) && !esSuper(yo)) {
+        throw new Error('Solo el super administrador asigna o retira los roles de super administrador, administrador y delegado.');
       }
       if (nueva.rol === 'delegado' && vieja.rol !== 'delegado') {
         tabla('delegado_historial').push({ id: uuid(), area_id: nueva.area_id, usuario_id: nueva.id, otorgado_por: usuarioId(), desde: new Date().toISOString(), hasta: null });
@@ -295,13 +298,13 @@ export function crearAdaptadorDemo() {
     async adminUsuarios(accion, d = {}) {
       db = cargar();
       const yo = perfil();
-      if (!yo || !['admin', 'delegado'].includes(yo.rol)) throw new Error('No tiene permiso para gestionar usuarios.');
+      if (!yo || !GESTORES.includes(yo.rol)) throw new Error('No tiene permiso para gestionar usuarios.');
       if (String(d.clave || '').length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
       if (accion === 'crear') {
         const email = String(d.email || '').trim().toLowerCase();
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Correo no válido.');
         if (tabla('profiles').some(p => p.email === email)) throw new Error('Ya existe un usuario con ese correo.');
-        if (['admin', 'delegado'].includes(d.rol) && !yo.es_admin_principal) throw new Error('Solo el administrador principal asigna los roles de administrador y delegado.');
+        if (GESTORES.includes(d.rol) && !esSuper(yo)) throw new Error('Solo el super administrador asigna los roles de super administrador, administrador y delegado.');
         const [p] = await api.insert('profiles', { area_id: yo.area_id, email, nombre: String(d.nombre || '').trim(), rol: d.rol || 'lider',
           codigo: d.codigo || null, gerencia_ids: d.gerencia_ids || [], horas_dia: d.horas_dia === '' || d.horas_dia == null ? null : Number(d.horas_dia),
           activo: true, es_admin_principal: false, debe_cambiar_clave: true, tour_visto: false });
@@ -310,7 +313,7 @@ export function crearAdaptadorDemo() {
       if (accion === 'clave') {
         const obj = perfil(d.usuario_id);
         if (!obj) throw new Error('Usuario no encontrado.');
-        if (obj.id !== yo.id && (obj.es_admin_principal || (['admin', 'delegado'].includes(obj.rol) && !yo.es_admin_principal))) throw new Error('No puede restablecer la contraseña de ese usuario.');
+        if (obj.id !== yo.id && (obj.es_admin_principal || (GESTORES.includes(obj.rol) && !esSuper(yo)))) throw new Error('No puede restablecer la contraseña de ese usuario.');
         await api.update('profiles', obj.id, { debe_cambiar_clave: obj.id !== yo.id });
         return { ok: true };
       }

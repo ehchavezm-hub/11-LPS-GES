@@ -29,12 +29,12 @@ insert into auth.users (email, raw_user_meta_data) values
 
 do $$
 begin
-  assert (select rol from profiles p join auth.users u on u.id = p.id where u.email = 'admin@x.pe') = 'admin', 'primer usuario no es admin';
+  assert (select rol from profiles p join auth.users u on u.id = p.id where u.email = 'admin@x.pe') = 'superadmin', 'primer usuario no es superadmin';
   assert (select es_admin_principal from profiles p join auth.users u on u.id = p.id where u.email = 'admin@x.pe'), 'no es principal';
   assert (select rol from profiles p join auth.users u on u.id = p.id where u.email = 'lider1@x.pe') = 'pendiente', 'segundo no pendiente';
   assert (select count(*) from notificaciones where tipo = 'usuario_nuevo') = 4, 'faltan avisos de usuario nuevo';
   assert (select count(*) from listas) >= 18, 'listas no sembradas';
-  assert (select count(*) from permisos) = 120, 'matriz de permisos incompleta (20 acciones × 6 roles)';
+  assert (select count(*) from permisos) = 124, 'matriz de permisos incompleta (20 acciones × 6 roles + 2 acciones nuevas × admin y delegado)';
 end $$;
 
 -- Datos base (como superusuario)
@@ -103,7 +103,7 @@ select debe_fallar($q$ select exportar_respaldo() $q$, 'Solo el administrador');
 -- ---------- Delegado ----------
 select como('delegado@x.pe');
 select debe_fallar($q$ update profiles set rol = 'lider' where email = 'admin@x.pe' $q$, 'administrador principal');
-select debe_fallar($q$ update profiles set rol = 'delegado' where email = 'lider2@x.pe' $q$, 'administrador principal');
+select debe_fallar($q$ update profiles set rol = 'delegado' where email = 'lider2@x.pe' $q$, 'super administrador');
 update profiles set nombre = 'Líder Dos' where email = 'lider2@x.pe';
 update cierres set cerrada = false;
 do $$ begin assert not (select cerrada from cierres limit 1), 'el delegado no pudo reabrir'; end $$;
@@ -238,5 +238,31 @@ do $$ begin
   begin update profiles set rol = 'inventado' where email = 'actividad@x.pe'; raise exception 'aceptó rol inválido';
   exception when check_violation then null; end;
 end $$;
+
+-- ---------- Super administrador (009) ----------
+reset role;
+do $$ begin perform set_config('request.jwt.claim.sub', '', false); end $$;
+insert into auth.users (email) values ('admin2@x.pe');
+update profiles set rol = 'admin' where email = 'admin2@x.pe';
+set role authenticated;
+select como('admin2@x.pe');
+do $$ begin
+  assert es_admin() and not es_superadmin(), 'admin2 es admin, no super';
+  assert puede('gestionar_listas'), 'admin tiene todo por defecto';
+end $$;
+select debe_fallar($q$ insert into permisos (area_id, rol, accion, permitido) select mi_area(), 'admin', 'gestionar_listas', false
+  on conflict (area_id, rol, accion) do update set permitido = excluded.permitido $q$, 'row-level security');
+update permisos set permitido = false where rol = 'delegado' and accion = 'importar_historico';
+select debe_fallar($q$ update profiles set rol = 'delegado' where email = 'equipo@x.pe' $q$, 'super administrador');
+select como('admin@x.pe');
+do $$ begin
+  assert coalesce((select permitido from permisos where rol = 'admin' and accion = 'gestionar_listas'), true), 'admin editó su propia columna';
+  assert not (select permitido from permisos where rol = 'delegado' and accion = 'importar_historico'), 'admin no pudo editar al delegado';
+end $$;
+insert into permisos (area_id, rol, accion, permitido) select mi_area(), 'admin', 'gestionar_listas', false
+  on conflict (area_id, rol, accion) do update set permitido = excluded.permitido;  -- superadmin sí
+select como('admin2@x.pe');
+do $$ begin assert not puede('gestionar_listas'), 'superadmin no pudo restringir al admin'; end $$;
+reset role;
 
 \echo 'Todas las pruebas pasaron'

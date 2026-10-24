@@ -65,7 +65,7 @@ async function arrancar() {
     porDefecto: esStaff() ? '/plan' : '/tablero',
     guardia: r => {
       if (r.staff && !esStaff()) { location.hash = '#/tablero'; return false; }
-      if (r.gestor && !['admin', 'delegado'].includes(store.usuario.rol)) { location.hash = '#/plan'; return false; }
+      if (r.gestor && !['superadmin', 'admin', 'delegado'].includes(store.usuario.rol)) { location.hash = '#/plan'; return false; }
       return true;
     },
   });

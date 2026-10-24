@@ -11,7 +11,8 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-const ROLES = ['resp_equipo', 'lider', 'resp_proceso', 'resp_actividad', 'consulta', 'delegado', 'admin', 'pendiente'];
+const ROLES = ['resp_equipo', 'lider', 'resp_proceso', 'resp_actividad', 'consulta', 'delegado', 'admin', 'superadmin', 'pendiente'];
+const GESTORES = ['superadmin', 'admin', 'delegado'];
 
 const respuesta = (cuerpo: unknown, status = 200) =>
   new Response(JSON.stringify(cuerpo), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
@@ -53,8 +54,9 @@ Deno.serve(async (req) => {
       if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return falla('Correo no válido.');
       if (!nombre) return falla('Indique el nombre.');
       if (!ROLES.includes(rol)) return falla('Rol no válido.');
-      if (['admin', 'delegado'].includes(rol) && !yo.es_admin_principal) {
-        return falla('Solo el administrador principal asigna los roles de administrador y delegado.', 403);
+      const soySuper = yo.rol === 'superadmin' || yo.es_admin_principal;
+      if (GESTORES.includes(rol) && !soySuper) {
+        return falla('Solo el super administrador asigna los roles de super administrador, administrador y delegado.', 403);
       }
       const { data: creado, error: eCrear } = await admin.auth.admin.createUser({
         email, password: clave, email_confirm: true,
@@ -80,7 +82,7 @@ Deno.serve(async (req) => {
     if (d.accion === 'clave') {
       const { data: obj } = await admin.from('profiles').select('*').eq('id', String(d.usuario_id ?? '')).single();
       if (!obj || obj.area_id !== yo.area_id) return falla('Usuario no encontrado.', 404);
-      if (obj.id !== yo.id && (obj.es_admin_principal || (['admin', 'delegado'].includes(obj.rol) && !yo.es_admin_principal))) {
+      if (obj.id !== yo.id && (obj.es_admin_principal || (GESTORES.includes(obj.rol) && !(yo.rol === 'superadmin' || yo.es_admin_principal)))) {
         return falla('No puede restablecer la contraseña de ese usuario.', 403);
       }
       const { error: eClave } = await admin.auth.admin.updateUserById(obj.id, { password: clave });

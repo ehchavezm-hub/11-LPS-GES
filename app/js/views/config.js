@@ -1,7 +1,7 @@
 // Configuración (6.1, 6.2): usuarios y roles, listas configurables, parámetros, matriz de permisos,
 // columnas personalizadas, importación desde Excel, respaldo y auditoría.
 import { api, mensajeError, modoDemo } from '../data/api.js';
-import { store, cargarCatalogo, esAdmin, puede, opciones, nombre, valoresLista } from '../core/store.js';
+import { store, cargarCatalogo, esAdmin, esSuperadmin, puede, opciones, nombre, valoresLista } from '../core/store.js';
 import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista } from '../data/catalogos.js';
 import { esc, html, fmtFechaHora, fmtFecha, normalizar } from '../core/util.js';
 import { ir } from '../core/router.js';
@@ -34,7 +34,7 @@ async function usuarios(el) {
   const perfiles = (await api.list('profiles', { eq: { area_id: store.area.id }, order: [['nombre', true]] })).filter(p => !p.eliminado);
   const historial = await api.list('delegado_historial', { eq: { area_id: store.area.id }, order: [['desde', false]] }).catch(() => []);
   const pendientes = perfiles.filter(p => p.rol === 'pendiente' && p.activo);
-  const principal = store.usuario.es_admin_principal;
+  const principal = esSuperadmin();
   el.innerHTML = `
     ${pendientes.length ? `<div class="aviso warn"><b>${pendientes.length} usuario(s) esperan aprobación.</b> Asígneles un rol para que puedan ingresar.</div>` : ''}
     <div class="tarjeta" style="margin-bottom:12px">
@@ -84,12 +84,13 @@ function puedeRestablecer(p) {
   const yo = store.usuario;
   if (p.id === yo.id) return false;   // la propia se cambia desde el menú de usuario
   if (p.es_admin_principal) return false;
-  return yo.es_admin_principal || !['admin', 'delegado'].includes(p.rol);
+  return esSuperadmin() || !['superadmin', 'admin', 'delegado'].includes(p.rol);
 }
 
-// Solo el administrador elimina usuarios (el delegado no); nunca a sí mismo ni al principal
+// Administradores con permiso (no el delegado); nunca a sí mismo ni al principal; a un administrador solo el super administrador
 function puedeEliminar(p) {
-  return store.usuario.rol === 'admin' && p.id !== store.usuario.id && !p.es_admin_principal;
+  return esAdmin() && puede('eliminar_usuarios') && p.id !== store.usuario.id && !p.es_admin_principal &&
+    (esSuperadmin() || !['superadmin', 'admin'].includes(p.rol));
 }
 
 async function eliminarUsuario(p) {
@@ -118,8 +119,8 @@ function mostrarCredenciales(titulo, email, clave) {
 }
 
 async function nuevoUsuario() {
-  const principal = store.usuario.es_admin_principal;
-  const roles = Object.entries(ROLES).filter(([k]) => k !== 'pendiente' && (principal || !['admin', 'delegado'].includes(k)));
+  const principal = esSuperadmin();
+  const roles = Object.entries(ROLES).filter(([k]) => k !== 'pendiente' && (principal || !['superadmin', 'admin', 'delegado'].includes(k)));
   let creado = null;
   await pedirDatos({
     titulo: 'Nuevo usuario', texto: 'Crear usuario',
@@ -162,20 +163,20 @@ async function restablecerClave(p) {
 }
 
 async function editarUsuario(p) {
-  const principal = store.usuario.es_admin_principal;
-  const roles = Object.entries(ROLES).filter(([k]) => principal || !['admin', 'delegado'].includes(k) || k === p.rol);
+  const principal = esSuperadmin();
+  const roles = Object.entries(ROLES).filter(([k]) => principal || !['superadmin', 'admin', 'delegado'].includes(k) || k === p.rol);
   await pedirDatos({
     titulo: `Usuario: ${p.nombre}`, valores: p,
     campos: [
       { name: 'nombre', label: 'Nombre', required: true }, { name: 'codigo', label: 'Código corto' },
       { name: 'rol', label: 'Rol', type: 'select', options: roles.map(([value, label]) => ({ value, label })),
-        help: principal ? '' : 'Solo el administrador principal asigna los roles de administrador y delegado.' },
+        help: principal ? '' : 'Solo el super administrador asigna los roles de super administrador, administrador y delegado.' },
       { name: 'horas_dia', label: 'Horas disponibles por día', type: 'number', min: 0, max: 24, step: 0.5, help: 'Vacío = valor general del área' },
       { name: 'gerencia_ids', label: 'Gerencias visibles (solo usuarios de consulta)', type: 'multiselect', unaColumna: true, options: opciones('gerencias', { vacio: false }) },
       { name: 'activo', label: 'Estado', type: 'checkbox', texto: 'Activo (desmarque para bloquear el acceso sin perder su historial)' },
     ],
     alGuardar: async d => {
-      if (p.es_admin_principal && (d.rol !== 'admin' || !d.activo)) throw new Error('El administrador principal no puede perder su rol ni desactivarse.');
+      if (p.es_admin_principal && (d.rol !== p.rol || !d.activo)) throw new Error('El administrador principal no puede perder su rol ni desactivarse.');
       await api.update('profiles', p.id, d);
       ok('Usuario actualizado.');
     },
@@ -333,11 +334,16 @@ async function parametros(el) {
 // ---------- Permisos ----------
 async function permisos(el) {
   const editable = esAdmin();
-  const roles = ['delegado', ...PLANIFICADORES, 'consulta'];
-  el.innerHTML = `<div class="tarjeta"><p class="nota">El administrador siempre tiene todos los permisos. Los límites del delegado (no quitar el rol al administrador principal, no eliminar usuarios, no rotar el delegado) no son modificables.${editable ? '' : ' Solo el administrador puede modificar esta matriz.'}</p>
-    <table class="simple"><tr><th>Acción</th>${roles.map(r => `<th style="text-align:center">${esc(ROLES[r])}</th>`).join('')}</tr>
+  const roles = ['admin', 'delegado', ...PLANIFICADORES, 'consulta'];
+  // Valor efectivo (igual que public.puede): admin sin fila = permitido; rol de planificación sin fila = como el líder
+  const valor = (r, a) => store.permisos[r]?.[a] ?? (r === 'admin' ? true : PLANIFICADORES.includes(r) ? !!store.permisos.lider?.[a] : false);
+  const celdaEditable = r => editable && (r !== 'admin' || esSuperadmin());
+  el.innerHTML = `<div class="tarjeta"><p class="nota">El <b>super administrador</b> siempre tiene todos los permisos y es el único que edita la columna
+    <b>Administrador</b>. Los límites fijos del delegado (no tocar al super administrador ni a los administradores, no rotar el delegado) no son modificables.
+    ${editable ? '' : ' Solo un administrador puede modificar esta matriz.'}</p>
+    <table class="simple"><tr><th>Acción</th>${roles.map(r => `<th style="text-align:center">${esc(ROLES[r])}${r === 'admin' && !esSuperadmin() ? ' 🔒' : ''}</th>`).join('')}</tr>
     ${ACCIONES.map(([a, t]) => `<tr><td>${esc(t)}</td>${roles.map(r => `<td style="text-align:center"><input type="checkbox" data-r="${r}" data-acc="${a}"
-      ${store.permisos[r]?.[a] ? 'checked' : ''} ${editable ? '' : 'disabled'}></td>`).join('')}</tr>`).join('')}</table></div>`;
+      ${valor(r, a) ? 'checked' : ''} ${celdaEditable(r) ? '' : 'disabled'}></td>`).join('')}</tr>`).join('')}</table></div>`;
   el.addEventListener('change', async e => {
     const c = e.target.closest('[data-acc]');
     if (!c) return;
@@ -399,7 +405,7 @@ async function importarHistorico(archivo, salida) {
   if (!a.filas.length) { salida.innerHTML = '<div class="aviso warn">No se encontraron hojas de plan semanal con columna "ACTIVIDAD".</div>'; return; }
   const semanas = [...new Set(a.filas.map(f => f.semana))].sort();
   salida.innerHTML = `<div class="aviso ok">${a.filas.length} actividades · ${semanas.length} semana(s) (${fmtFecha(semanas[0])} – ${fmtFecha(semanas.at(-1))}) · ${a.responsables.length} responsables · ${a.proyectos.length} proyectos.</div>`;
-  const usuarios = store.perfiles.filter(p => ['admin', 'delegado', ...PLANIFICADORES].includes(p.rol) && !p.eliminado);
+  const usuarios = store.perfiles.filter(p => ['superadmin', 'admin', 'delegado', ...PLANIFICADORES].includes(p.rol) && !p.eliminado);
   const cuerpo = html(`<div>
     <h3>1. Responsables del Excel → usuarios</h3><p class="nota">Los que no se asignen se guardan solo como resumen de PAC histórico.</p>
     <table class="simple">${a.responsables.map(r => { const s = sugerirUsuario(r); return `<tr><td>${esc(r)}</td><td><select class="sel" data-u="${esc(r)}">
@@ -454,9 +460,9 @@ export async function importarProyectos(archivo, salida) {
 async function respaldo(el) {
   el.innerHTML = `<div class="grid-2"><div class="tarjeta"><h2>Descargar respaldo</h2>
       <p>Descarga toda la información del área en un archivo JSON (para restaurar) o en Excel (para revisar). Además, ${modoDemo ? 'en producción ' : ''}se ejecuta un respaldo automático semanal hacia la carpeta privada de Google Drive configurada (ver README).</p>
-      <div class="barra"><button class="btn btn-primario" data-a="json" ${esAdmin() ? '' : 'disabled'}>⬇ Respaldo completo (JSON)</button>
+      <div class="barra"><button class="btn btn-primario" data-a="json" ${esAdmin() && puede('exportar_respaldo') ? '' : 'disabled'}>⬇ Respaldo completo (JSON)</button>
       <button class="btn" data-a="excel">⬇ Datos principales (Excel)</button></div>
-      ${esAdmin() ? '' : '<p class="nota">El respaldo completo solo lo descarga el administrador.</p>'}</div>
+      ${esAdmin() && puede('exportar_respaldo') ? '' : '<p class="nota">El respaldo completo solo lo descarga el administrador (si el super administrador se lo permite).</p>'}</div>
     <div class="tarjeta"><h2>Buenas prácticas</h2><ul><li>Descargue un respaldo antes de importaciones grandes.</li>
       <li>Los archivos de respaldo contienen datos de la empresa: guárdelos en una carpeta privada, nunca en el repositorio público.</li></ul></div></div>`;
   el.addEventListener('click', async e => {
