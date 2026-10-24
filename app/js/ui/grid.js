@@ -776,6 +776,7 @@ export function crearGrilla(contenedor, cfg) {
           disposicion.splice(pos, 0, { field: c.field });
         });
         tabla.setColumnLayout(disposicion);
+        ajustarAltos();
       }
       if (cfgVista.orden) tabla.setSort(cfgVista.orden);
       raiz.querySelector('[data-a="agrupar"]').value = cfgVista.agrupar || '';
@@ -875,6 +876,16 @@ export function crearGrilla(contenedor, cfg) {
   // ---------- API pública ----------
   let listo = false;
   const alListo = new Promise(r => tabla.on('tableBuilt', () => { listo = true; r(); }));
+  // Alto de las filas con textos de varias líneas: se recalcula cuando cambia el ancho de las columnas
+  // (vista guardada, arrastre) o termina de cargar la fuente; si no, el final del texto quedaba cortado.
+  const ajustarAltos = debounce(() => {
+    if (!listo || !columnasCfg.some(c => c.tipo === 'textoLargo')) return;
+    tabla.getRows().forEach(r => r.normalizeHeight());
+  }, 80);
+  tabla.on('columnResized', ajustarAltos);
+  tabla.on('dataProcessed', ajustarAltos);
+  tabla.on('columnVisibilityChanged', ajustarAltos);
+  alListo.then(() => { ajustarAltos(); document.fonts?.ready.then(ajustarAltos); });
   const api_ = {
     tabla,
     listo: alListo,
