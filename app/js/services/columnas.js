@@ -46,7 +46,7 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
       opcionesEdicion: () => [{ value: null, label: '—' }, ...valoresLista('servicios').filter(v => v.codigo)
         .map(v => ({ value: v.id, label: `${v.codigo} · ${v.valor}` }))] },
     { field: 'servicio_id', title: 'Servicio', tipo: 'lista', ancho: 180, opciones: () => opciones('servicios') },
-    { field: 'descripcion', title: 'Actividad', tipo: 'texto', ancho: 300, minAncho: 160 },
+    { field: 'descripcion', title: 'Actividad', tipo: 'textoLargo', ancho: 300, minAncho: 160 },   // varias líneas: la fila crece
     ...dias,
     { field: 'hh_total', title: 'HH', tipo: 'numero', ancho: 64, calc: true, total: true, filtro: false },
   ];
