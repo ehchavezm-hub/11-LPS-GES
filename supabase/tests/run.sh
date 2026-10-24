@@ -17,6 +17,6 @@ for f in "$DIR"/migrations/*.sql; do "${PSQL[@]}" -f "$f"; done
 "${PSQL[@]}" -c "grant usage on schema public to anon, authenticated;
   grant all on all tables in schema public to authenticated;
   grant all on all sequences in schema public to authenticated;
-  grant execute on all functions in schema public to authenticated;"
+  grant all on all tables in schema public to service_role;"
 "${PSQL[@]}" -f "$DIR/tests/10_reglas.sql"
 echo "OK: migraciones y reglas verificadas"

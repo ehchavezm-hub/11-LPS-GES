@@ -158,4 +158,28 @@ do $$ begin
            where a.descripcion = 'Semana vencida sin reportar') = 'no_reportado', 'CNC no reportado';
 end $$;
 
+-- ---------- Funciones sensibles con la clave pública ----------
+set role anon;
+do $$ begin
+  begin perform exportar_respaldo(); raise exception 'anon pudo exportar';
+  exception when insufficient_privilege then null; end;
+  begin perform cerrar_semanas_vencidas(); raise exception 'anon pudo cerrar semanas';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set role authenticated;
+do $$ begin perform set_config('request.jwt.claim.sub', '', false); end $$;
+do $$ begin perform set_config('request.jwt.claim.role', 'authenticated', false); end $$;
+do $$ begin
+  begin perform exportar_respaldo(); raise exception 'sin usuario pudo exportar';
+  exception when raise_exception then if sqlerrm <> 'No autorizado.' then raise; end if; end;
+  begin perform notificar_gestores(null, 'x', 'x', null); raise exception 'authenticated pudo notificar';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+do $$ begin perform set_config('request.jwt.claim.role', 'service_role', false); end $$;
+set role service_role;
+do $$ begin assert jsonb_array_length(exportar_respaldo()->'areas') >= 1, 'service_role sin respaldo'; end $$;
+reset role;
+
 \echo 'Todas las pruebas pasaron'

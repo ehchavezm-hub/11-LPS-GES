@@ -1,6 +1,9 @@
 -- Simula lo mínimo de Supabase para probar las migraciones en un Postgres local.
 create role anon nologin;
 create role authenticated nologin;
+create role service_role nologin bypassrls;
+-- Como en Supabase: las funciones nuevas de public se pueden ejecutar por anon/authenticated/service_role
+alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
 create schema auth;
 create table auth.users (
   id uuid primary key default gen_random_uuid(),
