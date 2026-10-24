@@ -273,3 +273,6 @@ body.pantalla-completa .contenido { padding: 24px 34px; font-size: 16px; }
 .btn-texto-cab:hover { background: rgba(255,255,255,.12); }
 .btn-actualizar .btn-flecha { width: auto; min-width: 0; padding: 0 4px; font-size: 11px; margin-left: 2px; opacity: .8; }
 .menu-actualizar { min-width: 300px; }
+
+.recarga-forzada { position: fixed; inset: 0; z-index: 2000; background: rgba(15, 23, 42, .55); display: flex; align-items: center; justify-content: center; }
+.recarga-forzada > div { background: #fff; color: var(--texto); padding: 16px 22px; border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,.3); display: flex; gap: 10px; align-items: center; }

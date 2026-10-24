@@ -105,6 +105,16 @@ export function montarLayout(raiz, { alSalir }) {
   });
   app.querySelector('[data-a="nuevo-proy"]')?.addEventListener('click', () => import('../views/proyectos.js').then(m => m.formularioProyecto()));
 
+  // Confirmación tras "Vaciar caché y volver a cargar"
+  try {
+    const previa = sessionStorage.getItem('lpsgt-recarga-forzada');
+    if (previa !== null) {
+      sessionStorage.removeItem('lpsgt-recarga-forzada');
+      const actual = versionApp();
+      ok(previa === actual ? `Caché vaciada. Ya tenía la última versión publicada (${actual}).` : `Aplicativo actualizado a la versión ${actual}.`);
+    }
+  } catch { /* opcional */ }
+
   // Notificaciones y catálogo en tiempo real
   cargarNotificaciones();
   api.subscribe(['notificaciones'], ev => {
@@ -179,15 +189,29 @@ function menuActualizar() {
   }), 0);
 }
 
+// Versión publicada (la escribe el flujo de publicación en config.js: commit y fecha)
+export function versionApp() { return window.LPSGT_VERSION || 'local'; }
+
 export async function recargaForzada() {
+  cerrarFlotantes();
+  const aviso = html('<div class="recarga-forzada"><div><span class="spinner"></span> Vaciando caché y descargando la última versión…</div></div>');
+  document.body.append(aviso);
   try {
+    // 1. Quitar el service worker y sus cachés
     const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
     await Promise.all(regs.map(r => r.unregister()));
     if (window.caches) await Promise.all((await caches.keys()).map(k => caches.delete(k)));
-  } catch { /* si falla, igual se recarga */ }
-  const url = new URL(location.href);
-  url.searchParams.set('v', Date.now().toString(36));   // evita la caché del navegador
-  location.replace(url.toString());
+    // 2. Volver a descargar del servidor cada archivo del aplicativo, reemplazando la copia de la caché del navegador
+    const base = new URL('./', location.href).href;
+    const archivos = new Set([base, base + 'index.html', base + 'config.js', base + 'sw.js']);
+    for (const r of performance.getEntriesByType('resource')) {
+      const u = new URL(r.name);
+      if (u.href.startsWith(base) && !u.pathname.includes('/rest/v1/')) archivos.add(u.origin + u.pathname);
+    }
+    await Promise.all([...archivos].map(u => fetch(u, { cache: 'reload' }).catch(() => null)));
+  } catch { /* si algo falla, igual se recarga */ }
+  try { sessionStorage.setItem('lpsgt-recarga-forzada', versionApp()); } catch { /* opcional */ }
+  location.reload();
 }
 
 function cerrarFlotantes() { document.querySelectorAll('.panel-notif,.menu-usuario,.menu-actualizar').forEach(x => x.remove()); }
@@ -227,7 +251,8 @@ function menuUsuario(alSalir) {
     <button data-a="perfil">Mi perfil</button>
     ${modoDemo ? '<button data-a="cambiar">Cambiar de usuario de demostración</button><button data-a="reiniciar">Reiniciar datos de demostración</button>'
       : '<button data-a="clave">Cambiar contraseña</button>'}
-    <button data-a="salir">Cerrar sesión</button></div>`);
+    <button data-a="salir">Cerrar sesión</button>
+    <div class="nota" style="padding:6px 10px 2px;border-top:1px solid var(--borde);margin-top:4px">Versión ${esc(versionApp())}</div></div>`);
   document.body.append(m);
   m.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a;

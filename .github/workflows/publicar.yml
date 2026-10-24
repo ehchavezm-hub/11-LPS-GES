@@ -41,6 +41,8 @@ jobs:
           else
             echo "Sin variables SUPABASE_URL / SUPABASE_ANON_KEY: se publica en modo demostración."
           fi
+          # Versión visible en el aplicativo (menú de usuario y aviso tras la recarga forzada)
+          printf "window.LPSGT_VERSION = '%s · %s';\n" "${GITHUB_SHA::7}" "$(TZ=America/Lima date '+%d/%m/%Y %H:%M')" >> app/config.js
           # Versión de caché del service worker = commit, para que los usuarios reciban la actualización
           sed -i "s/const VERSION = '[^']*'/const VERSION = 'lpsgt-${GITHUB_SHA::8}'/" app/sw.js
       - uses: actions/configure-pages@v5
