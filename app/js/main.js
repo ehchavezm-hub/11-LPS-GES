@@ -1,10 +1,10 @@
 // Arranque del aplicativo: sesión, catálogo, estructura y rutas.
 import { api, modoDemo, mensajeError } from './data/api.js';
-import { store, cargarPerfil, cargarCatalogo, esStaff } from './core/store.js';
+import { store, cargarPerfil, cargarCatalogo, esStaff, esSuperadmin } from './core/store.js';
 import { ruta, iniciarRouter } from './core/router.js';
 import { montarLayout } from './ui/layout.js';
 import { mostrarLogin, mostrarPendiente, mostrarNuevaClave } from './views/login.js';
-import { error } from './ui/ui.js';
+import { error, toast } from './ui/ui.js';
 import { iniciarMonitoreo, usuarioMonitoreo, medir } from './core/monitoreo.js';
 
 const raiz = document.getElementById('raiz');
@@ -83,6 +83,12 @@ async function arrancar() {
       return true;
     },
   });
+  // Base recién conectada y datos cargados antes en el modo demostración: se avisa dónde traerlos
+  if (!modoDemo && esSuperadmin() && !store.proyectos.length) {
+    import('./services/traer-demo.js').then(m => {
+      if (m.leerDemo()) toast('Este navegador tiene datos del modo demostración. Puede traerlos a la base real en Configuración → Respaldo → «Traer datos del modo demostración».', 'info', 20000);
+    });
+  }
   if (!store.usuario.tour_visto && !modoDemo) {
     import('./views/ayuda.js').then(m => m.iniciarRecorrido());
   }

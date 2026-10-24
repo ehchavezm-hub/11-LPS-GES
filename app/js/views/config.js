@@ -1,5 +1,7 @@
 // Configuración (6.1, 6.2): usuarios y roles, listas configurables, parámetros, matriz de permisos,
 // columnas personalizadas, importación desde Excel, respaldo y auditoría.
+import { leerDemo as leerDatosDemo } from '../services/traer-demo.js';
+const hayDatosDemo = () => !!leerDatosDemo();
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError, modoDemo } from '../data/api.js';
 import { store, on, cargarCatalogo, esAdmin, esSuperadmin, puede, opciones, opcionesProyectos, nombre, valoresLista } from '../core/store.js';
@@ -479,11 +481,15 @@ async function respaldo(el) {
       <div class="barra"><button class="btn btn-primario" data-a="json" ${esAdmin() && puede('exportar_respaldo') ? '' : 'disabled'}>⬇ Respaldo completo (JSON)</button>
       <button class="btn" data-a="excel">⬇ Datos principales (Excel)</button></div>
       ${esAdmin() && puede('exportar_respaldo') ? '' : '<p class="nota">El respaldo completo solo lo descarga el administrador (si el super administrador se lo permite).</p>'}</div>
+    ${!modoDemo && esSuperadmin() && hayDatosDemo() ? `<div class="tarjeta"><h2>Datos del modo demostración</h2>
+      <p>En este navegador hay datos cargados en el modo demostración (proyectos, actividades, personas…). Puedes pasarlos a la base de datos real.</p>
+      <div class="barra"><button class="btn btn-primario" data-a="traer-demo">⬆ Traer datos del modo demostración</button></div></div>` : ''}
     <div class="tarjeta"><h2>Buenas prácticas</h2><ul><li>Descargue un respaldo antes de importaciones grandes.</li>
       <li>Los archivos de respaldo contienen datos de la empresa: guárdelos en una carpeta privada, nunca en el repositorio público.</li></ul></div></div>`;
   el.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     try {
+      if (a === 'traer-demo') return (await import('./traer-demo.js')).abrirTraerDemo();
       if (a === 'json') {
         const datos = await api.rpc('exportar_respaldo');
         descargar(new Blob([JSON.stringify(datos, null, 1)], { type: 'application/json' }), `LPS-GT_respaldo_${new Date().toISOString().slice(0, 10)}.json`);
