@@ -44,6 +44,8 @@ jobs:
           # Versión de caché del service worker = commit, para que los usuarios reciban la actualización
           sed -i "s/const VERSION = '[^']*'/const VERSION = 'lpsgt-${GITHUB_SHA::8}'/" app/sw.js
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true   # intenta activar Pages si aún no lo está
       - uses: actions/upload-pages-artifact@v3
         with:
           path: app
