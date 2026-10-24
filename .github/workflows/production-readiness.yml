@@ -38,8 +38,11 @@ jobs:
               echo "::error::Se encontró una service_role key de Supabase."; exit 1
             fi
           done
-          # config.js del repositorio va vacío: las claves públicas las escribe el workflow de publicación
-          grep -qE "supabaseUrl: ''" app/config.js || { echo "::error::app/config.js debe quedar sin URL (se completa al publicar)."; exit 1; }
+          # config.js solo puede llevar la clave pública (publishable / anon)
+          clave=$(grep -oE "supabaseAnonKey: '[^']*'" app/config.js | cut -d"'" -f2)
+          if [ -n "$clave" ] && [[ "$clave" != sb_publishable_* ]] && ! printf '%s' "$clave" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | grep -q '"anon"'; then
+            echo "::error::app/config.js debe llevar solo la clave pública (sb_publishable_ o anon)."; exit 1
+          fi
           # Repositorio público: no se suben planillas, respaldos ni exportaciones
           # (excepción: plantillas de importación vacías, solo con encabezados)
           datos=$(git ls-files | grep -iE '\.(xlsx|xlsm|xls|csv|dump)$|respaldo.*\.json$' | grep -v '^especificacion/plantillas/' || true)

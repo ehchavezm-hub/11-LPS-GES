@@ -40,7 +40,7 @@ jobs:
             printf "window.LPSGT_CONFIG = {\n  supabaseUrl: '%s',\n  supabaseAnonKey: '%s',\n};\n" "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > app/config.js
             echo "Configuración de Supabase aplicada."
           else
-            echo "Sin variables SUPABASE_URL / SUPABASE_ANON_KEY: se publica en modo demostración."
+            echo "Sin variables SUPABASE_URL / SUPABASE_ANON_KEY: se usa la conexión de app/config.js (vacía = modo demostración)."
           fi
           # Monitoreo de errores (opcional): variable SENTRY_DSN del repositorio
           if [ -n "$SENTRY_DSN" ]; then
@@ -54,6 +54,16 @@ jobs:
           printf "window.LPSGT_VERSION = '%s · %s';\n" "${GITHUB_SHA::7}" "$(TZ=America/Lima date '+%d/%m/%Y %H:%M')" >> app/config.js
           # Versión de caché del service worker = commit, para que los usuarios reciban la actualización
           sed -i "s/const VERSION = '[^']*'/const VERSION = 'lpsgt-${GITHUB_SHA::8}'/" app/sw.js
+      - name: Verificar conexión con Supabase
+        run: |
+          URL=$(grep -oE "supabaseUrl: '[^']*'" app/config.js | cut -d"'" -f2)
+          KEY=$(grep -oE "supabaseAnonKey: '[^']*'" app/config.js | cut -d"'" -f2)
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then echo "Modo demostración: sin conexión que verificar."; exit 0; fi
+          auth=$(curl -s -o /dev/null -w '%{http_code}' "$URL/auth/v1/settings" -H "apikey: $KEY")
+          tabla=$(curl -s -o /dev/null -w '%{http_code}' "$URL/rest/v1/listas?select=id&limit=1" -H "apikey: $KEY")
+          echo "Autenticación: HTTP $auth · Base de datos (tabla listas): HTTP $tabla"
+          [ "$auth" = "200" ] || echo "::warning::Supabase no aceptó la URL o la clave (HTTP $auth)."
+          [ "$tabla" = "200" ] || echo "::warning::La base de datos no responde o faltan las migraciones (HTTP $tabla)."
       - uses: actions/configure-pages@v5
         with:
           enablement: true   # intenta activar Pages si aún no lo está
