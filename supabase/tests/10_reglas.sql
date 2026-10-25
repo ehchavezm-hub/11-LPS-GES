@@ -390,4 +390,11 @@ delete from restricciones where descripcion = 'Falta información';
 reset role;
 do $$ begin assert (select estado_la from actividades where descripcion = 'LA con restricción') = 'lista', 'no volvió a Lista al eliminar la restricción'; end $$;
 
+-- 017: las funciones de disparador no se pueden invocar como API
+do $$ begin
+  assert not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prorettype = 'trigger'::regtype
+                      and (has_function_privilege('authenticated', p.oid, 'execute') or has_function_privilege('anon', p.oid, 'execute'))),
+    'una función de disparador se puede invocar como API';
+end $$;
+
 \echo 'Todas las pruebas pasaron'

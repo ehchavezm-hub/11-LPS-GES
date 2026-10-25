@@ -177,7 +177,7 @@ Revisión completa del aplicativo al **25/10/2026** (pedido 98). Reemplaza la ma
 |---|---|:-:|:-:|---|
 | **7.1** | **Usuarios y roles** | | | |
 | 7.1.1 | Tabla: Nombre, Código, Cargo, Correo, Rol, Gerencias, H/día, Estado (49) | ✅ | ✅ | ✅ |
-| 7.1.2 | Crear usuario con contraseña temporal y restablecerla | ✅ | ✅ Edge Function `admin-usuarios` | ✅ |
+| 7.1.2 | Crear usuario con contraseña temporal y restablecerla | 🔧 | 🔧 Edge Function `admin-usuarios` | 🔧 **No estaba instalada en Supabase** (al flujo de GitHub le faltaban las credenciales y se saltaba ese paso). Se instaló el 25/10 con el conector de Supabase |
 | 7.1.3 | Eliminar usuario (se desactiva si tiene historial) | ✅ | ✅ `eliminar_usuario` | ✅ |
 | 7.1.4 | Ocho roles; el Super administrador edita los permisos del Administrador | ✅ | ✅ | ✅ Matriz de permisos (7.4) |
 | 7.1.5 | Organigrama: agregar, mover, generar, pantalla completa, PDF | ✅ | ✅ `organigrama_nodos` | ✅ Usuarios, Cargos, Reporte "Usuarios y roles" |
@@ -212,7 +212,7 @@ Revisión completa del aplicativo al **25/10/2026** (pedido 98). Reemplaza la ma
 | 9.4 | Claves: solo la publicable en el navegador | ✅ | ✅ | ✅ El CI bloquea claves secretas |
 | 9.5 | Repositorio público sin datos de la empresa | ✅ | — | ✅ *gitleaks* en el CI |
 | 9.6 | Publicación en GitHub Pages y CI "Listo para producción" | ✅ | ✅ | ✅ |
-| 9.7 | Aplicar las migraciones 015 y 016 en Supabase | ⚙️ | — | Sin la 016, el Estado LA se sincroniza igual desde el navegador, salvo cuando quien levanta la restricción no puede editar la actividad. Ver `docs/PRODUCCION.md` |
+| 9.7 | Migraciones 015, 016 y 017 aplicadas en Supabase (25/10) | ✅ | ✅ Verificado en la base | ✅ Disparador del Estado LA activo; las 14 funciones de disparador ya no se pueden invocar como API (017) |
 | 9.8 | Plan de Supabase para muchos usuarios simultáneos y Sentry | ⚙️ | — | Ver `docs/PRODUCCION.md` |
 
 ---
@@ -245,4 +245,4 @@ Revisión completa del aplicativo al **25/10/2026** (pedido 98). Reemplaza la ma
 
 **Correcciones anteriores (pedido 54) que siguen vigentes:** aislamiento entre áreas, autoría, menciones, copia sin conexión, lector de Excel actualizado, tiempo real por área, políticas optimizadas, filtro en columnas calculadas y escapado de HTML (migración 015).
 
-**Pendiente de tu parte** (no se puede hacer desde el código): en Supabase → SQL Editor, ejecutar `015_endurecimiento.sql` (si aún no lo hiciste) y `016_restricciones_estado_la.sql`. Los pasos están en [`docs/PRODUCCION.md`](PRODUCCION.md).
+**Aplicado en Supabase el 25/10** (con el conector de Supabase, sin pasos manuales): migraciones 016 y 017 (la 015 ya estaba) y la Edge Function `admin-usuarios`. Opcional y sin costo: activar en Supabase la protección contra contraseñas filtradas (Authentication → Passwords).
