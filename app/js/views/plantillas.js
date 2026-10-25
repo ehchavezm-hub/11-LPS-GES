@@ -1,10 +1,11 @@
 // Plantillas: actividades recurrentes de cada líder (6.6) y plantillas de servicio (M-05).
 import { api, mensajeError } from '../data/api.js';
-import { store, esGestor, puede, lideres, opciones, opcionesProyectos, proyecto } from '../core/store.js';
+import { store, esGestor, puede, lideres, opciones, nombre } from '../core/store.js';
+import { columnasActividad, derivarActividad } from '../services/columnas.js';
 import { esc, html } from '../core/util.js';
 import { crearGrilla } from '../ui/grid.js';
 import { pedirDatos, ok, error, confirmar } from '../ui/ui.js';
-import { DIAS, DIAS_CORTOS } from '../core/util.js';
+import { DIAS } from '../core/util.js';
 
 let grilla, estado;
 
@@ -67,23 +68,41 @@ async function pintarGrilla() {
   if (!estado.plantilla) { cont.innerHTML = '<p class="nota">Cree una plantilla para empezar.</p>'; return; }
   const items = await api.list('plantilla_items', { eq: { plantilla_id: estado.plantilla }, order: [['orden', true]] });
   grilla = crearGrilla(cont, {
-    id: 'plantilla_' + estado.modo, tabla: 'plantilla_items', titulo: 'Plantilla', altura: 'calc(100vh - 320px)', puedeCrear: puedeEditar(),
-    columnas: [
-      estado.modo === 'servicio' ? { field: 'semana_offset', title: 'Semana +', tipo: 'numero', ancho: 85, paso: 1, ayuda: '0 = semana de inicio, 1 = la siguiente…' } : null,
-      { field: 'proyecto_id', title: 'Proyecto', tipo: 'lista', ancho: 190, opciones: opcionesProyectos, visible: estado.modo === 'recurrente' },
-      { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 160, opciones: () => opciones('gerencias'), visible: estado.modo === 'recurrente' },
-      { field: 'servicio_id', title: 'CET / Servicio', tipo: 'lista', ancho: 200, opciones: () => opciones('servicios') },
-      { field: 'descripcion', title: 'Actividad', tipo: 'texto', ancho: 320 },
-      { field: 'resp2', title: 'Resp. 2', tipo: 'texto', ancho: 110 },
-      ...DIAS.map((d, i) => ({ field: `hh_${d}`, title: DIAS_CORTOS[i], tipo: 'numero', ancho: 58, ocultarCero: true, total: true, vacioCero: true, filtro: false, visible: i < 5 || undefined })),
-    ].filter(Boolean),
+    id: 'plantilla_v2_' + estado.modo, tabla: 'plantilla_items', titulo: 'Plantilla', altura: 'calc(100vh - 320px)', puedeCrear: puedeEditar(),
+    columnas: columnasPlantilla(),
+    camposCalc: ['hh_total'],
     puedeEditarFila: () => puedeEditar(),
     nuevaFila: () => ({ plantilla_id: estado.plantilla, descripcion: '', semana_offset: 0, orden: Date.now() % 100000,
-      proyecto_id: estado.modo === 'recurrente' ? store.proyectoSel || null : null, hh_lu: 0, hh_ma: 0, hh_mi: 0, hh_ju: 0, hh_vi: 0, hh_sa: 0, hh_do: 0 }),
+      proyecto_id: estado.modo === 'recurrente' ? store.proyectoSel || null : null, hh_lu: 0, hh_ma: 0, hh_mi: 0, hh_ju: 0, hh_vi: 0, hh_sa: 0, hh_do: 0, hh_total: 0 }),
     listaParaCrear: i => !!(i.descripcion && i.descripcion.trim()),
-    derivar: (i, c) => 'proyecto_id' in c && c.proyecto_id ? { gerencia_id: proyecto(c.proyecto_id)?.gerencia_id || i.gerencia_id } : {},
+    // Mismas reglas que el Look Ahead: HH total, gerencia del proyecto y CET ↔ Servicio
+    derivar: (i, c) => { const d = derivarActividad(i, c); delete d.comprometida; return d; },
   });
-  await grilla.inicializar(items);
+  await grilla.inicializar(items.map(i => ({ ...i, hh_total: DIAS.reduce((s, x) => s + (Number(i[`hh_${x}`]) || 0), 0) })));
+}
+
+/**
+ * Columnas iguales a las del Look Ahead (mismas definiciones, cabeceras, anchos y orden).
+ * Semana y Resp. 1 se adaptan: en una plantilla de servicio la semana es relativa (+0, +1…) y el responsable
+ * y el proyecto se eligen al aplicarla; en las recurrentes, la actividad va cada semana a nombre de su dueño.
+ */
+function columnasPlantilla() {
+  const la = new Map(columnasActividad({ modo: 'lookahead', semanasLA: [] }).map(c => [c.field, c]));
+  const servicio = estado.modo === 'servicio';
+  const alAplicar = () => '<span class="nota">al aplicar</span>';
+  return [
+    servicio
+      ? { field: 'semana_offset', title: 'Semana', tipo: 'lista', ancho: 175, ayuda: 'Semana relativa a la semana de inicio elegida al aplicar la plantilla',
+          opciones: () => Array.from({ length: 12 }, (_, n) => ({ value: n, label: n ? `Semana +${n}` : 'Semana de inicio' })) }
+      : { field: '_semana', title: 'Semana', tipo: 'texto', ancho: 175, calc: true, filtro: false, formato: () => 'Cada semana' },
+    { field: '_resp', title: 'Resp. 1', tipo: 'texto', ancho: 130, calc: true, filtro: false,
+      formato: () => (servicio ? alAplicar() : esc(nombre(estado.duenio))) },
+    la.get('gerencia_id'),
+    servicio ? { ...la.get('proyecto_id'), editable: false, formato: alAplicar } : la.get('proyecto_id'),
+    la.get('_cet'), la.get('servicio_id'), la.get('descripcion'),
+    ...DIAS.map(d => la.get(`hh_${d}`)),
+    la.get('hh_total'),
+  ];
 }
 
 async function nuevaPlantilla() {
