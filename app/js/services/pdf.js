@@ -120,11 +120,12 @@ export function kpisPDF(items) {
 }
 
 // ---------- Presentación preliminar (módulo Reportes) ----------
-export const PAPELES = { A4: [210, 297], A3: [297, 420], Carta: [216, 279], Oficio: [216, 330] };
+// Tamaños ISO 216 (serie A), en mm: ancho × alto en vertical
+export const PAPELES = { A6: [105, 148], A5: [148, 210], A4: [210, 297], A3: [297, 420], A2: [420, 594], A1: [594, 841], A0: [841, 1189] };
 
 /**
  * Documento completo de un reporte para mostrarlo en un iframe e imprimirlo/guardarlo como PDF.
- * papel: A4 | A3 | Carta | Oficio · orientacion: portrait | landscape · unaHoja: escala para que entre en una sola hoja.
+ * papel: A0 … A6 · orientacion: portrait | landscape · unaHoja: escala para que entre en una sola hoja.
  */
 export function documentoReporte(titulo, contenidoHTML, { papel = 'A4', orientacion = 'portrait', unaHoja = false, proyectoTexto, archivo } = {}) {
   const d = new Date();

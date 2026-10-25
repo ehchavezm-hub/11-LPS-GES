@@ -329,7 +329,7 @@ export async function render(el) {
       <div class="reportes-hojas"><iframe data-prev title="Presentación preliminar"></iframe><div class="cargando oculto" data-carg><span class="spinner"></span> Generando…</div></div>
     </div></div>`);
   el.append(pag);
-  pag.querySelector('[data-o="papel"]').value = estado.opciones.papel;
+  pag.querySelector('[data-o="papel"]').value = PAPELES[estado.opciones.papel] ? estado.opciones.papel : 'A4';   // un papel ya no ofrecido vuelve a A4
   pag.querySelector('[data-o="unaHoja"]').checked = !!estado.opciones.unaHoja;
   pag.querySelector('[data-fl="semana"]').value = estado.filtros.semana;
   pag.querySelector('[data-fl="periodo"]').value = String(estado.filtros.periodo);
