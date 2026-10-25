@@ -1,6 +1,6 @@
 // Look Ahead (6.7): actividades de las próximas semanas, estado LA, restricciones y carga vs capacidad.
 import { api, mensajeError } from '../data/api.js';
-import { store, equipo, on, esGestor, puedeEditarActividad, lideres, nombre, proyecto, param, opciones, opcionesLideres, opcionesProyectos } from '../core/store.js';
+import { store, equipo, on, esGestor, puede, puedeEditarActividad, lideres, nombre, proyecto, param, opciones, opcionesLideres, opcionesProyectos } from '../core/store.js';
 import { lunes, sumarSemanas, etiquetaSemana, esc, html, num, sumarDias, DIAS, pct } from '../core/util.js';
 import { actualizarQuery } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -36,6 +36,7 @@ export async function render(el, { query }) {
       <button class="btn btn-sm btn-azul" data-a="comprometer" title="Pasar al plan de la semana siguiente las filas seleccionadas o las Listas">✔ Comprometer semana siguiente</button>
       <button class="btn btn-sm" data-a="plantilla" title="Generar actividades desde una plantilla de servicio (M-05)">🧩 Aplicar plantilla de servicio</button>
       <button class="btn btn-sm" data-a="cartera" title="Crear actividades desde la cartera">🗂 Desde la cartera</button>
+      ${puede('agregar_cet') || puede('gestionar_listas') ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
     </div>
     <div data-grilla></div></div></div>`);
   el.append(pag);
@@ -161,6 +162,10 @@ function pintarCabecera() {
 }
 
 const acciones = {
+  async cet() {   // pedido 100: CET / Servicio nuevo sin salir del Look Ahead
+    const id = await (await import('./proyectos.js')).nuevoCETServicio({ proyectoId: store.proyectoSel || null });
+    if (id) grilla.refrescar();
+  },
   async comprometer() {
     const siguiente = estado.semanas[0];
     const sel = grilla.tabla.getRanges().flatMap(r => r.getRows()).map(r => r.getData()).filter(a => a.id);

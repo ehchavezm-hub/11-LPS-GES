@@ -80,6 +80,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ---------- Menú de proyectos ---------- */
 .menu-proy { padding: 10px; flex: 1; display: flex; flex-direction: column; min-height: 240px; }
 .menu-proy-cab { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.menu-proy-cab .btn-agregar-proy { padding: 3px 10px; font-weight: 700; }
+.lateral-contraido .btn-agregar-proy { display: none; }
 .menu-proy-cab h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--texto-3); }
 .pestanas { display: flex; gap: 2px; background: var(--surface-2); border-radius: 8px; padding: 2px; margin-bottom: 6px; }
 .pestanas button { white-space: nowrap; flex: 1; border: none; background: transparent; padding: 5px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--texto-2); }

@@ -18,6 +18,7 @@ export async function render(el, params) {
       <select class="sel" data-resp></select>
       <select class="sel" data-ver><option value="abiertas">Abiertas y en proceso</option><option value="todas">Todas</option><option value="cerradas">Cerradas / rechazadas</option></select>
       <span data-proy></span><span class="flex"></span>
+      ${puede('agregar_cet') || puede('gestionar_listas') ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
       <button class="btn btn-sm" data-a="solicitud">＋ Registrar solicitud de otra gerencia</button>
       <button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <div data-nuevas></div>
@@ -30,6 +31,10 @@ export async function render(el, params) {
   selR.onchange = () => { estado.resp = selR.value; pintar(); };
   pag.querySelector('[data-ver]').onchange = e => { estado.ver = e.target.value; pintar(); };
   pag.querySelector('[data-a="solicitud"]').onclick = () => nuevaSolicitud(true);
+  pag.querySelector('[data-a="cet"]')?.addEventListener('click', async () => {
+    const id = await (await import('./proyectos.js')).nuevoCETServicio({ proyectoId: store.proyectoSel || null });
+    if (id) grilla.refrescar();
+  });
   pag.querySelector('[data-a="pdf"]').onclick = pdf;
 
   grilla = crearGrilla(pag.querySelector('[data-grilla]'), {

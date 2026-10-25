@@ -48,7 +48,7 @@ export function montarLayout(raiz, { alSalir }) {
       <nav class="nav" aria-label="Navegación principal"></nav>
       <section class="menu-proy" aria-label="Menú de proyectos">
         <div class="menu-proy-cab"><h3>Proyectos</h3>
-          ${puede('crear_proyecto') || puede('agregar_proyecto') || puede('proponer_proyecto') ? '<button class="btn btn-sm" data-a="nuevo-proy" title="Agregar un proyecto">＋</button>' : ''}</div>
+          ${puede('crear_proyecto') || puede('agregar_proyecto') || puede('proponer_proyecto') ? `<button class="btn btn-sm btn-primario btn-agregar-proy" data-a="nuevo-proy" title="Agregar un proyecto nuevo (lo verá todo el equipo)">＋ ${puede('crear_proyecto') || puede('agregar_proyecto') ? 'Agregar' : 'Proponer'}</button>` : ''}</div>
         <div class="pestanas" role="tablist">
           ${esStaff() ? '<button data-p="mis">Mis</button>' : ''}<button data-p="todos">Todos</button><button data-p="fav">★ Favoritos</button>
         </div>

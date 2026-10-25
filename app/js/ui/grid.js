@@ -243,7 +243,14 @@ export function crearGrilla(contenedor, cfg) {
         if (id) tabla.getRows().forEach(r => r.reformat());
       } });
     }
-    const permitido = d.ruta ? (puede('crear_proyecto') || puede('agregar_proyecto') || puede('proponer_proyecto')) : puede('gestionar_listas');
+    // Proyecto / Proceso: el formulario de proyecto nuevo se abre aquí mismo
+    if (d.ruta && (puede('crear_proyecto') || puede('agregar_proyecto') || puede('proponer_proyecto'))) {
+      items.push({ label: `＋ ${puede('crear_proyecto') || puede('agregar_proyecto') ? 'Agregar' : 'Proponer'} proyecto…`, action: async () => {
+        await (await import('../views/proyectos.js')).formularioProyecto();
+        tabla.getRows().forEach(r => r.reformat());
+      } });
+    }
+    const permitido = d.ruta ? puede('crear_proyecto') : puede('gestionar_listas');
     if (permitido) {
       const ruta = (d.rutaSinConfig && !esGestor() ? d.rutaSinConfig : d.ruta) || `#/config/listas?lista=${encodeURIComponent(d.lista)}`;
       items.push({ label: `✎ ${d.ruta && !puede('crear_proyecto') ? 'Agregar' : 'Agregar, editar o eliminar'} ${esc(d.texto)}`, action: () => { location.hash = ruta; } });

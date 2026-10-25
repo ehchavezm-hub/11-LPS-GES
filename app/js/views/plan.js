@@ -221,6 +221,7 @@ function pintarCabecera() {
     <button class="btn btn-sm" data-a="recurrentes" title="Agregar las actividades recurrentes de su plantilla">🔁 Recurrentes</button>
     <button class="btn btn-sm" data-a="arrastrar" title="Copiar las no completadas de la semana anterior">↪ Arrastrar no completadas</button>
     <button class="btn btn-sm" data-a="completar" title="Marcar las seleccionadas o todas como completadas">✔ Marcar estados…</button>
+    ${puede('agregar_cet') || puede('gestionar_listas') ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
     <span class="flex"></span>
     ${puedeOperar && !cerradaResp ? '<button class="btn btn-azul" data-a="cerrar">🔒 Cerrar semana</button>' : ''}
     ${resp && cerradaResp && puede('reabrir_semana') ? '<button class="btn" data-a="reabrir">🔓 Reabrir semana</button>' : ''}`;
@@ -247,6 +248,10 @@ function pintarKPIs() {
 
 // ---------- Acciones ----------
 const acciones = {
+  async cet() {   // pedido 100: CET / Servicio nuevo sin salir del Plan
+    const id = await (await import('./proyectos.js')).nuevoCETServicio({ proyectoId: store.proyectoSel || null });
+    if (id) grilla.refrescar();
+  },
   async traer() {
     const resp = estado.resp === 'todos' ? null : estado.resp;
     const cands = estado.acts.filter(a => !a.comprometida && a.estado_la !== 'cancelada' &&

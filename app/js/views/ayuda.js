@@ -29,8 +29,8 @@ function guia() {
     ['CET y Servicio', `<p>CET y Servicio van juntos (como nombre y apellido): al elegir uno se completa el otro. Al elegir un proyecto se completan su gerencia y,
       si el proyecto tiene un solo CET / Servicio, también ese. La lista de CET y Servicios de cada fila muestra los del proyecto de la fila.
       La lista se edita en Configuración → Listas → <b>CET / Servicio</b> (Proyecto, CET y Servicio).
-      Los líderes pueden <b>agregar</b> un CET / Servicio con clic derecho en el título de la columna CET o Servicio → <b>＋ Agregar CET / Servicio</b>,
-      y un proyecto nuevo con <b>＋</b> en el menú de proyectos. Proyectos y CET son únicos: los ve todo el equipo.</p>`],
+      Los líderes pueden <b>agregar</b> un CET / Servicio con el botón <b>＋ Agregar CET / Servicio</b> del Look Ahead, el Plan semanal o la Cartera
+      (o con clic derecho en el título CET o Servicio), y un proyecto nuevo con <b>＋ Agregar</b> en el panel de proyectos (o clic derecho en el título Proyecto). Proyectos y CET son únicos: los ve todo el equipo.</p>`],
     ['Del Look Ahead al Plan semanal', `<ul>
       <li><b>Pendiente</b>: aún no se revisa si se puede hacer. <b>Con restricción</b>: tiene algo que la impide (se marca sola al registrar una restricción).
         <b>Lista</b>: sin impedimentos (se marca sola al levantar la última restricción, desde cualquier pantalla). <b>Trasladada al plan</b>: ya está comprometida en el Plan semanal. <b>Cancelada</b>: no se hará.</li>
