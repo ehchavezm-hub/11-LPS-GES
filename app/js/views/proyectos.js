@@ -47,10 +47,12 @@ export async function render(el, params) {
   el.append(pag);
   pag.querySelector('[data-a="nuevo"]')?.addEventListener('click', () => formularioProyecto());
   pag.querySelector('[data-a="importar"]')?.addEventListener('click', () => elegirArchivoProyectos());
-  pag.querySelector('[data-a="pdf"]').addEventListener('click', () => imprimirPDF('Catálogo de proyectos', tablaPDF([
-    { titulo: 'Código', valor: p => p.codigo }, { titulo: 'Nombre', valor: p => p.nombre_corto }, { titulo: 'Gerencia', valor: p => etiqueta(p.gerencia_id) },
-    { titulo: 'Fase', valor: p => etiqueta(p.fase_id) }, { titulo: 'Estado', valor: p => textoEstado('estados_proyecto', p.estado) },
-  ], store.proyectos), { proyectoTexto: 'Todos los proyectos', orientacion: 'landscape' }));
+  pag.querySelector('[data-a="pdf"]').addEventListener('click', () => imprimirPDF('Catálogo de proyectos', tablaPDF(
+    // Mismas columnas y anchos que las ventanas de proyectos en pantalla
+    grillas.activo?.columnasPDF?.() || [
+      { titulo: 'Código', valor: p => p.codigo }, { titulo: 'Nombre', valor: p => p.nombre_corto }, { titulo: 'Gerencia', valor: p => etiqueta(p.gerencia_id) },
+      { titulo: 'Fase', valor: p => etiqueta(p.fase_id) }, { titulo: 'Estado', valor: p => textoEstado('estados_proyecto', p.estado) }],
+    store.proyectos), { proyectoTexto: 'Todos los proyectos', orientacion: 'landscape' }));
   pintarPropuestos(pag);
 
   for (const [estado] of VENTANAS) grillas[estado] = crearGrilla(pag.querySelector(`[data-grilla="${estado}"]`), configGrilla(estado, puedeCrear));

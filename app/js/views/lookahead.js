@@ -229,11 +229,10 @@ const acciones = {
     let cuerpo = '';
     for (const s of estado.semanas) {
       const de = acts.filter(a => a.semana === s);
+      // Mismas columnas, orden y anchos que la grilla en pantalla (más el detalle de restricciones)
       cuerpo += `<h2>${esc(etiquetaSemana(s))} · ${de.length} actividad(es)</h2>` + tablaPDF([
-        { titulo: 'Responsable', valor: a => nombre(a.responsable_id) }, { titulo: 'Proyecto', valor: a => proyecto(a.proyecto_id)?.nombre_corto || '' },
-        { titulo: 'Actividad', valor: a => a.descripcion }, { titulo: 'HH', valor: a => num(a.hh_total), num: true },
-        { titulo: 'Estado LA', html: true, valor: a => badge(textoEstado('estados_la', a.estado_la), '#4E79A7') },
-        { titulo: 'Restricciones', valor: a => restriccionesActivas(a.id, estado.rests).map(r => r.descripcion).join('; ') },
+        ...grilla.columnasPDF(),
+        { titulo: 'Restricciones', ancho: 180, valor: a => restriccionesActivas(a.id, estado.rests).map(r => r.descripcion).join('; ') },
       ], de);
     }
     imprimirPDF('Look Ahead', cuerpo, { orientacion: 'landscape' });

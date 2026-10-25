@@ -221,10 +221,5 @@ async function renderSolicitante(el) {
 
 function pdf() {
   const items = grilla.filas().filter(c => c.id);
-  imprimirPDF('Cartera de servicios', tablaPDF([
-    { titulo: 'F. solicitud', valor: c => fmtFecha(c.f_solicitud) }, { titulo: 'Solicitante', valor: c => c.solicitante || nombre(c.solicitante_id) },
-    { titulo: 'Proyecto', valor: c => proyecto(c.proyecto_id)?.nombre_corto || '' }, { titulo: 'Descripción', valor: c => c.descripcion },
-    { titulo: 'Responsable', valor: c => nombre(c.responsable_id) }, { titulo: 'F. comprometida', valor: c => fmtFecha(c.f_comprometida) },
-    { titulo: 'Criticidad', valor: c => etiqueta(c.criticidad_id) }, { titulo: 'Estado', valor: c => textoEstado('estados_cartera', c.estado) },
-  ], items), { orientacion: 'landscape' });
+  imprimirPDF('Cartera de servicios', tablaPDF(grilla.columnasPDF(), items), { orientacion: 'landscape' });   // como en pantalla
 }

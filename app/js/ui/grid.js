@@ -926,6 +926,33 @@ export function crearGrilla(contenedor, cfg) {
       cfg.alCambioRemoto?.();
     },
     filas() { return tabla.getData(); },
+    /**
+     * Columnas visibles tal como se ven en la grilla (mismo orden, títulos y ancho relativo) para los PDF:
+     * [{ titulo, ancho, num, html, valor(fila) }]. Se omiten las columnas de botones (pdf: false).
+     */
+    columnasPDF() {
+      return tabla.getColumns().filter(col => col.isVisible() && porCampo.has(col.getField())).map(col => {
+        const c = porCampo.get(col.getField());
+        if (c.pdf === false || c.click) return null;   // botones (🚧, 💬, Ficha…) no van al PDF
+        const valorDe = fila => (c.valor ? c.valor(fila) : fila[c.field]);
+        const texto = fila => {
+          const v = valorDe(fila);
+          if (c.tipo === 'lista') return etiquetaOpcion(c, v, fila);
+          if (c.tipo === 'fecha') return fmtFecha(v);
+          if (c.tipo === 'casilla') return v ? 'Sí' : '';
+          if (c.tipo === 'numero') return v === 0 && c.ocultarCero ? '' : (v == null || v === '' ? '' : num(v, 2));
+          return c.exportar ? c.exportar(v, fila) : (v ?? '');
+        };
+        const color = fila => (opcionesDe(c, fila).find(o => o.value === valorDe(fila)) || {}).color;
+        return {
+          titulo: c.title, ancho: col.getWidth(), num: c.tipo === 'numero',
+          html: !!c.colorear,
+          valor: c.colorear
+            ? fila => { const t = texto(fila); const k = color(fila); return t ? `<span class="badge" style="--c:${k || '#4E79A7'}">${esc(t)}</span>` : ''; }
+            : texto,
+        };
+      }).filter(Boolean);
+    },
     refrescar() { tabla.getRows().forEach(r => r.reformat()); },
     /** Filtro propio de la vista (además de los filtros de cada columna); fn(datosFila) → true para mostrar. */
     filtrar(fn) { if (fn) tabla.setFilter(d => fn(d)); else tabla.clearFilter(); },

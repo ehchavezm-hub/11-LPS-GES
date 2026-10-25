@@ -111,13 +111,5 @@ function pintarKPIs() {
 function pdf() {
   const rs = grilla.filas().filter(r => r.id);
   const r = resumenRestricciones(rs);
-  imprimirPDF('Log de restricciones', kpisPDF([['Abiertas', r.abiertas], ['Vencidas', r.vencidas, '#E15759'], ['A tiempo', pct(r.pctATiempo)]]) + tablaPDF([
-    { titulo: 'Proyecto', valor: x => proyecto(x.proyecto_id)?.nombre_corto || '' },
-    { titulo: 'Actividad', valor: x => estado.acts.get(x.actividad_id)?.descripcion || '' },
-    { titulo: 'Restricción', valor: x => x.descripcion }, { titulo: 'Tipo', valor: x => etiqueta(x.tipo_id) },
-    { titulo: 'Responsable', valor: x => x.responsable || '' }, { titulo: 'F. identificada', valor: x => fmtFecha(x.f_identificada) },
-    { titulo: 'F. requerida', valor: x => fmtFecha(x.f_requerida) }, { titulo: 'F. prometida', valor: x => fmtFecha(x.f_prometida) },
-    { titulo: 'F. levantada', valor: x => fmtFecha(x.f_levantada) },
-    { titulo: 'Estado', html: true, valor: x => badge(textoEstado('estados_restriccion', x.estado), colorEstado('estados_restriccion', x.estado)) },
-  ], rs), { orientacion: 'landscape' });
+  imprimirPDF('Log de restricciones', kpisPDF([['Abiertas', r.abiertas], ['Vencidas', r.vencidas, '#E15759'], ['A tiempo', pct(r.pctATiempo)]]) + tablaPDF(grilla.columnasPDF(), rs), { orientacion: 'landscape' });   // como en pantalla
 }

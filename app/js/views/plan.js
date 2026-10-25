@@ -405,10 +405,5 @@ function pdf() {
   imprimirPDF('Plan semanal', `<p class="nota">${esc(etiquetaSemana(estado.semana))} · ${esc(resp)}</p>` +
     kpisPDF([['PAC', pct(r.pac), colorPAC(r.pac)], ['Comprometidas', r.comprometidas], ['Completadas', r.completadas, '#59A14F'],
       ['No completadas', r.noCompletadas, '#E15759'], ['No programadas', r.noProgramadas, '#F28E2B'], ['HH plan', num(r.hhPlan)]]) +
-    tablaPDF([
-      { titulo: 'Resp. 1', valor: a => nombre(a.responsable_id) }, { titulo: 'Proyecto', valor: a => proyecto(a.proyecto_id)?.nombre_corto || '' },
-      { titulo: 'Actividad', valor: a => a.descripcion }, { titulo: 'HH', valor: a => num(a.hh_total), num: true },
-      { titulo: 'Tipo', valor: a => textoEstado('tipos_actividad', a.tipo) }, { titulo: 'Estado', valor: a => textoEstado('estados_compromiso', a.estado) },
-      { titulo: 'CNC', valor: a => etiqueta(a.cnc_id) }, { titulo: 'HH real', valor: a => num(a.hh_real), num: true },
-    ], acts), { orientacion: 'landscape' });
+    tablaPDF(grilla.columnasPDF(), acts), { orientacion: 'landscape' });   // mismas columnas y anchos que en pantalla
 }

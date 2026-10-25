@@ -48,6 +48,8 @@ export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', p
   h1.titulo { font-family: 'Urbanist', sans-serif; font-size: 12pt; color: #1A365D; text-align: center; margin: 0 0 5mm; }
   h2 { font-size: 10pt; color: #1A365D; margin: 5mm 0 2mm; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; page-break-inside: auto; }
+  table.fija { table-layout: fixed; }
+  table.fija td, table.fija th { overflow-wrap: anywhere; white-space: pre-wrap; }
   tr { page-break-inside: avoid; }
   th { background: #EBF2F8; color: #1A365D; text-align: left; font-weight: 700; }
   th, td { border: .5pt solid #CBD5E0; padding: 1.4mm 2mm; font-size: 8pt; vertical-align: top; }
@@ -86,9 +88,24 @@ export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', p
   w.document.close();
 }
 
-/** Construye una tabla HTML para PDF a partir de columnas [{titulo, valor(fila), num}] */
+// Ancho relativo por defecto cuando la columna no lo indica: textos largos más anchos, números angostos.
+// No depende de los datos, así todas las tablas de un mismo informe tienen exactamente los mismos anchos.
+const LARGOS = /actividad|descripci|restricci|acci[oó]n|comentario|nombre|proyecto|servicio/i;
+function anchoPorDefecto(c) {
+  if (c.num) return 50;
+  if (LARGOS.test(c.titulo)) return c.titulo.match(/actividad|descripci|restricci|acci/i) ? 260 : 150;
+  return 100;
+}
+
+/**
+ * Construye una tabla HTML para PDF a partir de columnas [{titulo, valor(fila), num, html, ancho}].
+ * Los anchos son fijos y proporcionales (ancho = px de la grilla o relativo); el texto se ajusta en varias líneas.
+ */
 export function tablaPDF(columnas, filas) {
-  return `<table><thead><tr>${columnas.map(c => `<th${c.num ? ' class="num"' : ''}>${esc(c.titulo)}</th>`).join('')}</tr></thead>
+  const pesos = columnas.map(c => Number(c.ancho) || anchoPorDefecto(c));
+  const total = pesos.reduce((a, b) => a + b, 0) || 1;
+  const colgroup = `<colgroup>${pesos.map(w => `<col style="width:${(w * 100 / total).toFixed(2)}%">`).join('')}</colgroup>`;
+  return `<table class="fija">${colgroup}<thead><tr>${columnas.map(c => `<th${c.num ? ' class="num"' : ''}>${esc(c.titulo)}</th>`).join('')}</tr></thead>
     <tbody>${filas.map(f => `<tr>${columnas.map(c => `<td${c.num ? ' class="num"' : ''}>${c.html ? c.valor(f) : esc(c.valor(f) ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
 
