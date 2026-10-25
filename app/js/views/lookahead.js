@@ -25,15 +25,31 @@ export async function render(el, { query }) {
       <span class="pagina-sub">${estado.semanas.length} semanas: ${esc(etiquetaSemana(estado.semanas[0]))} → ${esc(etiquetaSemana(estado.semanas.at(-1)).split('·')[0])}</span>
       <select class="sel" data-resp aria-label="Responsable"></select><span data-proy></span>
       <span class="flex"></span><button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
+    <div class="pestanas pestanas-la" style="margin-bottom:12px">
+      <button data-v="la">🔭 Look Ahead</button>
+      <button data-v="carga">📊 Carga vs capacidad (HH) <span class="badge-alerta" data-alerta></span></button>
+    </div>
+    <div data-vista="carga" class="oculto"><div class="tarjeta"><h2>Carga vs capacidad (HH)</h2><div data-carga></div></div></div>
+    <div data-vista="la">
     <div class="aviso">El Look Ahead responde <b>¿qué PUEDE hacerse?</b> Registre las actividades de las próximas semanas, identifique sus restricciones y márquelas como <b>Lista</b> cuando estén libres. En la reunión del viernes se comprometen las de la semana siguiente.</div>
-    <div class="tarjeta" style="margin-bottom:12px"><h2>Carga vs capacidad (HH)</h2><div data-carga></div></div>
     <div class="barra" style="margin-bottom:10px">
       <button class="btn btn-sm btn-azul" data-a="comprometer" title="Pasar al plan de la semana siguiente las filas seleccionadas o las Listas">✔ Comprometer semana siguiente</button>
       <button class="btn btn-sm" data-a="plantilla" title="Generar actividades desde una plantilla de servicio (M-05)">🧩 Aplicar plantilla de servicio</button>
       <button class="btn btn-sm" data-a="cartera" title="Crear actividades desde la cartera">🗂 Desde la cartera</button>
     </div>
-    <div data-grilla></div></div>`);
+    <div data-grilla></div></div></div>`);
   el.append(pag);
+  // Dos subventanas: la grilla del Look Ahead y la carga vs capacidad (se recuerda la última elegida)
+  const mostrarVista = v => {
+    pag.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('activo', b.dataset.v === v));
+    pag.querySelectorAll('[data-vista]').forEach(d => d.classList.toggle('oculto', d.dataset.vista !== v));
+    try { localStorage.setItem('lpsgt-la-vista', v); } catch { /* sin almacenamiento */ }
+    if (v === 'la') grilla?.tabla?.redraw(true);
+  };
+  pag.querySelector('.pestanas-la').addEventListener('click', e => { const v = e.target.closest('[data-v]')?.dataset.v; if (v) mostrarVista(v); });
+  let vistaInicial = 'la';
+  try { vistaInicial = localStorage.getItem('lpsgt-la-vista') || 'la'; } catch { /* sin almacenamiento */ }
+  mostrarVista(vistaInicial);
   const sel = pag.querySelector('[data-resp]');
   sel.innerHTML = `<option value="todos">Todo el equipo</option>` + lideres().map(l => `<option value="${l.id}">${esc(l.nombre)}</option>`).join('');
   sel.value = estado.resp;
@@ -116,11 +132,13 @@ function pintarCabecera() {
   if (!pag) return;
   pag.querySelector('[data-proy]').innerHTML = store.proyectoSel ? `<span class="chip-filtro">🏗 ${esc(proyecto(store.proyectoSel)?.nombre_corto || '')}</span>` : '';
   const personas = estado.resp === 'todos' ? equipo(estado.acts) : lideres().filter(l => l.id === estado.resp);
+  let sobrecargas = 0;
   const filas = personas.map(l => {
     const celdas = estado.semanas.map(s => {
       const hh = estado.acts.filter(a => a.responsable_id === l.id && a.semana === s && a.estado_la !== 'cancelada').reduce((x, a) => x + (Number(a.hh_total) || 0), 0);
       const cap = capacidadSemana(l.id, s, estado.ubic);
       const r = cap ? hh / cap : null;
+      if (r != null && r > 1.05) sobrecargas++;
       return `<td><div style="display:flex;align-items:center;gap:6px"><div class="barra-prog" style="flex:1;--bc:${colorCarga(r)}"><i style="width:${Math.min(100, (r || 0) * 100)}%"></i></div>
         <span class="nota" style="white-space:nowrap">${num(hh)} / ${num(cap)} ${r != null && r > 1.05 ? '⚠' : ''}</span></div></td>`;
     }).join('');
@@ -128,6 +146,9 @@ function pintarCabecera() {
   }).join('');
   pag.querySelector('[data-carga]').innerHTML = `<table class="simple"><tr><th>Responsable</th>${estado.semanas.map(s => `<th>${esc(etiquetaSemana(s))}</th>`).join('')}</tr>${filas}</table>
     <p class="nota">Verde: carga normal · Ámbar: más del 90 % · Rojo: sobrecarga (más que la capacidad). La capacidad descuenta vacaciones y feriados registrados en "Equipo y capacidad".</p>`;
+  // Aviso en la pestaña: cuántas semanas-persona están sobrecargadas
+  const alerta = pag.querySelector('[data-alerta]');
+  if (alerta) { alerta.textContent = sobrecargas ? `⚠ ${sobrecargas}` : ''; alerta.title = sobrecargas ? `${sobrecargas} semana(s) con sobrecarga` : ''; }
 }
 
 const acciones = {
