@@ -5,6 +5,10 @@ Look Ahead de 3 semanas, plan semanal con compromisos, cierre con PAC y causas d
 restricciones, cartera y solicitudes de otras gerencias, tablero de indicadores, reunión semanal guiada,
 capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GT_Alcance_v0.7.docx`](docs/LPS-GT_Alcance_v0.7.docx).
 
+**Aplicativo en producción:** <https://ehchavezm-hub.github.io/11-LPS_GT/>
+
+**Modo demostración** (datos ficticios, solo en su navegador): <https://ehchavezm-hub.github.io/11-LPS_GT/?demo>
+
 - **Pruébelo sin instalar nada:** abra el aplicativo publicado y agregue `?demo` a la dirección (datos ficticios que se guardan solo en su navegador).
 - Funciona en PC y celular; se puede instalar como aplicación (PWA).
 - Repositorio **público**: aquí no se guardan datos de la empresa, personas ni respaldos. Los datos viven en Supabase y los respaldos en Google Drive.
