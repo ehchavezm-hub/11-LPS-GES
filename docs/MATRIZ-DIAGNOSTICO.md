@@ -116,6 +116,7 @@ Revisión completa del aplicativo al **25/10/2026** (pedido 98). Reemplaza la ma
 | **4.2** | **Proyectos / Procesos** (Configuración → Listas) | | | |
 | 4.2.1 | Tres ventanas: Activos, En pausa y Cerrados (32, 35) | ✅ | ✅ | ✅ Al cambiar el estado, el proyecto cambia de ventana |
 | 4.2.2 | Nuevo / editar / proponer / aprobar, sin "Líderes asignados" (46) | ✅ | ✅ | ✅ Notificaciones |
+| 4.2.2.1 | Líderes agregan proyectos activos (100) | ✅ | ✅ Permiso `agregar_proyecto` (018) | ✅ Proyecto único para todo el equipo; quien lo agregó lo edita y lo ve en «Mis»; eliminar y desactivar siguen en el administrador |
 | 4.2.3 | Asignar líderes (clic derecho) | ✅ | ✅ Misma área (015) | ✅ Menú "Mis proyectos" |
 | 4.2.4 | Desactivar / reactivar | ✅ | ✅ | ✅ Los inactivos se ven como "(desactivado)" |
 | 4.2.5 | Eliminar (doble confirmación) y eliminar con todo su historial | ✅ | ✅ `eliminar_proyecto_completo` | ✅ También quita su asociación en CET / Servicio |
@@ -184,6 +185,7 @@ Revisión completa del aplicativo al **25/10/2026** (pedido 98). Reemplaza la ma
 | **7.2** | **Listas** | | | |
 | 7.2.1 | Agrupadas; grupo editable (22) | ✅ | ✅ | ✅ |
 | 7.2.2 | CET / Servicio: Proyecto · CET · Servicio (26, 30, 51) | ✅ | ✅ | 🔧 El Proyecto de cada servicio ahora también limita las opciones en Plan, Look Ahead, Plantillas y Cartera (2.1.1.4) |
+| 7.2.2.1 | Líderes agregan CET / Servicio (100) | ✅ | ✅ Permiso `agregar_cet` (018) | ✅ Clic derecho en el título CET o Servicio (Plan, Look Ahead, Cartera, Plantillas) o en el proyecto; al pegar desde Excel también; editar y eliminar siguen en el administrador |
 | 7.2.3 | Gerencias, Cargos, CNC, tipos, estados (protegidos) | ✅ | ✅ `tg_proteger_valor` | ✅ |
 | 7.2.4 | Clic derecho en el título de una columna → editar su lista | ✅ | ✅ | ✅ |
 | 7.3 | Parámetros (meta, semanas del Look Ahead, días, horas, cierre, reunión) | ✅ | ✅ | ✅ Plan, Look Ahead, Capacidad, Ayuda |
@@ -212,7 +214,7 @@ Revisión completa del aplicativo al **25/10/2026** (pedido 98). Reemplaza la ma
 | 9.4 | Claves: solo la publicable en el navegador | ✅ | ✅ | ✅ El CI bloquea claves secretas |
 | 9.5 | Repositorio público sin datos de la empresa | ✅ | — | ✅ *gitleaks* en el CI |
 | 9.6 | Publicación en GitHub Pages y CI "Listo para producción" | ✅ | ✅ | ✅ |
-| 9.7 | Migraciones 015, 016 y 017 aplicadas en Supabase (25/10) | ✅ | ✅ Verificado en la base | ✅ Disparador del Estado LA activo; las 14 funciones de disparador ya no se pueden invocar como API (017) |
+| 9.7 | Migraciones 015 a 018 aplicadas en Supabase (25/10) | ✅ | ✅ Verificado en la base | ✅ Disparador del Estado LA activo; las 14 funciones de disparador ya no se pueden invocar como API (017) |
 | 9.8 | Plan de Supabase para muchos usuarios simultáneos y Sentry | ⚙️ | — | Ver `docs/PRODUCCION.md` |
 
 ---

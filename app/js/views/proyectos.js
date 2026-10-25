@@ -1,6 +1,6 @@
 // Proyectos (6.3): catálogo que alimenta el menú, propuesta y aprobación, ficha con indicadores e hitos.
 import { api, mensajeError } from '../data/api.js';
-import { store, cargarCatalogo, esGestor, esStaff, esAdmin, puede, opciones, opcionesLideres, lideres, opcionesEstado, colorEstado, textoEstado, etiqueta, nombre, proyecto, seleccionarProyecto, valoresLista } from '../core/store.js';
+import { store, cargarCatalogo, esGestor, esStaff, esAdmin, puede, opciones, opcionesLideres, lideres, opcionesEstado, colorEstado, textoEstado, etiqueta, nombre, proyecto, seleccionarProyecto, valoresLista, opcionesProyectos, puedeAgregarProyecto, puedeEditarProyecto } from '../core/store.js';
 import { esc, html, fmtFecha, hoy, num, pct, lunes, sumarSemanas } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -32,7 +32,7 @@ export async function render(el, params) {
   // Desde el menú ya no hay página propia: el catálogo se administra en Configuración → Listas
   if (!params.incrustado && esGestor()) { location.hash = RUTA_CATALOGO; return; }
   contenedor = el;
-  const puedeCrear = puede('crear_proyecto');
+  const puedeCrear = puedeAgregarProyecto();
   const pag = html(`<div>
     <div class="pagina-cab">${params.incrustado ? '<h2 style="margin:0">Proyectos / Procesos</h2>' : '<h1>Proyectos</h1>'}
       <span class="pagina-sub">Catálogo que alimenta el menú de selección y las listas de todas las grillas</span>
@@ -55,7 +55,8 @@ export async function render(el, params) {
     store.proyectos), { proyectoTexto: 'Todos los proyectos', orientacion: 'landscape' }));
   pintarPropuestos(pag);
 
-  for (const [estado] of VENTANAS) grillas[estado] = crearGrilla(pag.querySelector(`[data-grilla="${estado}"]`), configGrilla(estado, puedeCrear));
+  // Quien solo agrega proyectos (líderes) lo hace en la ventana Activos; eliminar sigue siendo de quien administra proyectos
+  for (const [estado] of VENTANAS) grillas[estado] = crearGrilla(pag.querySelector(`[data-grilla="${estado}"]`), configGrilla(estado, puede('crear_proyecto') || (puedeCrear && estado === 'activo')));
   await Promise.all(VENTANAS.map(([e]) => grillas[e].inicializar(proyectosDe(e))));
   pintarCuentas();
 }
@@ -103,13 +104,13 @@ function configGrilla(estado, puedeCrear) {
       { field: 'fecha_fin', title: 'Fin', tipo: 'fecha', ancho: 100 },
       { field: '_ficha', title: '', tipo: 'texto', ancho: 70, calc: true, filtro: false, formato: (v, p) => p.id ? '<button class="mini-btn">Ficha ›</button>' : '',
         click: (p, e) => { if (p.id && e.target.closest('button')) ir('#/proyectos/' + p.id); } },
-      ...(puedeCrear ? [{ field: '_borrar', title: '', tipo: 'texto', ancho: 46, calc: true, filtro: false, ordenable: false,
+      ...(puede('crear_proyecto') ? [{ field: '_borrar', title: '', tipo: 'texto', ancho: 46, calc: true, filtro: false, ordenable: false,
         formato: (v, p) => p.id ? '<button class="mini-btn mini-peligro" title="Eliminar proyecto">🗑</button>' : '',
         click: (p, e) => { if (p.id && e.target.closest('button')) eliminarProyecto(p, { confirmaciones: 2 }).then(r => r && redistribuir()); } }] : []),
       ...columnasPersonalizadas('proyectos'),
     ],
     agrupar: [{ field: 'gerencia_id', label: 'Gerencia' }, { field: 'fase_id', label: 'Fase' }],
-    puedeEditarFila: p => puede('crear_proyecto') || (p.estado === 'propuesto' && p.propuesto_por === store.usuario.id),
+    puedeEditarFila: p => !p.id || puedeEditarProyecto(p),
     nuevaFila: () => ({ area_id: store.area.id, estado, codigo: '', nombre_corto: '', extra: {} }),
     // Al cambiar el estado se guarda y el proyecto pasa de inmediato a su ventana
     alEditar: async (p, campo) => {
@@ -132,6 +133,7 @@ function configGrilla(estado, puedeCrear) {
         : { label: '⛔ Desactivar proyecto (Cerrado)', action: () => cambiarEstado(p, 'cerrado') }] : []),
       { label: '👥 Asignar líderes…', action: () => p.id && asignarLideres(p), disabled: !puede('crear_proyecto') },
       { label: '🏗 Seleccionar en el menú', action: () => p.id && seleccionarProyecto(p.id) },
+      ...(p.id && (puede('agregar_cet') || puede('gestionar_listas')) ? [{ label: '＋ Agregar CET / Servicio a este proyecto…', action: () => nuevoCETServicio({ proyectoId: p.id }) }] : []),
     ],
   };
 }
@@ -257,9 +259,40 @@ function pintarPropuestos(pag) {
   });
 }
 
-/** Alta de proyecto: crea (administrador / delegado) o propone (líder). */
+/**
+ * CET / Servicio nuevo (pedido 100): Proyecto, CET y Servicio. Lo pueden agregar los líderes (permiso "agregar_cet");
+ * queda en la lista compartida "CET / Servicio" y lo ve todo el equipo. Devuelve el id del valor creado.
+ */
+export async function nuevoCETServicio({ proyectoId = null } = {}) {
+  const lista = store.listas.servicios?.lista;
+  if (!lista) return null;
+  let creado = null;
+  await pedirDatos({
+    titulo: 'Agregar CET / Servicio', texto: 'Agregar',
+    antes: 'El CET / Servicio queda disponible para todo el equipo en el Plan, el Look Ahead, las Plantillas y la Cartera.',
+    valores: { proyecto_id: proyectoId || store.proyectoSel || '' },
+    campos: [
+      { name: 'proyecto_id', label: 'Proyecto', type: 'select', options: opcionesProyectos().map(o => ({ value: o.value ?? '', label: o.label })) },
+      { name: 'codigo', label: 'CET', required: true, placeholder: 'Código del servicio (p. ej. CET0594)' },
+      { name: 'valor', label: 'Servicio', required: true, full: true },
+    ],
+    alGuardar: async d => {
+      const codigo = String(d.codigo || '').trim(), valor = String(d.valor || '').trim();
+      const todos = store.listas.servicios.valores;
+      if (todos.some(v => (v.codigo || '').trim().toLowerCase() === codigo.toLowerCase())) throw new Error(`El CET "${codigo}" ya existe.`);
+      const orden = Math.max(0, ...todos.map(v => Number(v.orden) || 0)) + 10;
+      const [v] = await api.insert('lista_valores', { lista_id: lista.id, codigo, valor, orden, activo: true, extra: d.proyecto_id ? { proyecto_id: d.proyecto_id } : {} });
+      creado = v?.id || null;
+      await cargarCatalogo();
+      ok(`CET / Servicio "${codigo} · ${valor}" agregado.`);
+    },
+  });
+  return creado;
+}
+
+/** Alta de proyecto: crea (administrador, delegado o líder con "agregar_proyecto") o propone. */
 export async function formularioProyecto(p = null) {
-  const crea = puede('crear_proyecto');
+  const crea = puedeAgregarProyecto();
   const d = await pedirDatos({
     titulo: p ? 'Editar proyecto' : crea ? 'Nuevo proyecto' : 'Proponer proyecto', texto: p ? 'Guardar' : crea ? 'Crear' : 'Enviar propuesta',
     antes: !crea && !p ? 'El proyecto quedará "Propuesto" hasta que el administrador lo apruebe. Mientras tanto ya puede registrar actividades en él.' : '',
@@ -323,7 +356,7 @@ async function ficha(el, id) {
       <h1>${esc(p.codigo)} · ${esc(p.nombre_corto)}</h1>${badge(textoEstado('estados_proyecto', p.estado), colorEstado('estados_proyecto', p.estado))}
       <span class="flex"></span>
       <button class="btn btn-sm" data-a="menu">🏗 Seleccionar en el menú</button>
-      ${puede('crear_proyecto') || (p.estado === 'propuesto' && p.propuesto_por === store.usuario.id) ? '<button class="btn btn-sm" data-a="editar">✏ Editar</button>' : ''}
+      ${puedeEditarProyecto(p) ? '<button class="btn btn-sm" data-a="editar">✏ Editar</button>' : ''}
       ${puede('crear_proyecto') ? (p.estado === 'cerrado' ? '<button class="btn btn-sm" data-a="reactivar">▶ Reactivar</button>'
         : '<button class="btn btn-sm" data-a="desactivar" title="Recomendado: sale de menús y selectores y conserva el historial">⛔ Desactivar</button>') +
         '<button class="btn btn-sm btn-peligro-borde" data-a="eliminar" title="Solo si no tiene actividades ni otros registros">🗑 Eliminar</button>' : ''}

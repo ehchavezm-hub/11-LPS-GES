@@ -108,6 +108,8 @@ export const ACCIONES = [
   ['gestionar_parametros', 'Editar parámetros generales'],
   ['crear_proyecto', 'Crear y editar proyectos del menú'],
   ['proponer_proyecto', 'Proponer proyectos (requiere aprobación)'],
+  ['agregar_proyecto', 'Agregar proyectos al menú y editar los propios'],
+  ['agregar_cet', 'Agregar CET / Servicio'],
   ['aprobar_proyecto', 'Aprobar o rechazar proyectos propuestos'],
   ['editar_actividades_otros', 'Editar actividades de otros líderes'],
   ['crear_columnas', 'Crear columnas personalizadas'],
@@ -134,9 +136,9 @@ const conPermisos = lista => Object.fromEntries(ACCIONES.map(([a]) => [a, lista.
 export const PERMISOS_INICIALES = {
   admin: Object.fromEntries(ACCIONES.map(([a]) => [a, true])),
   delegado: Object.fromEntries(ACCIONES.map(([a]) => [a, !['eliminar_usuarios', 'exportar_respaldo'].includes(a)])),
-  resp_equipo: conPermisos([...PERMISOS_LIDER, 'editar_actividades_otros', 'cerrar_semana_otros', 'gestionar_reuniones', 'gestionar_plantillas_servicio']),
-  lider: conPermisos(PERMISOS_LIDER),
-  resp_proceso: conPermisos(PERMISOS_LIDER),
+  resp_equipo: conPermisos([...PERMISOS_LIDER, 'agregar_proyecto', 'agregar_cet', 'editar_actividades_otros', 'cerrar_semana_otros', 'gestionar_reuniones', 'gestionar_plantillas_servicio']),
+  lider: conPermisos([...PERMISOS_LIDER, 'agregar_proyecto', 'agregar_cet']),
+  resp_proceso: conPermisos([...PERMISOS_LIDER, 'agregar_proyecto', 'agregar_cet']),
   resp_actividad: conPermisos(PERMISOS_LIDER.filter(a => !['proponer_proyecto', 'aceptar_solicitudes'].includes(a))),
   consulta: conPermisos(['registrar_solicitud', 'exportar', 'ver_tablero']),
 };

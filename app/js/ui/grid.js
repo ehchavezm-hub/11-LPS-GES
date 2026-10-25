@@ -233,12 +233,22 @@ export function crearGrilla(contenedor, cfg) {
     proyecto_id: { ruta: '#/config/listas?lista=__proyectos', rutaSinConfig: '#/proyectos', texto: 'proyectos / procesos' },
   };
   function menuTitulo(c) {
-    const d = c.editarEn || DESTINOS[c.field] || (c.lista ? { lista: c.lista, texto: c.title } : null);
+    const d = c.editarEn || DESTINOS[c.field === '_cet' ? 'servicio_id' : c.field] || (c.lista ? { lista: c.lista, texto: c.title } : null);
     if (!d) return null;
-    const permitido = d.ruta ? (puede('crear_proyecto') || puede('proponer_proyecto')) : puede('gestionar_listas');
-    if (!permitido) return null;
-    const ruta = (d.rutaSinConfig && !esGestor() ? d.rutaSinConfig : d.ruta) || `#/config/listas?lista=${encodeURIComponent(d.lista)}`;
-    return [{ label: `✎ Agregar, editar o eliminar ${esc(d.texto)}`, action: () => { location.hash = ruta; } }];
+    const items = [];
+    // CET / Servicio: los líderes con "agregar_cet" agregan uno nuevo sin salir de la grilla (pedido 100)
+    if (d.lista === 'servicios' && (puede('agregar_cet') || puede('gestionar_listas'))) {
+      items.push({ label: '＋ Agregar CET / Servicio…', action: async () => {
+        const id = await (await import('../views/proyectos.js')).nuevoCETServicio({ proyectoId: store.proyectoSel || null });
+        if (id) tabla.getRows().forEach(r => r.reformat());
+      } });
+    }
+    const permitido = d.ruta ? (puede('crear_proyecto') || puede('agregar_proyecto') || puede('proponer_proyecto')) : puede('gestionar_listas');
+    if (permitido) {
+      const ruta = (d.rutaSinConfig && !esGestor() ? d.rutaSinConfig : d.ruta) || `#/config/listas?lista=${encodeURIComponent(d.lista)}`;
+      items.push({ label: `✎ ${d.ruta && !puede('crear_proyecto') ? 'Agregar' : 'Agregar, editar o eliminar'} ${esc(d.texto)}`, action: () => { location.hash = ruta; } });
+    }
+    return items.length ? items : null;
   }
 
   // ---------- Valores pegados que no existen en una lista ----------
@@ -259,7 +269,8 @@ export function crearGrilla(contenedor, cfg) {
       porLista.get(clave).textos.add(x.texto.trim());
     }
     const resumen = [...porLista.values()].map(g => `${g.titulo}: ${[...g.textos].join(', ')}`).join(' · ');
-    if (!puede('gestionar_listas')) {
+    const puedeAgregar = clave => puede('gestionar_listas') || (clave === 'servicios' && puede('agregar_cet'));
+    if (![...porLista.keys()].every(puedeAgregar)) {
       toast(`Estos valores no existen en las listas y se omitieron (pida al administrador que los agregue): ${resumen}`, 'warn', 9000);
       return;
     }

@@ -34,7 +34,7 @@ begin
   assert (select rol from profiles p join auth.users u on u.id = p.id where u.email = 'lider1@x.pe') = 'pendiente', 'segundo no pendiente';
   assert (select count(*) from notificaciones where tipo = 'usuario_nuevo') = 4, 'faltan avisos de usuario nuevo';
   assert (select count(*) from listas) >= 18, 'listas no sembradas';
-  assert (select count(*) from permisos) = 124, 'matriz de permisos incompleta (20 acciones × 6 roles + 2 acciones nuevas × admin y delegado)';
+  assert (select count(*) from permisos) = 138, 'matriz de permisos incompleta (20 acciones × 6 roles + 2 acciones nuevas × admin y delegado + 2 acciones × 7 roles de la 018)';
 end $$;
 
 -- Datos base (como superusuario)
@@ -83,11 +83,11 @@ select debe_fallar($q$ update actividades set descripcion = 'cambio' where descr
 update cierres set cerrada = false;  -- el líder no reabre: RLS no le muestra la fila para actualizar
 do $$ begin assert (select cerrada from cierres limit 1), 'el líder reabrió la semana'; end $$;
 
--- Proyectos: el líder propone, no crea activos
+-- Proyectos: el líder propone, y desde la 018 (pedido 100) también agrega proyectos activos
 insert into proyectos (area_id, codigo, nombre_corto, estado, propuesto_por)
 values (mi_area(), 'P-3', 'Propuesto por líder', 'propuesto', auth.uid());
-select debe_fallar($q$ insert into proyectos (area_id, codigo, nombre_corto, estado)
-  values (mi_area(), 'P-4', 'Activo directo', 'activo') $q$, 'row-level security');
+insert into proyectos (area_id, codigo, nombre_corto, estado)
+values (mi_area(), 'P-4', 'Activo directo', 'activo');
 
 -- Listas: el líder no edita
 select debe_fallar($q$ insert into lista_valores (lista_id, valor)
@@ -389,6 +389,37 @@ update restricciones set estado = 'pendiente', f_levantada = null where descripc
 delete from restricciones where descripcion = 'Falta información';
 reset role;
 do $$ begin assert (select estado_la from actividades where descripcion = 'LA con restricción') = 'lista', 'no volvió a Lista al eliminar la restricción'; end $$;
+
+-- ---------- 018: los líderes agregan proyectos y CET / Servicio ----------
+insert into auth.users (email, raw_user_meta_data) values ('resp5@x.pe', '{"nombre":"Resp Cinco"}');
+select como('admin@x.pe');
+update profiles set rol = 'resp_actividad', activo = true, area_id = (select area_id from profiles where email = 'admin@x.pe') where email = 'resp5@x.pe';
+set role authenticated;
+select como('admin@x.pe');
+insert into proyectos (area_id, codigo, nombre_corto, estado) values (mi_area(), 'A-1', 'Proyecto del administrador', 'activo');
+reset role;
+set role authenticated;
+select como('lider3@x.pe');
+insert into proyectos (area_id, codigo, nombre_corto, estado) values (mi_area(), 'L-1', 'Proyecto de líder', 'activo');
+update proyectos set nombre_corto = 'Proyecto de líder (editado)' where codigo = 'L-1';
+update proyectos set nombre_corto = 'X' where codigo = 'A-1';                         -- ajeno: RLS no lo modifica
+delete from proyectos where codigo = 'L-1';                                           -- no puede eliminar
+select debe_fallar($q$ update proyectos set estado = 'cerrado' where codigo = 'L-1' $q$, 'row-level security');
+insert into lista_valores (lista_id, codigo, valor, extra)
+values ((select id from listas where clave = 'servicios' and area_id = mi_area()), 'CET-L1', 'Servicio de líder',
+        jsonb_build_object('proyecto_id', (select id from proyectos where codigo = 'L-1')));
+select debe_fallar($q$ insert into lista_valores (lista_id, valor) values ((select id from listas where clave = 'gerencias' and area_id = mi_area()), 'Gerencia X') $q$, 'row-level security');
+select debe_fallar($q$ update lista_valores set valor = 'Y' where codigo = 'CET-L1' returning 1/0 $q$);
+select como('resp5@x.pe');
+select debe_fallar($q$ insert into proyectos (area_id, codigo, nombre_corto, estado) values (mi_area(), 'R-1', 'No', 'activo') $q$, 'row-level security');
+select debe_fallar($q$ insert into lista_valores (lista_id, codigo, valor) values ((select id from listas where clave = 'servicios' and area_id = mi_area()), 'CET-R1', 'No') $q$, 'row-level security');
+reset role;
+do $$ begin
+  assert (select nombre_corto from proyectos where codigo = 'L-1') = 'Proyecto de líder (editado)', 'el líder no editó su proyecto';
+  assert (select nombre_corto from proyectos where codigo = 'A-1') = 'Proyecto del administrador', 'el líder editó un proyecto ajeno';
+  assert exists (select 1 from proyectos where codigo = 'L-1'), 'el líder eliminó un proyecto';
+  assert exists (select 1 from lista_valores where codigo = 'CET-L1' and valor = 'Servicio de líder'), 'el líder no agregó el CET / Servicio';
+end $$;
 
 -- 017: las funciones de disparador no se pueden invocar como API
 do $$ begin

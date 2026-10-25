@@ -89,6 +89,14 @@ export function puede(accion) {
   if (propio === undefined && PLANIFICADORES.includes(rol())) return !!store.permisos.lider?.[accion];
   return !!propio;
 }
+/** Agregar proyectos activos al menú (administración o permiso "agregar_proyecto", pedido 100). */
+export function puedeAgregarProyecto() { return puede('crear_proyecto') || puede('agregar_proyecto'); }
+/** Editar un proyecto: quien administra proyectos, quien lo agregó (si tiene el permiso) o quien lo propuso. */
+export function puedeEditarProyecto(p) {
+  if (!p) return false;
+  const yo = store.usuario?.id;
+  return puede('crear_proyecto') || (puede('agregar_proyecto') && p.created_by === yo) || (p.estado === 'propuesto' && p.propuesto_por === yo);
+}
 export function puedeEditarActividad(a) {
   return a.responsable_id === store.usuario?.id || puede('editar_actividades_otros');
 }
@@ -160,8 +168,10 @@ export function opcionesProyectos() {
     value: p.id, label: `${p.codigo} · ${p.nombre_corto}${p.estado === 'propuesto' ? ' (por aprobar)' : ''}` }))];
 }
 export function misProyectos() {
-  const ids = new Set(store.proyectoLideres.filter(l => l.usuario_id === store.usuario?.id).map(l => l.proyecto_id));
-  return store.proyectos.filter(p => ids.has(p.id));
+  // Proyectos donde la persona es líder y los que ella misma agregó (pedido 100)
+  const yo = store.usuario?.id;
+  const ids = new Set(store.proyectoLideres.filter(l => l.usuario_id === yo).map(l => l.proyecto_id));
+  return store.proyectos.filter(p => ids.has(p.id) || (p.created_by && p.created_by === yo));
 }
 export function seleccionarProyecto(id) {
   store.proyectoSel = id || '';
