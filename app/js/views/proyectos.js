@@ -342,7 +342,7 @@ async function ficha(el, id) {
         <tr><td>Gerencia</td><td>${esc(etiqueta(p.gerencia_id))}</td></tr>
         <tr><td>Fase</td><td>${esc(etiqueta(p.fase_id))}</td></tr>
         <tr><td>País</td><td>${esc(etiqueta(p.pais_id))}</td></tr><tr><td>Fechas</td><td>${fmtFecha(p.fecha_inicio)} – ${fmtFecha(p.fecha_fin)}</td></tr>
-        <tr><td>Líderes</td><td>${esc(lideresDe(id).map(nombre).join(', ') || '—')}</td></tr>
+        <tr><td>Estado</td><td>${esc(textoEstado('estados_proyecto', p.estado))}</td></tr>
         ${p.propuesto_por ? `<tr><td>Propuesto por</td><td>${esc(nombre(p.propuesto_por))}${p.aprobado_at ? ` · aprobado el ${fmtFecha(p.aprobado_at)}` : ''}</td></tr>` : ''}
         ${p.motivo_rechazo ? `<tr><td>Motivo de rechazo</td><td>${esc(p.motivo_rechazo)}</td></tr>` : ''}
         <tr><td>Observaciones</td><td>${esc(p.observaciones || '')}</td></tr></table></div>
@@ -377,7 +377,8 @@ async function ficha(el, id) {
     }
     if (a === 'pdf') imprimirPDF('Ficha de proyecto', kpisPDF([['PAC', pct(r.pac), colorPAC(r.pac)], ['HH plan', num(r.hhPlan)], ['Restricciones abiertas', rr.abiertas]]) +
       tablaPDF([{ titulo: 'Campo', valor: x => x[0] }, { titulo: 'Valor', valor: x => x[1] }], [['Código', p.codigo], ['Nombre', p.nombre_completo || p.nombre_corto],
-        ['Gerencia', etiqueta(p.gerencia_id)], ['Fase', etiqueta(p.fase_id)], ['Estado', textoEstado('estados_proyecto', p.estado)]]) +
+        ['Gerencia', etiqueta(p.gerencia_id)], ['Fase', etiqueta(p.fase_id)], ['País', etiqueta(p.pais_id)],
+        ['Fechas', `${fmtFecha(p.fecha_inicio)} – ${fmtFecha(p.fecha_fin)}`], ['Estado', textoEstado('estados_proyecto', p.estado)]]) +
       '<h2>Hitos</h2>' + tablaPDF([{ titulo: 'Hito', valor: h => h.nombre }, { titulo: 'Fecha', valor: h => fmtFecha(h.fecha) }, { titulo: 'Estado', valor: h => h.estado }], hitos),
       { proyectoTexto: `${p.codigo} · ${p.nombre_corto}` });
   });

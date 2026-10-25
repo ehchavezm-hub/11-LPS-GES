@@ -522,7 +522,7 @@ export function crearGrilla(contenedor, cfg) {
             const [res] = await (cfg.crear ? cfg.crear(datos) : api.insert(cfg.tabla, datos));
             servidor.set(res.id, structuredClone(res));
             row.update({ ...res, _guardando: false, _nueva: false });
-            row.reformat();   // columnas calculadas que dependen del id (p. ej. "Ficha ›")
+            reformatear(row);   // columnas calculadas que dependen del id (p. ej. "Ficha ›")
             n++;
           } catch (e) {
             error(mensajeError(e));
@@ -538,6 +538,10 @@ export function crearGrilla(contenedor, cfg) {
       if (pendiente) { pendiente = false; programarGuardado(); }
     }
   }
+
+  // No se redibuja la fila que se está editando: se perdería lo que el usuario está escribiendo
+  // (se redibuja sola al terminar la edición, en cellEdited)
+  function reformatear(row) { if (!row.getElement()?.querySelector('.tabulator-editing')) row.reformat(); }
 
   tabla.on('cellEdited', cell => {
     const col = porCampo.get(cell.getField());
@@ -954,7 +958,7 @@ export function crearGrilla(contenedor, cfg) {
         };
       }).filter(Boolean);
     },
-    refrescar() { tabla.getRows().forEach(r => r.reformat()); },
+    refrescar() { tabla.getRows().forEach(reformatear); },
     /** Filtro propio de la vista (además de los filtros de cada columna); fn(datosFila) → true para mostrar. */
     filtrar(fn) { if (fn) tabla.setFilter(d => fn(d)); else tabla.clearFilter(); },
     refrescarFiltro() { tabla.refreshFilter(); },
