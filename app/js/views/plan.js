@@ -84,7 +84,6 @@ export async function render(el, { query }) {
       return '';
     },
     alGuardar: () => { cargarSilencioso(); },
-    nombreArchivo: () => `Plan_semanal_${estado.semana}`,
     menuFila: a => [
       { label: '🚧 Restricciones…', action: () => a.id && abrirRestricciones(a, { alCambiar: recargarRestricciones }) },
       { label: '💬 Comentarios y enlaces…', action: () => a.id && abrirDetalle('actividad', a) },

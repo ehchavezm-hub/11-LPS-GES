@@ -1,6 +1,6 @@
 // Configuración (6.1, 6.2): usuarios y roles, listas configurables, parámetros, matriz de permisos,
 // columnas personalizadas, importación desde Excel, respaldo y auditoría.
-import { imprimirPDF } from '../services/pdf.js';
+import { imprimirPDF, nombreArchivo } from '../services/pdf.js';
 import { leerDemo as leerDatosDemo } from '../services/traer-demo.js';
 const hayDatosDemo = () => !!leerDatosDemo();
 import { medir } from '../core/monitoreo.js';
@@ -499,7 +499,7 @@ async function respaldo(el) {
       if (a === 'traer-demo') return (await import('./traer-demo.js')).abrirTraerDemo();
       if (a === 'json') {
         const datos = await api.rpc('exportar_respaldo');
-        descargar(new Blob([JSON.stringify(datos, null, 1)], { type: 'application/json' }), `LPS-GT_respaldo_${new Date().toISOString().slice(0, 10)}.json`);
+        descargar(new Blob([JSON.stringify(datos, null, 1)], { type: 'application/json' }), `${nombreArchivo('Respaldo')}.json`);
       }
       if (a === 'excel') {
         const wb = window.XLSX.utils.book_new();
@@ -507,7 +507,7 @@ async function respaldo(el) {
           const filas = await api.list(t, { eq: { area_id: store.area.id } });
           window.XLSX.utils.book_append_sheet(wb, window.XLSX.utils.json_to_sheet(filas.map(f => Object.fromEntries(Object.entries(f).map(([k, v]) => [k, typeof v === 'object' && v ? JSON.stringify(v) : v])))), t.slice(0, 30));
         }
-        window.XLSX.writeFile(wb, `LPS-GT_datos_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        window.XLSX.writeFile(wb, `${nombreArchivo('Datos principales')}.xlsx`);
       }
     } catch (err) { error(mensajeError(err)); }
   });

@@ -84,7 +84,6 @@ export async function render(el, { query }) {
     derivar: derivarActividad,
     claseFila: a => restriccionesActivas(a.id, estado.rests).length ? 'fila-aviso' : '',
     alGuardar: () => cargarSilencioso(),
-    nombreArchivo: () => `Look_ahead_${estado.semanas[0]}`,
     menuFila: a => [
       { label: '🚧 Restricciones…', action: () => a.id && abrirRestricciones(a, { alCambiar: recargar }) },
       { label: '💬 Comentarios y enlaces…', action: () => a.id && abrirDetalle('actividad', a) },

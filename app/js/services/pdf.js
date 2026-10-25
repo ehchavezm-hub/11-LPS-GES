@@ -6,6 +6,16 @@ import { error } from '../ui/ui.js';
 
 function dosDig(n) { return String(n).padStart(2, '0'); }
 
+/**
+ * Nombre de archivo de todos los reportes y para todos los usuarios: GT-LPS_Usuario_Reporte_Fecha
+ * (fecha DD-MM-AAAA; sin caracteres que Windows no admite en un nombre de archivo).
+ */
+export function nombreArchivo(reporte, d = new Date()) {
+  const fecha = `${dosDig(d.getDate())}-${dosDig(d.getMonth() + 1)}-${d.getFullYear()}`;
+  const limpio = t => String(t || '').replace(/[\\/:*?"<>|_]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return `GT-LPS_${limpio(store.usuario?.nombre || 'Usuario')}_${limpio(reporte)}_${fecha}`;
+}
+
 export function nombreProyectoActual() {
   return store.proyectoSel ? nombreProyecto(store.proyectoSel) : 'Todos los proyectos';
 }
@@ -64,7 +74,7 @@ export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', p
   const fecha = `${dosDig(d.getDate())}-${dosDig(d.getMonth() + 1)}-${d.getFullYear()}`;
   const hora = `${dosDig(d.getHours())}:${dosDig(d.getMinutes())}`;
   const proy = proyectoTexto || nombreProyectoActual();
-  const archivo = `${proy}-${modulo}-${fecha.replace(/-/g, '')}`.replace(/[\\/:*?"<>|]/g, '_');
+  const archivo = nombreArchivo(modulo);
   const version = param('version_app') || 'LPS_GT V1.00.01';
   const firma = param('firma_pdf') || 'By EHCM';
   const w = window.open('', '_blank', 'width=1100,height=860');

@@ -7,7 +7,7 @@ import { lunes, sumarSemanas, sumarDias, etiquetaSemana, esc, html, num, pct, fm
 import { error } from '../ui/ui.js';
 import { columnasActividad } from '../services/columnas.js';
 import { resumenPAC, resumenHistorico, colorPAC, paretoCNC, resumenRestricciones, capacidadSemana, colorCarga, restriccionesActivas } from '../services/indicadores.js';
-import { tablaPDF, kpisPDF, documentoReporte, nombreProyectoActual, PAPELES } from '../services/pdf.js';
+import { tablaPDF, kpisPDF, documentoReporte, nombreProyectoActual, nombreArchivo, PAPELES } from '../services/pdf.js';
 
 // ---------- Utilidades de los reportes ----------
 const badge = (t, c) => (t ? `<span class="badge" style="--c:${c || '#4E79A7'}">${esc(t)}</span>` : '');
@@ -347,7 +347,13 @@ export async function render(el) {
   }));
   pag.querySelector('[data-a="pdf"]').addEventListener('click', () => {
     const f = pag.querySelector('[data-prev]');
-    f.contentDocument.title = (pag.querySelector('[data-o="archivo"]').value || 'reporte').replace(/\.pdf$/i, '');
+    // El navegador propone como nombre del PDF el título de la página principal: se usa el del reporte mientras se imprime
+    const nombre = (pag.querySelector('[data-o="archivo"]').value || nombreArchivo('Reporte')).replace(/\.pdf$/i, '');
+    const tituloApp = document.title;
+    f.contentDocument.title = nombre; document.title = nombre;
+    const restaurar = () => { document.title = tituloApp; };
+    f.contentWindow.addEventListener('afterprint', restaurar, { once: true });
+    setTimeout(restaurar, 60000);
     f.contentWindow.focus(); f.contentWindow.print();
   });
   await generar();
@@ -365,7 +371,7 @@ async function generar(releer = true) {
   const papel = pag.querySelector('[data-o="papel"]').value;
   const unaHoja = pag.querySelector('[data-o="unaHoja"]').checked;
   const d = new Date();
-  const archivo = `${nombreProyectoActual()}-${rep.titulo}-${String(d.getDate()).padStart(2, '0')}${String(d.getMonth() + 1).padStart(2, '0')}${d.getFullYear()}`.replace(/[\\/:*?"<>|]/g, '_');
+  const archivo = nombreArchivo(rep.titulo, d);
   pag.querySelector('[data-o="archivo"]').value = archivo + '.pdf';
   try { localStorage.setItem('lpsgt-reportes', JSON.stringify({ papel, unaHoja, ultimo: rep.id })); } catch { /* sin almacenamiento */ }
   const carg = pag.querySelector('[data-carg]');

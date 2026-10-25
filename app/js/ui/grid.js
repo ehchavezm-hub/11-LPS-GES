@@ -6,6 +6,7 @@ import { api, mensajeError } from '../data/api.js';
 import { store, etiqueta, esGestor, puede, cargarCatalogo } from '../core/store.js';
 import { esc, html, normalizar, parseFecha, fmtFecha, num, debounce } from '../core/util.js';
 import { toast, error, confirmar, modal } from './ui.js';
+import { nombreArchivo } from '../services/pdf.js';
 
 const SOLO_LOCAL = k => k.startsWith('_');
 
@@ -869,7 +870,7 @@ export function crearGrilla(contenedor, cfg) {
 
   function exportarExcel() {
     if (cfg.exportar === false) return;
-    const nombre = (cfg.nombreArchivo?.() || cfg.id || 'datos') + '.xlsx';
+    const nombre = nombreArchivo(cfg.titulo || cfg.id || 'Datos') + '.xlsx';   // misma regla que los PDF
     tabla.download('xlsx', nombre, { sheetName: (cfg.titulo || 'Datos').slice(0, 30) });
   }
 
