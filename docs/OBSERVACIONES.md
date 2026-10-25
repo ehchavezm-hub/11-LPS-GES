@@ -132,6 +132,7 @@ Estado de cada observación al 25/10/2026.
 | 96 | Revisar cada módulo y hacer una tabla de todos los reportes | ✅ | `docs/REPORTES.md` | ✅ 40 salidas |
 | 97 | Tabla de las 96 observaciones: levantada, verificada y reconfirmada | ✅ | Este documento | ✅ |
 | 98 | Matriz de diagnóstico y compatibilidad de todo el aplicativo; corregir las incompatibilidades (manda la observación más reciente) | ✅ 16 incompatibilidades y 3 defectos de presentación corregidos | `compat98.js` (16 verificaciones), base de datos (migración 016) | ✅ Batería completa, humo (160 pantallas) y base de datos sin errores · `docs/MATRIZ-DIAGNOSTICO.md` |
+| 99 | Pasar los PDF de Tablero y de Equipo y capacidad al formato de anchos fijos | ✅ | `pdf99.js` | ✅ Tablas con anchos fijos, barras y colores; humo sin errores |
 
 ## Lo que encontró la reconfirmación
 

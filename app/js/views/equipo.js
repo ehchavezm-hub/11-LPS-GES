@@ -4,7 +4,7 @@ import { store, equipo, esGestor, lideres, valoresLista, horasDia, param, puede,
 import { lunes, sumarSemanas, sumarDias, etiquetaSemana, esc, html, num, pct, DIAS_NOMBRE, fmtCorto } from '../core/util.js';
 import { error, ok } from '../ui/ui.js';
 import { capacidadSemana, colorCarga } from '../services/indicadores.js';
-import { imprimirPDF } from '../services/pdf.js';
+import { imprimirPDF, tablaDePantalla } from '../services/pdf.js';
 
 let estado;
 
@@ -35,9 +35,8 @@ export async function render(el, { query }) {
         await pintar();
       } catch (err) { error(mensajeError(err)); }
     }
-    if (a === 'pdf') imprimirPDF('Equipo y capacidad', `<p>${esc(etiquetaSemana(estado.semana))}</p>` + document.querySelector('[data-tabla]').innerHTML.replace(/<select[\s\S]*?<\/select>/g, m => {
-      const sel = /value="([^"]*)" selected/.exec(m); return sel ? esc(store.valores.get(sel[1])?.valor || '') : '';
-    }), { proyectoTexto: 'Todos los proyectos', orientacion: 'landscape' });
+    if (a === 'pdf') imprimirPDF('Equipo y capacidad', `<p>${esc(etiquetaSemana(estado.semana))}</p>` + tablaDePantalla(document.querySelector('[data-tabla] table')),   // anchos fijos, como las demás tablas
+      { proyectoTexto: 'Todos los proyectos', orientacion: 'landscape' });
   });
   el.addEventListener('change', async e => {
     const s = e.target.closest('select[data-u]');

@@ -80,6 +80,6 @@ Cada archivo exporta las columnas visibles con el texto que se ve en pantalla.
 | Observación | Acción |
 |---|---|
 | La Ficha de proyecto en PDF todavía mostraba "Líderes" (se retiraron en el pedido 46) | Corregido: ahora muestra el Estado |
-| Los PDF de **Tablero** (tabla PAC por líder) y **Equipo y capacidad** copian la tabla de la pantalla, por eso no tienen los anchos fijos del resto | Pendiente de tu confirmación para pasarlos al mismo formato |
+| Los PDF de **Tablero** (tabla PAC por líder) y **Equipo y capacidad** copiaban la tabla de la pantalla, sin los anchos fijos del resto | Corregido (pedido 99): anchos fijos proporcionales a la pantalla, con barras de avance y colores de ubicación |
 | Pedido 98: columnas calculadas vacías en el PDF, reportes con columnas propias y títulos cortados a mitad de palabra | Corregido: el PDF usa el texto de cada celda, los reportes usan las columnas de cada pantalla y ninguna palabra se corta (ver `docs/MATRIZ-DIAGNOSTICO.md`) |
 | El PDF del Plan y el del Look Ahead aparecen en dos lugares: el módulo Reportes y el botón de cada pantalla | Es intencional. El de la pantalla imprime lo que se está viendo, con los filtros y columnas de ese momento. El del módulo Reportes permite elegir la semana, el periodo y el responsable. |

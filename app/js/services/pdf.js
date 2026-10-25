@@ -60,6 +60,8 @@ function estilosPDF({ version, proy, fecha, hora, firma }) {
   .kpi b { font-size: 13pt; color: var(--kc, #1A365D); }
   .badge { display: inline-block; padding: 0 2mm; border-radius: 2mm; font-size: 7pt; font-weight: 700; color: var(--c); border: .5pt solid var(--c); }
   .nota { color: #718096; font-size: 7.5pt; }
+  .barra-prog { height: 2.4mm; background: #F1F4F8; border: .3pt solid #CBD5E0; border-radius: 1mm; overflow: hidden; min-width: 12mm; }
+  .barra-prog > i { display: block; height: 100%; background: var(--bc, #59A14F); }
   img, svg, canvas { max-width: 100%; }
   @media print {
     body { background: #fff; }
@@ -158,7 +160,34 @@ export function tablaPDF(columnas, filas) {
   const total = pesos.reduce((a, b) => a + b, 0) || base;
   const colgroup = `<colgroup>${pesos.map(w => `<col style="width:${(w * 100 / total).toFixed(2)}%">`).join('')}</colgroup>`;
   return `<table class="fija">${colgroup}<thead><tr>${columnas.map(c => `<th${c.num ? ' class="num"' : ''}>${esc(c.titulo)}</th>`).join('')}</tr></thead>
-    <tbody>${filas.map(f => `<tr>${columnas.map(c => `<td${c.num ? ' class="num"' : c.fecha ? ' class="fecha"' : ''}>${c.html ? c.valor(f) : esc(c.valor(f) ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    <tbody>${filas.map(f => `<tr>${columnas.map(c => `<td${c.num ? ' class="num"' : c.fecha ? ' class="fecha"' : ''}${c.estilo && c.estilo(f) ? ` style="${esc(c.estilo(f))}"` : ''}>${c.html ? c.valor(f) : esc(c.valor(f) ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+}
+
+/**
+ * Columnas y filas de tablaPDF a partir de una tabla HTML de la pantalla (Tablero, Equipo y capacidad):
+ * mismos títulos, anchos proporcionales a los de la pantalla, el texto elegido en cada lista desplegable,
+ * barras de avance y color de fondo de cada celda.
+ */
+export function tablaDePantalla(tabla) {
+  if (!tabla) return '';
+  const filas = [...tabla.querySelectorAll('tr')];
+  const cab = filas.find(tr => tr.querySelector('th'));
+  if (!cab) return '';
+  const ths = [...cab.children];
+  const datos = filas.filter(tr => tr !== cab).map(tr => [...tr.children].map(td => {
+    const c = td.cloneNode(true);
+    c.querySelectorAll('select').forEach(sel => {
+      const orig = td.querySelector(`select[data-u="${sel.dataset.u}"][data-f="${sel.dataset.f}"]`) || sel;
+      const t = orig.selectedIndex > 0 ? orig.options[orig.selectedIndex].text : '';
+      sel.replaceWith(document.createTextNode(t));
+    });
+    return { html: c.innerHTML.trim(), estilo: td.getAttribute('style') || '' };
+  }));
+  const columnas = ths.map((th, i) => ({
+    titulo: th.textContent.trim(), ancho: Math.max(40, th.offsetWidth || 100), num: th.classList.contains('num'), html: true,
+    valor: f => f[i]?.html ?? '', estilo: f => (f[i]?.estilo || '').replace(/min-width:[^;]*;?/g, ''),
+  }));
+  return tablaPDF(columnas, datos);
 }
 
 export function kpisPDF(items) {

@@ -136,7 +136,7 @@ Revisión completa del aplicativo al **25/10/2026** (pedido 98). Reemplaza la ma
 | 5.1.2 | Gráficos: PAC por semana (con histórico), Pareto de CNC, PAC por gerencia | ✅ | ✅ `pac_historico` | ✅ |
 | 5.1.3 | PAC por líder; carga de la semana; restricciones por tipo | ✅ | ✅ | ✅ |
 | 5.1.4 | Filtros: semanas, gerencia, responsable, proyecto | ✅ | — | ✅ |
-| 5.1.5 | 📝 Resumen y 🖨 PDF | ✅ | ✅ | ✅ |
+| 5.1.5 | 📝 Resumen y 🖨 PDF | 🔧 | ✅ | 🔧 La tabla PAC por líder del PDF ahora tiene anchos fijos, como las demás tablas |
 | **5.2** | **Reunión semanal** | | | |
 | 5.2.1 | Seis pasos, cronómetro y modo reunión | ✅ | ✅ | ✅ Plan, Restricciones, Look Ahead |
 | 5.2.2 | Asistentes y Guardar reunión | ✅ | ✅ | ✅ |
@@ -147,7 +147,7 @@ Revisión completa del aplicativo al **25/10/2026** (pedido 98). Reemplaza la ma
 | 5.3.2 | Ubicación por día y capacidad (HH) | ✅ | ✅ | ✅ Look Ahead, Plan, Tablero |
 | 5.3.3 | Activar sábado y domingo | ✅ | ✅ | 🔧 Ver 2.1.1.3 |
 | 5.3.4 | Heredar la semana anterior | ✅ | ✅ | ✅ |
-| 5.3.5 | 🖨 PDF | ✅ | ✅ | ✅ |
+| 5.3.5 | 🖨 PDF | 🔧 | ✅ | 🔧 Ahora tiene anchos fijos, con los colores de ubicación y las barras de carga |
 
 ## 6. Reportes e impresión
 
