@@ -392,3 +392,9 @@ html.letra-grande .tabulator-row .tabulator-cell { padding: 9px 9px; }
 html.letra-grande .tabulator-edit-list .tabulator-edit-list-item { font-size: 15px; padding: 8px 10px; }
 html.letra-grande .btn, html.letra-grande .btn-sm { font-size: 14px; }
 html.letra-grande .aviso, html.letra-grande .nota { font-size: 14.5px; }
+
+/* Presentación preliminar de los PDF (misma barra que el módulo Reportes) */
+.vista-pdf { position: fixed; inset: 0; z-index: 1500; background: rgba(26, 26, 46, .55); display: flex; padding: 2.5vh 2.5vw; }
+.vista-pdf-caja { flex: 1; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+.vista-pdf-cab { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--dark); color: #fff; font-size: 14px; }
+.vista-pdf-cab .btn-icono { color: #fff; }

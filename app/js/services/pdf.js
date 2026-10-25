@@ -2,7 +2,6 @@
 // contenido en Manrope, márgenes de 10 mm, A4 vertical u horizontal, nombre PROYECTO-Módulo-DDMMAAAA.pdf.
 import { store, param, nombreProyecto } from '../core/store.js';
 import { esc } from '../core/util.js';
-import { error } from '../ui/ui.js';
 
 function dosDig(n) { return String(n).padStart(2, '0'); }
 
@@ -48,7 +47,7 @@ function estilosPDF({ version, proy, fecha, hora, firma }) {
   h2 { font-size: 10pt; color: #1A365D; margin: 5mm 0 2mm; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; page-break-inside: auto; }
   table.fija { table-layout: fixed; }
-  table.fija td, table.fija th { overflow-wrap: anywhere; white-space: pre-wrap; }
+  table.fija td, table.fija th { overflow-wrap: break-word; word-break: normal; hyphens: auto; white-space: pre-wrap; }
   table.fija .badge { white-space: nowrap; overflow-wrap: normal; }
   tr { page-break-inside: avoid; }
   th { background: #EBF2F8; color: #1A365D; text-align: left; font-weight: 700; }
@@ -69,39 +68,57 @@ function estilosPDF({ version, proy, fecha, hora, firma }) {
 `;
 }
 
+/**
+ * Abre la presentación preliminar de un PDF (igual a la del módulo Reportes): papel A0–A6, orientación,
+ * "Todo en 1 hoja", nombre del archivo y Guardar PDF. La usan todos los botones PDF de la aplicación.
+ */
 export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', proyectoTexto } = {}) {
-  const d = new Date();
-  const fecha = `${dosDig(d.getDate())}-${dosDig(d.getMonth() + 1)}-${d.getFullYear()}`;
-  const hora = `${dosDig(d.getHours())}:${dosDig(d.getMinutes())}`;
-  const proy = proyectoTexto || nombreProyectoActual();
+  document.querySelector('.vista-pdf')?.remove();
+  let pref = { papel: 'A4', unaHoja: false };
+  try { pref = { ...pref, ...JSON.parse(localStorage.getItem('lpsgt-reportes') || '{}') }; } catch { /* sin almacenamiento */ }
+  if (!PAPELES[pref.papel]) pref.papel = 'A4';
+  const estado = { orientacion };
   const archivo = nombreArchivo(modulo);
-  const version = param('version_app') || 'LPS_GT V1.00.01';
-  const firma = param('firma_pdf') || 'By EHCM';
-  const w = window.open('', '_blank', 'width=1100,height=860');
-  if (!w) return error('El navegador bloqueó la ventana de impresión. Permita las ventanas emergentes para este sitio.');
-  w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(archivo)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Urbanist:wght@500;700&display=swap" rel="stylesheet">
-<style id="pagina">@page { size: A4 ${orientacion}; }</style>
-<style>${estilosPDF({ version, proy, fecha, hora, firma })}</style></head><body>
-<div class="barra"><button class="pri" onclick="window.print()">🖨 Guardar PDF</button>
-  <button id="bv">Vertical</button><button id="bh">Horizontal</button>
-  <span style="margin-left:10px">Archivo:</span><input id="fn" value="${esc(archivo)}.pdf">
-  <span style="flex:1"></span><button onclick="window.close()">Cerrar</button></div>
-<div class="hoja" id="hoja">
-  <div class="enc"><span>${esc(version)}</span><span>${esc(proy)}</span><span>${fecha}, ${hora}</span></div>
-  <h1 class="titulo">${esc(modulo)}</h1>
-  ${contenidoHTML}
-  <div class="pie"><span>${esc(firma)}</span><span>—</span><span>Página 1 de 1 (vista previa)</span></div>
-</div>
-<script>
-  function ori(o){ document.getElementById('pagina').textContent='@page { size: A4 '+o+'; }';
-    document.getElementById('hoja').classList.toggle('land', o==='landscape');
-    document.getElementById('bv').classList.toggle('act', o==='portrait'); document.getElementById('bh').classList.toggle('act', o==='landscape'); }
-  document.getElementById('bv').onclick=function(){ori('portrait')}; document.getElementById('bh').onclick=function(){ori('landscape')};
-  document.getElementById('fn').oninput=function(e){ document.title=e.target.value.replace(/\\.pdf$/i,''); };
-  ori(${JSON.stringify(orientacion)});
-<\/script></body></html>`);
-  w.document.close();
+  const capa = document.createElement('div');
+  capa.className = 'vista-pdf';
+  capa.innerHTML = `<div class="vista-pdf-caja reportes-vista" role="dialog" aria-label="Presentación preliminar">
+      <div class="vista-pdf-cab"><b>🖨 ${esc(modulo)}</b><span class="flex"></span><button class="btn-icono" data-x title="Cerrar (Esc)">✕</button></div>
+      <div class="reportes-barra">
+        <label>Papel <select data-o="papel">${Object.keys(PAPELES).map(p => `<option${p === pref.papel ? ' selected' : ''}>${p}</option>`).join('')}</select></label>
+        <span class="seg"><button data-ori="landscape">▭ Horizontal</button><button data-ori="portrait">▯ Vertical</button></span>
+        <label><input type="checkbox" data-o="unaHoja"${pref.unaHoja ? ' checked' : ''}> Todo en 1 hoja</label>
+        <label class="archivo">📁 <input data-o="archivo" value="${esc(archivo)}.pdf"></label>
+        <span class="flex"></span>
+        <button class="btn btn-primario btn-sm" data-a="pdf">🖨 Guardar PDF</button>
+      </div>
+      <div class="reportes-hojas"><iframe title="Presentación preliminar"></iframe></div>
+    </div>`;
+  document.body.append(capa);
+  const marco = capa.querySelector('iframe');
+  const pintar = () => {
+    const papel = capa.querySelector('[data-o="papel"]').value, unaHoja = capa.querySelector('[data-o="unaHoja"]').checked;
+    try { localStorage.setItem('lpsgt-reportes', JSON.stringify({ ...pref, papel, unaHoja })); } catch { /* sin almacenamiento */ }
+    capa.querySelectorAll('[data-ori]').forEach(b => b.classList.toggle('activo', b.dataset.ori === estado.orientacion));
+    marco.srcdoc = documentoReporte(modulo, contenidoHTML, { papel, orientacion: estado.orientacion, unaHoja, proyectoTexto, archivo });
+  };
+  const cerrar = () => { capa.remove(); removeEventListener('keydown', tecla); };
+  const tecla = e => { if (e.key === 'Escape') cerrar(); };
+  addEventListener('keydown', tecla);
+  capa.querySelector('[data-x]').onclick = cerrar;
+  capa.addEventListener('mousedown', e => { if (e.target === capa) cerrar(); });
+  capa.querySelectorAll('[data-ori]').forEach(b => { b.onclick = () => { estado.orientacion = b.dataset.ori; pintar(); }; });
+  capa.querySelectorAll('[data-o="papel"], [data-o="unaHoja"]').forEach(x => { x.onchange = pintar; });
+  capa.querySelector('[data-a="pdf"]').onclick = () => {
+    // El navegador propone como nombre del PDF el título de la página principal
+    const nombre = (capa.querySelector('[data-o="archivo"]').value || archivo).replace(/\.pdf$/i, '');
+    const tituloApp = document.title;
+    marco.contentDocument.title = nombre; document.title = nombre;
+    const restaurar = () => { document.title = tituloApp; };
+    marco.contentWindow.addEventListener('afterprint', restaurar, { once: true });
+    setTimeout(restaurar, 60000);
+    marco.contentWindow.focus(); marco.contentWindow.print();
+  };
+  pintar();
 }
 
 // Ancho relativo por defecto cuando la columna no lo indica: textos largos más anchos, números angostos.
