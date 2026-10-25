@@ -10,22 +10,11 @@ export function nombreProyectoActual() {
   return store.proyectoSel ? nombreProyecto(store.proyectoSel) : 'Todos los proyectos';
 }
 
-export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', proyectoTexto } = {}) {
-  const d = new Date();
-  const fecha = `${dosDig(d.getDate())}-${dosDig(d.getMonth() + 1)}-${d.getFullYear()}`;
-  const hora = `${dosDig(d.getHours())}:${dosDig(d.getMinutes())}`;
-  const proy = proyectoTexto || nombreProyectoActual();
-  const archivo = `${proy}-${modulo}-${fecha.replace(/-/g, '')}`.replace(/[\\/:*?"<>|]/g, '_');
-  const version = param('version_app') || 'LPS_GT V1.00.01';
-  const firma = param('firma_pdf') || 'By EHCM';
+// Estilos del documento PDF (encabezado y pie de página, tablas, KPIs). Se usan en la ventana de impresión
+// y en la presentación preliminar del módulo Reportes.
+function estilosPDF({ version, proy, fecha, hora, firma }) {
   const cssTxt = s => JSON.stringify(String(s));
-  const w = window.open('', '_blank', 'width=1100,height=860');
-  if (!w) return error('El navegador bloqueó la ventana de impresión. Permita las ventanas emergentes para este sitio.');
-  w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(archivo)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Urbanist:wght@500;700&display=swap" rel="stylesheet">
-<style id="pagina">@page { size: A4 ${orientacion}; }</style>
-<style>
-  @page {
+  return `  @page {
     margin: 10mm;
     @top-left { content: ${cssTxt(version)}; font: 6pt 'Urbanist', sans-serif; color: #4A5568; }
     @top-center { content: ${cssTxt(proy)}; font: 6pt 'Urbanist', sans-serif; color: #4A5568; }
@@ -50,6 +39,7 @@ export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', p
   table { width: 100%; border-collapse: collapse; margin-bottom: 4mm; page-break-inside: auto; }
   table.fija { table-layout: fixed; }
   table.fija td, table.fija th { overflow-wrap: anywhere; white-space: pre-wrap; }
+  table.fija .badge { white-space: nowrap; overflow-wrap: normal; }
   tr { page-break-inside: avoid; }
   th { background: #EBF2F8; color: #1A365D; text-align: left; font-weight: 700; }
   th, td { border: .5pt solid #CBD5E0; padding: 1.4mm 2mm; font-size: 8pt; vertical-align: top; }
@@ -66,7 +56,23 @@ export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', p
     .barra, .enc, .pie { display: none; }
     .hoja { width: auto; margin: 0; padding: 0; box-shadow: none; }
   }
-</style></head><body>
+`;
+}
+
+export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', proyectoTexto } = {}) {
+  const d = new Date();
+  const fecha = `${dosDig(d.getDate())}-${dosDig(d.getMonth() + 1)}-${d.getFullYear()}`;
+  const hora = `${dosDig(d.getHours())}:${dosDig(d.getMinutes())}`;
+  const proy = proyectoTexto || nombreProyectoActual();
+  const archivo = `${proy}-${modulo}-${fecha.replace(/-/g, '')}`.replace(/[\\/:*?"<>|]/g, '_');
+  const version = param('version_app') || 'LPS_GT V1.00.01';
+  const firma = param('firma_pdf') || 'By EHCM';
+  const w = window.open('', '_blank', 'width=1100,height=860');
+  if (!w) return error('El navegador bloqueó la ventana de impresión. Permita las ventanas emergentes para este sitio.');
+  w.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(archivo)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Urbanist:wght@500;700&display=swap" rel="stylesheet">
+<style id="pagina">@page { size: A4 ${orientacion}; }</style>
+<style>${estilosPDF({ version, proy, fecha, hora, firma })}</style></head><body>
 <div class="barra"><button class="pri" onclick="window.print()">🖨 Guardar PDF</button>
   <button id="bv">Vertical</button><button id="bh">Horizontal</button>
   <span style="margin-left:10px">Archivo:</span><input id="fn" value="${esc(archivo)}.pdf">
@@ -111,4 +117,54 @@ export function tablaPDF(columnas, filas) {
 
 export function kpisPDF(items) {
   return `<div class="kpis">${items.map(([t, v, color]) => `<div class="kpi" style="--kc:${color || '#4E79A7'}"><small>${esc(t)}</small><b>${esc(v)}</b></div>`).join('')}</div>`;
+}
+
+// ---------- Presentación preliminar (módulo Reportes) ----------
+export const PAPELES = { A4: [210, 297], A3: [297, 420], Carta: [216, 279], Oficio: [216, 330] };
+
+/**
+ * Documento completo de un reporte para mostrarlo en un iframe e imprimirlo/guardarlo como PDF.
+ * papel: A4 | A3 | Carta | Oficio · orientacion: portrait | landscape · unaHoja: escala para que entre en una sola hoja.
+ */
+export function documentoReporte(titulo, contenidoHTML, { papel = 'A4', orientacion = 'portrait', unaHoja = false, proyectoTexto, archivo } = {}) {
+  const d = new Date();
+  const fecha = `${dosDig(d.getDate())}-${dosDig(d.getMonth() + 1)}-${d.getFullYear()}`;
+  const hora = `${dosDig(d.getHours())}:${dosDig(d.getMinutes())}`;
+  const proy = proyectoTexto || nombreProyectoActual();
+  const version = param('version_app') || 'LPS_GT V1.00.01';
+  const firma = param('firma_pdf') || 'By EHCM';
+  const [a, b] = PAPELES[papel] || PAPELES.A4;
+  const [ancho, alto] = orientacion === 'landscape' ? [b, a] : [a, b];
+  return `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>${esc(archivo || titulo)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Urbanist:wght@500;700&display=swap" rel="stylesheet">
+<style>${estilosPDF({ version, proy, fecha, hora, firma })}</style>
+<style>
+  @page { size: ${ancho}mm ${alto}mm; }
+  body { padding: 14px 0; }
+  .barra { display: none; }
+  .hoja { width: ${ancho}mm; min-height: ${alto}mm; }
+  .hoja.land { width: ${ancho}mm; }
+  @media screen { .hoja { zoom: var(--vista, 1); } }   /* la hoja entera cabe en el ancho de la vista previa */
+</style></head><body>
+<div class="hoja" id="hoja">
+  <div class="enc"><span>${esc(version)}</span><span>${esc(proy)}</span><span>${fecha}, ${hora}</span></div>
+  <h1 class="titulo">${esc(titulo)}</h1>
+  <div id="contenido">${contenidoHTML}</div>
+  <div class="pie"><span>${esc(firma)}</span><span>—</span><span>Vista preliminar</span></div>
+</div>
+<script>
+  const encajar = () => { const h = document.getElementById('hoja'); document.documentElement.style.setProperty('--vista', 1);
+    document.documentElement.style.setProperty('--vista', Math.min(1, (innerWidth - 28) / h.offsetWidth)); };
+  addEventListener('resize', encajar); addEventListener('load', encajar); encajar();
+  // "Todo en 1 hoja": reduce el contenido hasta que entre en el alto útil de la hoja
+  if (${unaHoja ? 'true' : 'false'}) {
+    const ajustar = () => {
+      const c = document.getElementById('contenido'); c.style.zoom = 1;
+      const mm = 96 / 25.4, util = (${alto} - 20) * mm - 70, anchoUtil = (${ancho} - 20) * mm;
+      const z = Math.min(1, util / c.scrollHeight, anchoUtil / c.scrollWidth);
+      c.style.zoom = z;
+    };
+    addEventListener('load', ajustar); setTimeout(ajustar, 50);
+  }
+<\/script></body></html>`;
 }

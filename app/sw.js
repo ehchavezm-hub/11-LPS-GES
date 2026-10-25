@@ -35,6 +35,7 @@ const ARCHIVOS = [
   'js/views/organigrama.js',
   'js/views/importar-proyectos.js',
   'js/views/traer-demo.js',
+  'js/views/reportes.js',
   'js/data/adapter-demo.js',
   'js/data/adapter-supabase.js',
   'js/data/api.js',

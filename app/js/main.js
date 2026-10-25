@@ -33,6 +33,7 @@ ruta('/proyecto/:id', () => import('./views/proyectos.js'));
 ruta('/actividad/:id', () => import('./views/actividad.js'));
 ruta('/restriccion/:id', () => import('./views/restricciones.js'));
 ruta('/plantillas', () => import('./views/plantillas.js'), { staff: true });
+ruta('/reportes', () => import('./views/reportes.js'));
 ruta('/config/:seccion', () => import('./views/config.js'), { gestor: true });
 ruta('/mejoras', () => import('./views/mejoras.js'));
 ruta('/ayuda', () => import('./views/ayuda.js'));
