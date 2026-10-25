@@ -104,6 +104,11 @@ async function atender(req: Request): Promise<Response> {
         await admin.auth.admin.deleteUser(id);
         return falla(ePerfil.message);
       }
+      // Supabase guarda app_metadata (creado_por) después de insertar el usuario, así que el disparador de alta
+      // lo trata como un registro propio: aquí se fija el cambio obligatorio de contraseña y se retira
+      // el aviso "Nuevo usuario por aprobar" (el administrador ya lo creó con su rol)
+      await admin.from('profiles').update({ debe_cambiar_clave: true }).eq('id', id);
+      await admin.from('notificaciones').delete().eq('tipo', 'usuario_nuevo').eq('texto', `Nuevo usuario por aprobar: ${email}`);
       return respuesta({ id });
     }
 

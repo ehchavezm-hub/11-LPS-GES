@@ -134,6 +134,7 @@ Estado de cada observación al 25/10/2026.
 | 98 | Matriz de diagnóstico y compatibilidad de todo el aplicativo; corregir las incompatibilidades (manda la observación más reciente) | ✅ 16 incompatibilidades y 3 defectos de presentación corregidos | `compat98.js` (16 verificaciones), base de datos (migración 016) | ✅ Batería completa, humo (160 pantallas) y base de datos sin errores · `docs/MATRIZ-DIAGNOSTICO.md` |
 | 99 | Pasar los PDF de Tablero y de Equipo y capacidad al formato de anchos fijos | ✅ | `pdf99.js` | ✅ Tablas con anchos fijos, barras y colores; humo sin errores |
 | 100 | Que Claude aplique todo en Supabase (aprobando solo lo necesario) | ✅ Conector de Supabase: migraciones 016 y 017 aplicadas y función `admin-usuarios` instalada (no lo estaba) | Consultas en la base: disparador activo y 0 funciones de disparador expuestas | ✅ Asesor de seguridad de Supabase revisado |
+| 101 | Crear un usuario nuevo en la versión real | ✅ Funciona. Se corrigió que el usuario creado por el administrador no quedaba obligado a cambiar su contraseña temporal y que llegaban avisos falsos de «Nuevo usuario por aprobar» | Prueba del usuario y consulta en la base | ✅ Función versión 2 instalada; usuario de prueba corregido y 3 avisos falsos retirados |
 
 ## Lo que encontró la reconfirmación
 

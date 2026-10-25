@@ -177,7 +177,7 @@ Revisión completa del aplicativo al **25/10/2026** (pedido 98). Reemplaza la ma
 |---|---|:-:|:-:|---|
 | **7.1** | **Usuarios y roles** | | | |
 | 7.1.1 | Tabla: Nombre, Código, Cargo, Correo, Rol, Gerencias, H/día, Estado (49) | ✅ | ✅ | ✅ |
-| 7.1.2 | Crear usuario con contraseña temporal y restablecerla | 🔧 | 🔧 Edge Function `admin-usuarios` | 🔧 **No estaba instalada en Supabase** (al flujo de GitHub le faltaban las credenciales y se saltaba ese paso). Se instaló el 25/10 con el conector de Supabase |
+| 7.1.2 | Crear usuario con contraseña temporal y restablecerla | 🔧 | 🔧 Edge Function `admin-usuarios` | 🔧 **No estaba instalada en Supabase** (al flujo de GitHub le faltaban las credenciales y se saltaba ese paso). Se instaló el 25/10 con el conector de Supabase y se probó creando un usuario real. Esa prueba mostró que el usuario no quedaba obligado a cambiar la contraseña y que llegaba un aviso falso de «por aprobar», porque Supabase guarda la marca del administrador después de crear la cuenta. Corregido en la función |
 | 7.1.3 | Eliminar usuario (se desactiva si tiene historial) | ✅ | ✅ `eliminar_usuario` | ✅ |
 | 7.1.4 | Ocho roles; el Super administrador edita los permisos del Administrador | ✅ | ✅ | ✅ Matriz de permisos (7.4) |
 | 7.1.5 | Organigrama: agregar, mover, generar, pantalla completa, PDF | ✅ | ✅ `organigrama_nodos` | ✅ Usuarios, Cargos, Reporte "Usuarios y roles" |
