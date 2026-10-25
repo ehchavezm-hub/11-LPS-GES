@@ -377,7 +377,7 @@ async function ficha(el, id) {
     }
     if (a === 'pdf') imprimirPDF('Ficha de proyecto', kpisPDF([['PAC', pct(r.pac), colorPAC(r.pac)], ['HH plan', num(r.hhPlan)], ['Restricciones abiertas', rr.abiertas]]) +
       tablaPDF([{ titulo: 'Campo', valor: x => x[0] }, { titulo: 'Valor', valor: x => x[1] }], [['Código', p.codigo], ['Nombre', p.nombre_completo || p.nombre_corto],
-        ['Gerencia', etiqueta(p.gerencia_id)], ['Fase', etiqueta(p.fase_id)], ['Líderes', lideresDe(id).map(nombre).join(', ')]]) +
+        ['Gerencia', etiqueta(p.gerencia_id)], ['Fase', etiqueta(p.fase_id)], ['Estado', textoEstado('estados_proyecto', p.estado)]]) +
       '<h2>Hitos</h2>' + tablaPDF([{ titulo: 'Hito', valor: h => h.nombre }, { titulo: 'Fecha', valor: h => fmtFecha(h.fecha) }, { titulo: 'Estado', valor: h => h.estado }], hitos),
       { proyectoTexto: `${p.codigo} · ${p.nombre_corto}` });
   });

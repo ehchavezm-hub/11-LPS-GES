@@ -21,7 +21,7 @@ capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GT_Alcance_v0.
 | [`supabase/migrations/`](supabase/migrations/) | Base de datos: tablas, reglas de seguridad por rol (RLS), reglas de negocio y datos iniciales. |
 | [`supabase/tests/`](supabase/tests/) | Pruebas automáticas de las reglas de seguridad (`bash supabase/tests/run.sh`). |
 | [`.github/workflows/`](.github/workflows/) | Publicación en GitHub Pages, respaldo semanal en Google Drive y pruebas. |
-| [`docs/`](docs/) | Documento de alcance y [decisiones de desarrollo](docs/DECISIONES-DESARROLLO.md). |
+| [`docs/`](docs/) | Documento de alcance, [decisiones de desarrollo](docs/DECISIONES-DESARROLLO.md) e [inventario de reportes](docs/REPORTES.md). |
 | [`especificacion/`](especificacion/00-indice.md) | Catálogo **referencial** tomado de ECM Project (solo plantillas, sin datos). |
 
 ## Puesta en marcha (una sola vez, ~30 minutos)
