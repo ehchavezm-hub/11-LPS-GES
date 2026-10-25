@@ -21,7 +21,7 @@ capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GT_Alcance_v0.
 | [`supabase/migrations/`](supabase/migrations/) | Base de datos: tablas, reglas de seguridad por rol (RLS), reglas de negocio y datos iniciales. |
 | [`supabase/tests/`](supabase/tests/) | Pruebas automáticas de las reglas de seguridad (`bash supabase/tests/run.sh`). |
 | [`.github/workflows/`](.github/workflows/) | Publicación en GitHub Pages, respaldo semanal en Google Drive y pruebas. |
-| [`docs/`](docs/) | Documento de alcance, [decisiones de desarrollo](docs/DECISIONES-DESARROLLO.md), [inventario de reportes](docs/REPORTES.md) y [seguimiento de las 96 observaciones](docs/OBSERVACIONES.md). |
+| [`docs/`](docs/) | Documento de alcance, [decisiones de desarrollo](docs/DECISIONES-DESARROLLO.md), [inventario de reportes](docs/REPORTES.md), [seguimiento de las observaciones](docs/OBSERVACIONES.md) y [matriz de compatibilidad](docs/MATRIZ-DIAGNOSTICO.md). |
 | [`especificacion/`](especificacion/00-indice.md) | Catálogo **referencial** tomado de ECM Project (solo plantillas, sin datos). |
 
 ## Puesta en marcha (una sola vez, ~30 minutos)
@@ -29,7 +29,7 @@ capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GT_Alcance_v0.
 ### 1. Base de datos (Supabase, plan gratuito)
 1. Cree una cuenta en <https://supabase.com> y un proyecto nuevo (región: São Paulo o la más cercana). Guarde la contraseña de la base de datos.
 2. En **SQL Editor**, ejecute en orden el contenido de:
-   `001_esquema.sql`, `002_seguridad.sql`, `003_datos_iniciales.sql`, `004_permisos_funciones.sql`, `005_usuarios_admin.sql`, `006_eliminar_usuarios.sql`, `007_roles_planificadores.sql`, `008_grupos_listas.sql`, `009_super_administrador.sql`, `010_cet_servicio.sql`, `011_eliminar_proyectos.sql`, `012_eliminar_proyecto_completo.sql`, `013_cargos.sql`, `014_organigrama.sql`, `015_endurecimiento.sql`.
+   `001_esquema.sql`, `002_seguridad.sql`, `003_datos_iniciales.sql`, `004_permisos_funciones.sql`, `005_usuarios_admin.sql`, `006_eliminar_usuarios.sql`, `007_roles_planificadores.sql`, `008_grupos_listas.sql`, `009_super_administrador.sql`, `010_cet_servicio.sql`, `011_eliminar_proyectos.sql`, `012_eliminar_proyecto_completo.sql`, `013_cargos.sql`, `014_organigrama.sql`, `015_endurecimiento.sql`, `016_restricciones_estado_la.sql`.
 3. **Cierre automático de semanas** (viernes 17:00): en **Database → Extensions** active `pg_cron` y ejecute en el SQL Editor:
    ```sql
    select cron.schedule('lpsgt-cierre', '5 * * * *', 'select public.cerrar_semanas_vencidas()');

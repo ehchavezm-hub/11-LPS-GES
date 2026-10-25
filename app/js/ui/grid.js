@@ -99,6 +99,40 @@ function etiquetaOpcion(col, v, fila) {
   if (pr) return `${pr.codigo} · ${pr.nombre_corto}${pr.estado === 'cerrado' ? ' (desactivado)' : ''}`;
   return col.tipo === 'lista' ? etiqueta(v) : String(v);
 }
+/** Texto visible de un HTML de celda (para el PDF): "<span class=badge>Solicitud</span>" → "Solicitud". */
+function textoHTML(h) {
+  if (h == null) return '';
+  const t = document.createElement('template');
+  t.innerHTML = String(h);
+  return t.content.textContent.trim();
+}
+/**
+ * Columna de una tabla PDF a partir de la definición de una columna de grilla: mismo título, texto que la celda
+ * (incluidas las columnas calculadas que se dibujan con "formato") y el ancho dado.
+ * La usan el botón PDF de cada pantalla y el módulo Reportes, para que ambos coincidan con la pantalla.
+ */
+export function definicionPDF(c, ancho = c.ancho || 100) {
+  if (!c || c.pdf === false || c.click) return null;   // botones (🚧, 💬, Ficha…) no van al PDF
+  const valorDe = fila => (c.valor ? c.valor(fila) : fila[c.field]);
+  const texto = fila => {
+    const v = valorDe(fila);
+    if (c.exportar) return c.exportar(v, fila);
+    if (c.formato && !c.colorear) return textoHTML(c.formato(v, fila));
+    if (c.tipo === 'lista') return etiquetaOpcion(c, v, fila);
+    if (c.tipo === 'fecha') return fmtFecha(v);
+    if (c.tipo === 'casilla') return v ? 'Sí' : '';
+    if (c.tipo === 'numero') return v === 0 && c.ocultarCero ? '' : (v == null || v === '' ? '' : num(v, 2));
+    return v ?? '';
+  };
+  const color = fila => (opcionesDe(c, fila).find(o => o.value === valorDe(fila)) || {}).color;
+  return {
+    titulo: c.title, ancho, num: c.tipo === 'numero', fecha: c.tipo === 'fecha' && !c.exportar && !c.formato,
+    html: !!c.colorear,
+    valor: c.colorear
+      ? fila => { const t = texto(fila); const k = color(fila); return t ? `<span class="badge" style="--c:${k || '#4E79A7'}">${esc(t)}</span>` : ''; }
+      : texto,
+  };
+}
 /** Convierte el texto pegado o escrito al valor que guarda la columna. */
 function convertir(col, texto, fila) {
   if (texto == null) return null;
@@ -767,8 +801,13 @@ export function crearGrilla(contenedor, cfg) {
       if (cfgVista.columnas?.length) {
         // Las vistas guardadas antes también traían el título: se descarta y se usa el actual
         // anchoFijo: el ancho lo define la columna (p. ej. días L–D angostos), no la vista guardada
-        const conocidas = cfgVista.columnas.filter(c => porCampo.has(c.field))
-          .map(({ title, ...c }) => (porCampo.get(c.field).anchoFijo ? (({ width, ...r }) => r)(c) : c));
+        // visibilidadFija: la visibilidad la decide la pantalla (p. ej. sábado y domingo según el parámetro), no la vista guardada
+        const conocidas = cfgVista.columnas.filter(c => porCampo.has(c.field)).map(({ title, ...c }) => {
+          const def = porCampo.get(c.field);
+          if (def.anchoFijo) delete c.width;
+          if (def.visibilidadFija) c.visible = def.visible !== false;
+          return c;
+        });
         // Columnas que no estaban en la vista guardada (p. ej. agregadas en una versión nueva): van en su lugar
         // original, antes de la columna que las sigue, y no al final
         const disposicion = [...conocidas];
@@ -936,27 +975,8 @@ export function crearGrilla(contenedor, cfg) {
      * [{ titulo, ancho, num, html, valor(fila) }]. Se omiten las columnas de botones (pdf: false).
      */
     columnasPDF() {
-      return tabla.getColumns().filter(col => col.isVisible() && porCampo.has(col.getField())).map(col => {
-        const c = porCampo.get(col.getField());
-        if (c.pdf === false || c.click) return null;   // botones (🚧, 💬, Ficha…) no van al PDF
-        const valorDe = fila => (c.valor ? c.valor(fila) : fila[c.field]);
-        const texto = fila => {
-          const v = valorDe(fila);
-          if (c.tipo === 'lista') return etiquetaOpcion(c, v, fila);
-          if (c.tipo === 'fecha') return fmtFecha(v);
-          if (c.tipo === 'casilla') return v ? 'Sí' : '';
-          if (c.tipo === 'numero') return v === 0 && c.ocultarCero ? '' : (v == null || v === '' ? '' : num(v, 2));
-          return c.exportar ? c.exportar(v, fila) : (v ?? '');
-        };
-        const color = fila => (opcionesDe(c, fila).find(o => o.value === valorDe(fila)) || {}).color;
-        return {
-          titulo: c.title, ancho: col.getWidth(), num: c.tipo === 'numero',
-          html: !!c.colorear,
-          valor: c.colorear
-            ? fila => { const t = texto(fila); const k = color(fila); return t ? `<span class="badge" style="--c:${k || '#4E79A7'}">${esc(t)}</span>` : ''; }
-            : texto,
-        };
-      }).filter(Boolean);
+      return tabla.getColumns().filter(col => col.isVisible() && porCampo.has(col.getField()))
+        .map(col => definicionPDF(porCampo.get(col.getField()), col.getWidth())).filter(Boolean);
     },
     refrescar() { tabla.getRows().forEach(reformatear); },
     /** Filtro propio de la vista (además de los filtros de cada columna); fn(datosFila) → true para mostrar. */

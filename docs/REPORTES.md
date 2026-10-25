@@ -7,7 +7,9 @@ Revisión de todos los módulos y procesos del aplicativo al 25/10/2026: cada re
 - Nombre del archivo: **`GT-LPS_Usuario_Reporte_Fecha`** (fecha DD-MM-AAAA). La misma regla se aplica a Excel y al respaldo.
 - Encabezado: versión, proyecto seleccionado (o "Todos los proyectos"), fecha y hora. Pie: firma y número de página.
 - Las tablas tienen anchos de columna fijos y proporcionales. Si el reporte sale de una grilla, usa **las mismas columnas, orden y anchos que la pantalla**.
-- Respetan el proyecto elegido en el menú lateral y los permisos de cada rol.
+- Respetan el proyecto elegido en el menú lateral y los permisos de cada rol. La excepción es "Carga vs capacidad", que suma todos los proyectos de cada persona, porque la capacidad es de la persona.
+- El rol Consulta ve en el módulo Reportes solo los 4 del Tablero (Informe ejecutivo, PAC por semana, PAC por responsable y Pareto).
+- Los reportes de PAC terminan, por defecto, en la última semana completa, como el Tablero. El Plan semanal y las No programadas usan la semana actual.
 
 ## 1. Módulo Reportes (menú lateral → 🖨 Reportes)
 
@@ -16,8 +18,8 @@ Revisión de todos los módulos y procesos del aplicativo al 25/10/2026: cada re
 | 1 | Planificación | Plan semanal | Semana, Responsable | PAC, comprometidas, completadas, no completadas, no programadas y HH plan; compromisos con las columnas de la grilla del Plan |
 | 2 | Planificación | Look Ahead | Responsable | Una tabla por semana del horizonte (columnas de la grilla) más las restricciones pendientes de cada actividad |
 | 3 | Planificación | Actividades no programadas | Semana, Responsable | Compromisos que surgieron durante la semana (no afectan el PAC) |
-| 4 | Planificación | Log de restricciones | Responsable | Abiertas, vencidas, levantadas y % a tiempo; detalle con estado (incluye "Vencida") |
-| 5 | Planificación | Cartera de servicios | Responsable | Total, abiertas y nuevas; detalle de solicitudes con estado |
+| 4 | Planificación | Log de restricciones | Responsable | Abiertas, vencidas, levantadas y % a tiempo; detalle con las columnas de la pantalla Restricciones |
+| 5 | Planificación | Cartera de servicios | Responsable | Total, abiertas y nuevas; detalle con las columnas de la pantalla Cartera (incluye CET y Servicio) |
 | 6 | Seguimiento y control | Informe ejecutivo | Semana, Periodo, Responsable | KPIs del periodo y de la semana, gráfico de PAC por semana con la meta y las 5 principales CNC |
 | 7 | Seguimiento y control | PAC por semana | Semana, Periodo, Responsable | Gráfico con la meta y tabla semanal (incluye el PAC histórico importado) |
 | 8 | Seguimiento y control | PAC por responsable | Semana, Periodo | Gráfico y tabla por persona: PAC, HH plan y precisión |
@@ -27,7 +29,7 @@ Revisión de todos los módulos y procesos del aplicativo al 25/10/2026: cada re
 | 12 | Configuración | Catálogo de proyectos / procesos | — | Una tabla por estado (activos, en pausa, cerrados, propuestos) |
 | 13 | Configuración | CET / Servicios | — | Proyecto, CET, servicio y si está activo |
 | 14 | Configuración | Usuarios y roles (con organigrama) | — | Tabla igual a la de la pantalla Usuarios y el organigrama en imagen vectorial |
-| 15 | Configuración | Plantillas | — | Plantillas recurrentes y de servicio con sus actividades y HH |
+| 15 | Configuración | Plantillas | — | Plantillas recurrentes y de servicio con las columnas de la pantalla Plantillas |
 
 ## 2. Botón 🖨 PDF de cada pantalla
 
@@ -79,4 +81,5 @@ Cada archivo exporta las columnas visibles con el texto que se ve en pantalla.
 |---|---|
 | La Ficha de proyecto en PDF todavía mostraba "Líderes" (se retiraron en el pedido 46) | Corregido: ahora muestra el Estado |
 | Los PDF de **Tablero** (tabla PAC por líder) y **Equipo y capacidad** copian la tabla de la pantalla, por eso no tienen los anchos fijos del resto | Pendiente de tu confirmación para pasarlos al mismo formato |
+| Pedido 98: columnas calculadas vacías en el PDF, reportes con columnas propias y títulos cortados a mitad de palabra | Corregido: el PDF usa el texto de cada celda, los reportes usan las columnas de cada pantalla y ninguna palabra se corta (ver `docs/MATRIZ-DIAGNOSTICO.md`) |
 | El PDF del Plan y el del Look Ahead aparecen en dos lugares: el módulo Reportes y el botón de cada pantalla | Es intencional. El de la pantalla imprime lo que se está viendo, con los filtros y columnas de ese momento. El del módulo Reportes permite elegir la semana, el periodo y el responsable. |

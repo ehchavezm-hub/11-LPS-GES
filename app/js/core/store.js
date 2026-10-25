@@ -141,6 +141,18 @@ export function servicioDeProyecto(p) {
   const asociados = valoresLista('servicios').filter(v => v.extra?.proyecto_id === p.id);
   return asociados.length === 1 ? asociados[0].id : null;
 }
+/** Proyecto al que pertenece un CET / Servicio (columna Proyecto de la lista), o null. */
+export function proyectoDeServicio(id) { return (id && store.valores.get(id)?.extra?.proyecto_id) || null; }
+/**
+ * Opciones de CET / Servicio para elegir: si se indica un proyecto, solo los de ese proyecto y los que no tienen proyecto
+ * (si el proyecto no tiene ninguno asociado, se ofrecen todos). etiqueta(v) arma el texto de cada opción.
+ */
+export function opcionesServicio({ proyectoId = null, etiqueta: etq = v => (v.codigo ? `${v.codigo} · ${v.valor}` : v.valor), vacio = true } = {}) {
+  let vs = valoresLista('servicios');
+  if (proyectoId && vs.some(v => v.extra?.proyecto_id === proyectoId)) vs = vs.filter(v => !v.extra?.proyecto_id || v.extra.proyecto_id === proyectoId);
+  const ops = vs.map(v => ({ value: v.id, label: etq(v) }));
+  return vacio ? [{ value: null, label: '—' }, ...ops] : ops;
+}
 export function nombreProyecto(id) { const p = proyecto(id); return p ? `${p.codigo} · ${p.nombre_corto}` : ''; }
 export function proyectosActivos() { return store.proyectos.filter(p => p.estado === 'activo' || p.estado === 'propuesto'); }
 export function opcionesProyectos() {

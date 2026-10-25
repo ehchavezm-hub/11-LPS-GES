@@ -363,4 +363,31 @@ do $$ begin
   assert not exists (select 1 from pg_class c where c.relnamespace = 'public'::regnamespace and c.relkind = 'r' and not c.relrowsecurity), 'tabla sin RLS';
 end $$;
 
+-- ---------- 016: el Estado LA sigue a las restricciones, las levante quien las levante ----------
+insert into auth.users (email, raw_user_meta_data) values ('lider3@x.pe', '{"nombre":"Lider Tres"}'), ('lider4@x.pe', '{"nombre":"Lider Cuatro"}');
+update profiles set rol = 'lider', activo = true, area_id = (select area_id from profiles where email = 'admin@x.pe')
+ where email in ('lider3@x.pe', 'lider4@x.pe');
+set role authenticated;
+select como('lider3@x.pe');
+insert into actividades (area_id, semana, responsable_id, descripcion, comprometida, estado_la)
+values (mi_area(), date_trunc('week', current_date)::date + 14, auth.uid(), 'LA con restricción', false, 'pendiente');
+insert into restricciones (area_id, actividad_id, descripcion, estado)
+values (mi_area(), (select id from actividades where descripcion = 'LA con restricción'), 'Falta información', 'pendiente');
+do $$ begin assert (select estado_la from actividades where descripcion = 'LA con restricción') = 'con_restriccion', 'no pasó a Con restricción'; end $$;
+-- Otra persona del equipo la levanta (no puede editar la actividad, pero el Estado LA se actualiza igual)
+select como('lider4@x.pe');
+update actividades set descripcion = 'Editada por otro' where descripcion = 'LA con restricción';   -- RLS: no la modifica
+update restricciones set estado = 'levantada', f_levantada = current_date where descripcion = 'Falta información';
+reset role;
+do $$ begin
+  assert not exists (select 1 from actividades where descripcion = 'Editada por otro'), 'otra persona editó la actividad';
+  assert (select estado_la from actividades where descripcion = 'LA con restricción') = 'lista', 'no pasó a Lista al levantar la última restricción';
+end $$;
+set role authenticated;
+select como('lider3@x.pe');
+update restricciones set estado = 'pendiente', f_levantada = null where descripcion = 'Falta información';
+delete from restricciones where descripcion = 'Falta información';
+reset role;
+do $$ begin assert (select estado_la from actividades where descripcion = 'LA con restricción') = 'lista', 'no volvió a Lista al eliminar la restricción'; end $$;
+
 \echo 'Todas las pruebas pasaron'

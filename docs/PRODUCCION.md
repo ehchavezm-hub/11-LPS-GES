@@ -47,7 +47,8 @@ Se crea una segunda área con su propio superadministrador y se verifica:
 
 1. Supabase → **SQL Editor** → New query.
 2. Pegar el contenido de [`supabase/migrations/015_endurecimiento.sql`](../supabase/migrations/015_endurecimiento.sql) y ejecutar (**Run**).
-3. Opcional: **Advisors → Security Advisor**. No deberían quedar avisos de RLS ni de `search_path`.
+3. Repetir con [`supabase/migrations/016_restricciones_estado_la.sql`](../supabase/migrations/016_restricciones_estado_la.sql) (matriz de compatibilidad, pedido 98): el Estado LA sigue a las restricciones aunque las levante otra persona del equipo.
+4. Opcional: **Advisors → Security Advisor**. No deberían quedar avisos de RLS ni de `search_path`.
 
 ---
 

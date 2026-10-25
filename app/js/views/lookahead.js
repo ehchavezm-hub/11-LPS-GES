@@ -66,12 +66,14 @@ export async function render(el, { query }) {
         restricciones: { get: id => restriccionesActivas(id, estado.rests).length },
         colaboracion: estado.colab,
         abrirRestricciones: a => abrirRestricciones(a, { alCambiar: recargar }),
-        abrirDetalle: a => abrirDetalle('actividad', a),
+        abrirDetalle: a => abrirDetalle('actividad', a, { alCambiar: n => { estado.colab.set(a.id, n); grilla.refrescar(); } }),
       },
     }),
     camposCalc: CAMPOS_CALC_ACT,
     agrupar: [{ field: 'semana', label: 'Semana' }, { field: 'responsable_id', label: 'Responsable' }, { field: 'proyecto_id', label: 'Proyecto' }, { field: 'estado_la', label: 'Estado LA' }],
-    puedeEditarFila: a => puedeEditarActividad(a) && !a.comprometida,
+    // Una comprometida sigue editable mientras no tenga estado final (p. ej. para volver de "Trasladada" a "Lista");
+    // una vez reportada en el Plan (completada, no completada o cancelada) queda bloqueada
+    puedeEditarFila: a => puedeEditarActividad(a) && (!a.comprometida || a.estado === 'programado'),
     campoInicial: 'descripcion',
     listaParaCrear: a => !!((a.descripcion && a.descripcion.trim()) || a.proyecto_id || Number(a.hh_total)),
     nuevaFila: () => {
@@ -86,7 +88,7 @@ export async function render(el, { query }) {
     alGuardar: () => cargarSilencioso(),
     menuFila: a => [
       { label: '🚧 Restricciones…', action: () => a.id && abrirRestricciones(a, { alCambiar: recargar }) },
-      { label: '💬 Comentarios y enlaces…', action: () => a.id && abrirDetalle('actividad', a) },
+      { label: '💬 Comentarios y enlaces…', action: () => a.id && abrirDetalle('actividad', a, { alCambiar: n => { estado.colab.set(a.id, n); grilla.refrescar(); } }) },
     ],
   });
   grilla.listo.then(() => grilla.tabla.setGroupBy('semana'));
@@ -121,6 +123,14 @@ async function leer() {
     api.list('ubicaciones_dia', { eq: { area_id: area }, gte: { fecha: estado.semanas[0] }, lte: { fecha: sumarDias(estado.semanas.at(-1), 6) } }),
   ]);
   Object.assign(estado, { acts, rests, ubic });
+  // Cantidad de comentarios y enlaces de cada actividad (columna 💬), igual que en el Plan semanal
+  try {
+    const ids = new Set(acts.map(a => a.id));
+    const [coms, enls] = await Promise.all([
+      api.list('comentarios', { eq: { entidad: 'actividad' } }), api.list('enlaces', { eq: { entidad: 'actividad' } })]);
+    estado.colab.clear();
+    for (const c of [...coms, ...enls]) if (ids.has(c.entidad_id)) estado.colab.set(c.entidad_id, (estado.colab.get(c.entidad_id) || 0) + 1);
+  } catch { /* opcional */ }
 }
 async function cargarSilencioso() { try { await leer(); pintarCabecera(); grilla.refrescar(); } catch { /* reintento en el próximo cambio */ } }
 async function recargar() { await cargarSilencioso(); }
@@ -183,11 +193,14 @@ const acciones = {
     if (d.responsable !== store.usuario.id && !esGestor()) return error('Solo puede generar actividades para usted.');
     const items = await api.list('plantilla_items', { eq: { plantilla_id: d.plantilla }, order: [['orden', true]] });
     const p = proyecto(d.proyecto);
+    const pl = plantillas.find(x => x.id === d.plantilla);
+    // CET / Servicio de cada actividad: el del ítem; si no tiene, el de la plantilla o el del proyecto
+    const servicio = i => i.servicio_id || pl?.servicio_id || servicioDeProyecto(p);
     try {
       await api.insert('actividades', items.map((i, k) => ({
         area_id: store.area.id, semana: sumarSemanas(d.semana, Number(i.semana_offset) || 0), responsable_id: d.responsable,
         comprometida: false, tipo: 'programada', estado: 'programado', estado_la: 'pendiente', origen: 'plantilla', origen_id: i.id,
-        proyecto_id: d.proyecto, gerencia_id: p?.gerencia_id || i.gerencia_id, cet_id: i.cet_id, servicio_id: i.servicio_id,
+        proyecto_id: d.proyecto, gerencia_id: p?.gerencia_id || i.gerencia_id, cet_id: i.cet_id, servicio_id: servicio(i),
         descripcion: i.descripcion, resp2: i.resp2, orden: k,
         ...Object.fromEntries(DIAS.map(x => [`hh_${x}`, Number(i[`hh_${x}`]) || 0])),
       })));

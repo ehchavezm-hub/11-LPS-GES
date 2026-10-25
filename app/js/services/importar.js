@@ -144,12 +144,17 @@ export async function importar(analisis, mapa, progreso = () => {}) {
   const res = { actividades: 0, historico: 0, proyectos: 0, cierres: 0, omitidas: 0, valores: 0 };
 
   // Valores de listas faltantes (CNC, servicios, gerencias)
+  // CET de cada servicio del Excel (columna CET de la misma fila): el valor nuevo de "CET / Servicio" se crea con su código
+  const cetDe = new Map();
+  for (const f of analisis.filas) if (f.servicio && f.cet && !cetDe.has(f.servicio)) cetDe.set(f.servicio, f.cet);
+  const codigoLibre = (clave, c) => c && !valoresLista(clave, { inactivos: true }).some(v => normalizar(v.codigo || '') === normalizar(c));
   const asegurar = async (clave, textos) => {
     const lista = store.listas[clave]?.lista;
     if (!lista || !mapa.crearListas) return;
     for (const t of textos) {
-      if (buscarValor(clave, t)) continue;
-      const [v] = await api.insert('lista_valores', { lista_id: lista.id, valor: t, codigo: clave === 'gerencias' ? t : null, orden: 900 });
+      if (buscarValor(clave, t) || (clave === 'servicios' && buscarValor(clave, cetDe.get(t)))) continue;
+      const codigo = clave === 'gerencias' ? t : clave === 'servicios' && codigoLibre(clave, cetDe.get(t)) ? cetDe.get(t) : null;
+      const [v] = await api.insert('lista_valores', { lista_id: lista.id, valor: t, codigo, orden: 900 });
       store.valores.set(v.id, v); store.listas[clave].valores.push(v); res.valores++;
     }
   };
@@ -187,7 +192,7 @@ export async function importar(analisis, mapa, progreso = () => {}) {
     const reg = {
       area_id: area, semana: f.semana, responsable_id: uid, resp2: f.resp2 || null, proyecto_id: pid,
       gerencia_id: buscarValor('gerencias', f.programa) || store.proyectos.find(p => p.id === pid)?.gerencia_id || null,
-      cet_id: null, servicio_id: buscarValor('servicios', f.servicio || f.cet), descripcion: f.actividad,
+      cet_id: null, servicio_id: buscarValor('servicios', f.servicio) || buscarValor('servicios', f.cet), descripcion: f.actividad,   // por nombre o por su CET
       hh_lu: f.hh_lu, hh_ma: f.hh_ma, hh_mi: f.hh_mi, hh_ju: f.hh_ju, hh_vi: f.hh_vi, hh_sa: f.hh_sa, hh_do: f.hh_do,
       tipo: tipoDe(f.tipo), comprometida: true, estado_la: 'trasladada', estado, cnc_id: cncId, comentario, origen: 'importacion',
     };

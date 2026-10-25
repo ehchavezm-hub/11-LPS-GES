@@ -1,6 +1,6 @@
 // Plantillas: actividades recurrentes de cada líder (6.6) y plantillas de servicio (M-05).
 import { api, mensajeError } from '../data/api.js';
-import { store, esGestor, puede, lideres, opciones, nombre } from '../core/store.js';
+import { store, esGestor, puede, lideres, opcionesServicio, nombre } from '../core/store.js';
 import { columnasActividad, derivarActividad } from '../services/columnas.js';
 import { esc, html } from '../core/util.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -86,9 +86,9 @@ async function pintarGrilla() {
  * Semana y Resp. 1 se adaptan: en una plantilla de servicio la semana es relativa (+0, +1…) y el responsable
  * y el proyecto se eligen al aplicarla; en las recurrentes, la actividad va cada semana a nombre de su dueño.
  */
-function columnasPlantilla() {
+export function columnasPlantilla(modo = estado.modo, duenio = estado?.duenio) {
   const la = new Map(columnasActividad({ modo: 'lookahead', semanasLA: [] }).map(c => [c.field, c]));
-  const servicio = estado.modo === 'servicio';
+  const servicio = modo === 'servicio';
   const alAplicar = () => '<span class="nota">al aplicar</span>';
   return [
     servicio
@@ -96,7 +96,7 @@ function columnasPlantilla() {
           opciones: () => Array.from({ length: 12 }, (_, n) => ({ value: n, label: n ? `Semana +${n}` : 'Semana de inicio' })) }
       : { field: '_semana', title: 'Semana', tipo: 'texto', ancho: 175, calc: true, filtro: false, formato: () => 'Cada semana' },
     { field: '_resp', title: 'Resp. 1', tipo: 'texto', ancho: 130, calc: true, filtro: false,
-      formato: () => (servicio ? alAplicar() : esc(nombre(estado.duenio))) },
+      formato: () => (servicio ? alAplicar() : esc(nombre(duenio))) },
     la.get('gerencia_id'),
     servicio ? { ...la.get('proyecto_id'), editable: false, formato: alAplicar } : la.get('proyecto_id'),
     la.get('_cet'), la.get('servicio_id'), la.get('descripcion'),
@@ -108,7 +108,7 @@ function columnasPlantilla() {
 async function nuevaPlantilla() {
   await pedirDatos({
     titulo: 'Nueva plantilla de servicio', texto: 'Crear',
-    campos: [{ name: 'nombre', label: 'Nombre', required: true, full: true }, { name: 'servicio_id', label: 'CET / Servicio', type: 'select', options: opciones('servicios') }],
+    campos: [{ name: 'nombre', label: 'Nombre', required: true, full: true }, { name: 'servicio_id', label: 'CET / Servicio', type: 'select', options: opcionesServicio() }],
     alGuardar: async d => {
       const [p] = await api.insert('plantillas', { ...d, area_id: store.area.id, tipo: 'servicio' });
       estado.plantilla = p.id; ok('Plantilla creada. Agregue sus actividades.');
@@ -122,7 +122,7 @@ async function renombrar() {
   if (!p) return;
   await pedirDatos({
     titulo: 'Plantilla', valores: p,
-    campos: [{ name: 'nombre', label: 'Nombre', required: true, full: true }, { name: 'servicio_id', label: 'CET / Servicio', type: 'select', options: opciones('servicios') },
+    campos: [{ name: 'nombre', label: 'Nombre', required: true, full: true }, { name: 'servicio_id', label: 'CET / Servicio', type: 'select', options: opcionesServicio() },
       { name: 'activa', label: 'Estado', type: 'checkbox', texto: 'Activa (disponible para aplicar)' }],
     alGuardar: async d => { await api.update('plantillas', p.id, d); ok('Plantilla actualizada.'); },
   });

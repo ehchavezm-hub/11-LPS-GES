@@ -49,6 +49,7 @@ function estilosPDF({ version, proy, fecha, hora, firma }) {
   table.fija { table-layout: fixed; }
   table.fija td, table.fija th { overflow-wrap: break-word; word-break: normal; hyphens: auto; white-space: pre-wrap; }
   table.fija .badge { white-space: nowrap; overflow-wrap: normal; }
+  table.fija td.fecha { white-space: nowrap; overflow-wrap: normal; }
   tr { page-break-inside: avoid; }
   th { background: #EBF2F8; color: #1A365D; text-align: left; font-weight: 700; }
   th, td { border: .5pt solid #CBD5E0; padding: 1.4mm 2mm; font-size: 8pt; vertical-align: top; }
@@ -137,10 +138,27 @@ function anchoPorDefecto(c) {
  */
 export function tablaPDF(columnas, filas) {
   const pesos = columnas.map(c => Number(c.ancho) || anchoPorDefecto(c));
-  const total = pesos.reduce((a, b) => a + b, 0) || 1;
+  // Mínimos legibles: ninguna palabra del título se corta ("Responsable", "identificada") y las fechas van en una línea.
+  // Se expresan como fracción del ancho de la tabla; las demás columnas ceden ese espacio en proporción.
+  const base = pesos.reduce((a, b) => a + b, 0) || 1;
+  const palabraMax = t => Math.max(0, ...String(t ?? '').split(/[\s/·,;:()–-]+/).map(w => w.length));
+  const muestra = filas.slice(0, 200);
+  const minimo = c => {
+    const enTitulo = palabraMax(c.titulo) * 0.0065 + 0.016;
+    const enCeldas = c.html || c.fecha ? 0 : Math.min(0.12, Math.max(0, ...muestra.map(f => palabraMax(c.valor(f)))) * 0.0058 + 0.016);
+    return Math.max(c.fecha ? 0.075 : 0, enTitulo, enCeldas);
+  };
+  const mins = columnas.map(minimo);
+  if (mins.reduce((a, b) => a + b, 0) < 0.95) {
+    for (let k = 0; k < 3; k++) {
+      const t = pesos.reduce((a, b) => a + b, 0);
+      pesos.forEach((w, i) => { if (w / t < mins[i]) pesos[i] = mins[i] * t; });
+    }
+  }
+  const total = pesos.reduce((a, b) => a + b, 0) || base;
   const colgroup = `<colgroup>${pesos.map(w => `<col style="width:${(w * 100 / total).toFixed(2)}%">`).join('')}</colgroup>`;
   return `<table class="fija">${colgroup}<thead><tr>${columnas.map(c => `<th${c.num ? ' class="num"' : ''}>${esc(c.titulo)}</th>`).join('')}</tr></thead>
-    <tbody>${filas.map(f => `<tr>${columnas.map(c => `<td${c.num ? ' class="num"' : ''}>${c.html ? c.valor(f) : esc(c.valor(f) ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    <tbody>${filas.map(f => `<tr>${columnas.map(c => `<td${c.num ? ' class="num"' : c.fecha ? ' class="fecha"' : ''}>${c.html ? c.valor(f) : esc(c.valor(f) ?? '')}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
 
 export function kpisPDF(items) {

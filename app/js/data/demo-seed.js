@@ -30,6 +30,8 @@ export function crearDatosDemo() {
       valores[clave].push(v);
     });
   }
+  // Demostración: cada servicio con un CET ficticio, para que se vea el par CET ↔ Servicio
+  valores.servicios.forEach((v, i) => { if (!v.codigo) v.codigo = `CET-${String(101 + i)}`; });
   const vid = (clave, codigoOValor) => valores[clave].find(v => v.codigo === codigoOValor || v.valor === codigoOValor)?.id;
 
   db.parametros = Object.entries(PARAMETROS_INICIALES).map(([clave, valor]) => ({ id: uuid(), area_id: area, clave, valor, updated_at: ahora }));

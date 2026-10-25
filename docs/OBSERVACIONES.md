@@ -1,4 +1,4 @@
-# LPS-GT · Seguimiento de las 96 observaciones
+# LPS-GT · Seguimiento de las observaciones
 
 Estado de cada observación al 25/10/2026.
 
@@ -99,7 +99,7 @@ Estado de cada observación al 25/10/2026.
 | 70 | Con el mismo usuario, una laptop muestra los proyectos y la otra no | ✅ Respondida: los datos estaban solo en el navegador de una laptop. Al salir se limpia la caché local | — | ✅ |
 | 71 | No aparece "MODO DEMOSTRACIÓN" | ✅ Respondida: se entra con `?demo` | Humo | ✅ El aviso aparece en modo demo |
 
-## 4. Plan semanal, Look Ahead y reportes (72–96)
+## 4. Plan semanal, Look Ahead, reportes y auditoría (72–98)
 
 | N° | Observación | Levantada | Verificada | Reconfirmada (25/10) |
 |---|---|---|---|---|
@@ -130,6 +130,8 @@ Estado de cada observación al 25/10/2026.
 | 94 | Pestañas Look Ahead / Carga vs capacidad a la derecha de "Todo el equipo" | ✅ | `tabs85.js` | ✅ |
 | 95 | No se veía la corrección del 93; corregir todas las impresiones | ✅ La captura era anterior a la publicación | `vista94.js` | ✅ |
 | 96 | Revisar cada módulo y hacer una tabla de todos los reportes | ✅ | `docs/REPORTES.md` | ✅ 40 salidas |
+| 97 | Tabla de las 96 observaciones: levantada, verificada y reconfirmada | ✅ | Este documento | ✅ |
+| 98 | Matriz de diagnóstico y compatibilidad de todo el aplicativo; corregir las incompatibilidades (manda la observación más reciente) | ✅ 16 incompatibilidades y 3 defectos de presentación corregidos | `compat98.js` (16 verificaciones), base de datos (migración 016) | ✅ Batería completa, humo (160 pantallas) y base de datos sin errores · `docs/MATRIZ-DIAGNOSTICO.md` |
 
 ## Lo que encontró la reconfirmación
 

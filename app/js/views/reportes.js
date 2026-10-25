@@ -2,10 +2,11 @@
 // "Todo en 1 hoja", nombre del archivo y Guardar PDF). Los datos se leen de la base con los mismos cálculos
 // que las pantallas (PAC, Pareto de CNC, capacidad…) para que el reporte coincida con lo que se ve en la app.
 import { api, mensajeError } from '../data/api.js';
-import { store, lideres, equipo, nombre, proyecto, etiqueta, textoEstado, colorEstado, param, valoresLista, esGestor, esStaff } from '../core/store.js';
+import { store, lideres, equipo, nombre, proyecto, etiqueta, textoEstado, colorEstado, param, valoresLista, esGestor, esStaff, visibleParaConsulta } from '../core/store.js';
 import { lunes, sumarSemanas, sumarDias, etiquetaSemana, esc, html, num, pct, fmtFecha, hoy, DIAS, agrupar } from '../core/util.js';
 import { error } from '../ui/ui.js';
 import { columnasActividad } from '../services/columnas.js';
+import { definicionPDF } from '../ui/grid.js';
 import { resumenPAC, resumenHistorico, colorPAC, paretoCNC, resumenRestricciones, capacidadSemana, colorCarga, restriccionesActivas } from '../services/indicadores.js';
 import { tablaPDF, kpisPDF, documentoReporte, nombreProyectoActual, nombreArchivo, PAPELES } from '../services/pdf.js';
 
@@ -14,26 +15,9 @@ const badge = (t, c) => (t ? `<span class="badge" style="--c:${c || '#4E79A7'}">
 const delProyecto = a => !store.proyectoSel || a.proyecto_id === store.proyectoSel;
 const delResp = (f, campo = 'responsable_id') => (!f.resp || f.resp === 'todos' ? () => true : x => x[campo] === f.resp);
 
-/** Columnas de PDF a partir de las mismas definiciones de las grillas (títulos, orden y anchos). */
+/** Columnas de PDF a partir de las mismas definiciones de las grillas (títulos, orden, anchos y texto de cada celda). */
 function columnasDeDefs(defs) {
-  return defs.filter(c => c && c.visible !== false && !c.click && c.pdf !== false).map(c => {
-    const ops = fila => (typeof c.opciones === 'function' ? c.opciones(fila) : c.opciones) || [];
-    const valorDe = f => (c.valor ? c.valor(f) : f[c.field]);
-    const texto = f => {
-      const v = valorDe(f);
-      if (c.tipo === 'lista') {
-        if (v == null || v === '') return '';
-        return ops(f).find(o => String(o.value) === String(v))?.label ?? (proyecto(v) ? `${proyecto(v).codigo} · ${proyecto(v).nombre_corto}` : etiqueta(v));
-      }
-      if (c.tipo === 'numero') return v === 0 && c.ocultarCero ? '' : (v == null || v === '' ? '' : num(v, 2));
-      if (c.tipo === 'fecha') return fmtFecha(v);
-      return c.exportar ? c.exportar(v, f) : (v ?? '');
-    };
-    return {
-      titulo: c.title, ancho: c.ancho || 100, num: c.tipo === 'numero', html: !!c.colorear,
-      valor: c.colorear ? f => badge(texto(f), ops(f).find(o => o.value === valorDe(f))?.color) : texto,
-    };
-  });
+  return defs.filter(c => c && c.visible !== false).map(c => definicionPDF(c)).filter(Boolean);
 }
 
 /** Barras horizontales en SVG (se imprimen nítidas). datos: [{ etiqueta, valor, texto, color }] */
@@ -65,13 +49,13 @@ async function seriePAC(f) {
     api.list('actividades', { eq: { area_id: area }, gte: { semana: desde }, lte: { semana: f.semana } }),
     api.list('pac_historico', { eq: { area_id: area }, gte: { semana: desde }, lte: { semana: f.semana } }),
   ]);
-  const actsF = acts.filter(delProyecto).filter(delResp(f));
+  const actsF = acts.filter(a => visibleParaConsulta(a.proyecto_id)).filter(delProyecto).filter(delResp(f));   // como el Tablero
   const semanas = Array.from({ length: f.periodo }, (_, i) => sumarSemanas(desde, i));
   const serie = semanas.map(s => {
     let r = resumenPAC(actsF.filter(a => a.semana === s));
     if (!r.comprometidas) {
       const h = hist.filter(x => x.semana === s && delResp(f)(x));
-      if (h.length && !store.proyectoSel) r = { ...resumenHistorico(h), comprometidas: 0 };
+      if (h.length && !store.proyectoSel && esStaff()) r = { ...resumenHistorico(h), comprometidas: 0 };   // igual que el Tablero
     }
     return { semana: s, ...r };
   });
@@ -83,7 +67,7 @@ const pieFiltro = f => `<p class="nota">${f.resp && f.resp !== 'todos' ? `Respon
 // ---------- Catálogo de reportes ----------
 // filtros: 'semana' (semana de referencia), 'periodo' (n semanas hasta la de referencia), 'resp' (responsable)
 const REPORTES = [
-  { grupo: 'Planificación (Look Ahead / LPS)', id: 'plan', titulo: 'Plan semanal', filtros: ['semana', 'resp'], orientacion: 'landscape',
+  { grupo: 'Planificación (Look Ahead / LPS)', id: 'plan', staff: true, titulo: 'Plan semanal', filtros: ['semana', 'resp'], semana: () => lunes(), orientacion: 'landscape',
     async generar(f) {
       const acts = (await api.list('actividades', { eq: { area_id: store.area.id, semana: f.semana } }))
         .filter(a => a.comprometida).filter(delProyecto).filter(delResp(f)).sort((a, b) => nombre(a.responsable_id).localeCompare(nombre(b.responsable_id)) || (a.orden || 0) - (b.orden || 0));
@@ -93,7 +77,7 @@ const REPORTES = [
           ['No completadas', r.noCompletadas, '#E15759'], ['No programadas', r.noProgramadas, '#F28E2B'], ['HH plan', num(r.hhPlan)]]) +
         tablaPDF(columnasDeDefs(columnasActividad({ modo: 'plan', semana: f.semana })), acts);
     } },
-  { grupo: 'Planificación (Look Ahead / LPS)', id: 'lookahead', titulo: 'Look Ahead', filtros: ['resp'], orientacion: 'landscape',
+  { grupo: 'Planificación (Look Ahead / LPS)', id: 'lookahead', staff: true, titulo: 'Look Ahead', filtros: ['resp'], orientacion: 'landscape',
     async generar(f) {
       const sem = semanasLA();
       const [acts, rests] = await Promise.all([
@@ -108,53 +92,35 @@ const REPORTES = [
         return `<h2>${esc(etiquetaSemana(s))} · ${de.length} actividad(es) · ${num(de.reduce((x, a) => x + (Number(a.hh_total) || 0), 0))} HH</h2>` + tablaPDF(cols, de);
       }).join('');
     } },
-  { grupo: 'Planificación (Look Ahead / LPS)', id: 'noprog', titulo: 'Actividades no programadas', filtros: ['semana', 'resp'], orientacion: 'landscape',
+  { grupo: 'Planificación (Look Ahead / LPS)', id: 'noprog', staff: true, titulo: 'Actividades no programadas', filtros: ['semana', 'resp'], semana: () => lunes(), orientacion: 'landscape',
     async generar(f) {
       const acts = (await api.list('actividades', { eq: { area_id: store.area.id, semana: f.semana } }))
         .filter(a => a.comprometida && a.tipo === 'no_programada').filter(delProyecto).filter(delResp(f));
       return `<p class="nota">${esc(etiquetaSemana(f.semana))} · ${acts.length} actividad(es) que surgieron durante la semana (no afectan el PAC).</p>${pieFiltro(f)}` +
         tablaPDF(columnasDeDefs(columnasActividad({ modo: 'plan', semana: f.semana })), acts);
     } },
-  { grupo: 'Planificación (Look Ahead / LPS)', id: 'restricciones', titulo: 'Log de restricciones', filtros: ['resp'], orientacion: 'landscape',
+  { grupo: 'Planificación (Look Ahead / LPS)', id: 'restricciones', staff: true, titulo: 'Log de restricciones', filtros: ['resp'], orientacion: 'landscape',
     async generar(f) {
-      const [rests, acts] = await Promise.all([
-        api.list('restricciones', { eq: { area_id: store.area.id } }),
-        api.list('actividades', { eq: { area_id: store.area.id }, gte: { semana: sumarSemanas(lunes(), -12) } }),
+      const [rests, acts, { columnasRestricciones }] = await Promise.all([
+        api.list('restricciones', { eq: { area_id: store.area.id }, order: [['f_requerida', true]] }),
+        api.list('actividades', { eq: { area_id: store.area.id }, gte: { semana: '2000-01-01' } }),
+        import('./restricciones.js'),
       ]);
       const porId = new Map(acts.map(a => [a.id, a]));
-      const rs = rests.filter(delProyecto).filter(delResp(f)).sort((a, b) => (a.estado === 'levantada') - (b.estado === 'levantada') || String(a.f_requerida || '').localeCompare(String(b.f_requerida || '')));
+      // Responsable: quien debe levantarla o el responsable de la actividad a la que pertenece
+      const deResp = x => !f.resp || f.resp === 'todos' || x.responsable_id === f.resp || porId.get(x.actividad_id)?.responsable_id === f.resp;
+      const rs = rests.filter(delProyecto).filter(deResp).sort((a, b) => (a.estado === 'levantada') - (b.estado === 'levantada'));
       const r = resumenRestricciones(rs);
-      const h = hoy();
       return pieFiltro(f) + kpisPDF([['Abiertas', r.abiertas], ['Vencidas', r.vencidas, '#E15759'], ['Levantadas', r.levantadas, '#59A14F'], ['A tiempo', pct(r.pctATiempo)]]) +
-        tablaPDF([
-          { titulo: 'Proyecto', ancho: 150, valor: x => proyecto(x.proyecto_id)?.nombre_corto || '' },
-          { titulo: 'Actividad', ancho: 200, valor: x => porId.get(x.actividad_id)?.descripcion || '' },
-          { titulo: 'Restricción', ancho: 240, valor: x => x.descripcion },
-          { titulo: 'Tipo', ancho: 100, valor: x => etiqueta(x.tipo_id) },
-          { titulo: 'Responsable', ancho: 120, valor: x => x.responsable || nombre(x.responsable_id) },
-          { titulo: 'F. requerida', ancho: 85, valor: x => fmtFecha(x.f_requerida) },
-          { titulo: 'F. levantada', ancho: 85, valor: x => fmtFecha(x.f_levantada) },
-          { titulo: 'Estado', ancho: 100, html: true, valor: x => badge(x.estado !== 'levantada' && x.f_requerida && x.f_requerida < h ? 'Vencida' : textoEstado('estados_restriccion', x.estado),
-            x.estado !== 'levantada' && x.f_requerida && x.f_requerida < h ? '#E15759' : colorEstado('estados_restriccion', x.estado)) },
-        ], rs);
+        tablaPDF(columnasDeDefs(columnasRestricciones(() => porId)), rs);   // mismas columnas que la pantalla Restricciones
     } },
-  { grupo: 'Planificación (Look Ahead / LPS)', id: 'cartera', titulo: 'Cartera de servicios', filtros: ['resp'], orientacion: 'landscape',
+  { grupo: 'Planificación (Look Ahead / LPS)', id: 'cartera', staff: true, titulo: 'Cartera de servicios', filtros: ['resp'], orientacion: 'landscape',
     async generar(f) {
-      const items = (await api.list('cartera', { eq: { area_id: store.area.id } })).filter(delProyecto).filter(delResp(f))
-        .sort((a, b) => String(b.f_solicitud || '').localeCompare(String(a.f_solicitud || '')));
+      const [todos, { columnasCartera }] = await Promise.all([api.list('cartera', { eq: { area_id: store.area.id } }), import('./cartera.js')]);
+      const items = todos.filter(delProyecto).filter(delResp(f)).sort((a, b) => String(b.f_solicitud || '').localeCompare(String(a.f_solicitud || '')));
       const abiertas = items.filter(c => ['nueva', 'abierta', 'en_proceso'].includes(c.estado));
       return pieFiltro(f) + kpisPDF([['Total', items.length], ['Abiertas', abiertas.length, '#F28E2B'], ['Nuevas', items.filter(c => c.estado === 'nueva').length, '#4E79A7']]) +
-        tablaPDF([
-          { titulo: 'F. solicitud', ancho: 80, valor: c => fmtFecha(c.f_solicitud) },
-          { titulo: 'Solicitante', ancho: 130, valor: c => c.solicitante || nombre(c.solicitante_id) },
-          { titulo: 'Proyecto / Proceso', ancho: 160, valor: c => proyecto(c.proyecto_id)?.nombre_corto || '' },
-          { titulo: 'Servicio', ancho: 150, valor: c => etiqueta(c.servicio_id) },
-          { titulo: 'Descripción', ancho: 260, valor: c => c.descripcion },
-          { titulo: 'Responsable', ancho: 120, valor: c => nombre(c.responsable_id) },
-          { titulo: 'F. comprometida', ancho: 85, valor: c => fmtFecha(c.f_comprometida) },
-          { titulo: 'Criticidad', ancho: 80, valor: c => etiqueta(c.criticidad_id) },
-          { titulo: 'Estado', ancho: 95, html: true, valor: c => badge(textoEstado('estados_cartera', c.estado), colorEstado('estados_cartera', c.estado)) },
-        ], items);
+        tablaPDF(columnasDeDefs(columnasCartera()), items);   // mismas columnas que la pantalla Cartera
     } },
 
   { grupo: 'Seguimiento y control', id: 'ejecutivo', titulo: 'Informe ejecutivo', filtros: ['semana', 'periodo', 'resp'], orientacion: 'portrait',
@@ -163,13 +129,14 @@ const REPORTES = [
       const c = serie.reduce((x, s) => x + (s.completadas || 0), 0), n = serie.reduce((x, s) => x + (s.noCompletadas || 0), 0);
       const pacPeriodo = c + n ? c / (c + n) : null;
       const sem = resumenPAC(acts.filter(a => a.semana === f.semana));
-      const rests = (await api.list('restricciones', { eq: { area_id: store.area.id } })).filter(delProyecto);
+      const rests = esStaff() ? (await api.list('restricciones', { eq: { area_id: store.area.id } })).filter(delProyecto) : [];
       const rr = resumenRestricciones(rests);
       const pareto = paretoCNC(acts).slice(0, 5);
       const meta = Number(param('meta_pac'));
       return `<p class="nota">Periodo: ${esc(etiquetaSemana(serie[0].semana).split('·')[0])} a ${esc(etiquetaSemana(f.semana))} (${f.periodo} semanas)</p>${pieFiltro(f)}` +
         kpisPDF([['PAC del periodo', pct(pacPeriodo), colorPAC(pacPeriodo)], ['PAC de la semana', pct(sem.pac), colorPAC(sem.pac)], ['Meta', pct(meta), '#1A365D'],
-          ['% no programadas', pct(sem.pctNoProgramadas), '#F28E2B'], ['Restricciones abiertas', rr.abiertas, rr.vencidas ? '#E15759' : '#59A14F'], ['Vencidas', rr.vencidas, '#E15759']]) +
+          ['% no programadas', pct(sem.pctNoProgramadas), '#F28E2B'],
+          ...(esStaff() ? [['Restricciones abiertas', rr.abiertas, rr.vencidas ? '#E15759' : '#59A14F'], ['Vencidas', rr.vencidas, '#E15759']] : [])]) +
         '<h2>PAC por semana</h2>' + barras(serie.map(s => ({ etiqueta: etiquetaSemana(s.semana).split('·')[0].trim(), valor: s.pac ?? 0, texto: s.pac == null ? 'sin datos' : pct(s.pac), color: colorPAC(s.pac) })), { max: 1, meta }) +
         '<h2>Principales causas de no cumplimiento</h2>' + barras(pareto.map(p => ({ etiqueta: etiqueta(p.cnc_id) || 'Sin causa', valor: p.cantidad, texto: `${p.cantidad} · ${pct(p.pct)}`, color: '#E15759' })));
     } },
@@ -219,7 +186,7 @@ const REPORTES = [
           { titulo: '% acumulado', ancho: 80, num: true, valor: x => pct(x.acumulado) },
         ], p);
     } },
-  { grupo: 'Seguimiento y control', id: 'carga', titulo: 'Carga vs capacidad (HH)', filtros: ['resp'], orientacion: 'landscape',
+  { grupo: 'Seguimiento y control', id: 'carga', staff: true, titulo: 'Carga vs capacidad (HH)', filtros: ['resp'], orientacion: 'landscape',
     async generar(f) {
       const sem = semanasLA();
       const [acts, ubic] = await Promise.all([
@@ -228,18 +195,19 @@ const REPORTES = [
       ]);
       const personas = (f.resp && f.resp !== 'todos') ? lideres().filter(l => l.id === f.resp) : equipo(acts);
       const celda = (l, s) => {
-        const hh = acts.filter(a => a.responsable_id === l.id && a.semana === s && a.estado_la !== 'cancelada' && delProyecto(a)).reduce((x, a) => x + (Number(a.hh_total) || 0), 0);
+        // Todas las actividades de la persona (de todos los proyectos), igual que en el Look Ahead: la capacidad es de la persona
+        const hh = acts.filter(a => a.responsable_id === l.id && a.semana === s && a.estado_la !== 'cancelada').reduce((x, a) => x + (Number(a.hh_total) || 0), 0);
         const cap = capacidadSemana(l.id, s, ubic);
         const r = cap ? hh / cap : null;
         return `<div style="display:flex;align-items:center;gap:2mm"><div style="flex:1;height:2.4mm;background:#F1F4F8;border-radius:1mm;overflow:hidden">
           <div style="width:${Math.min(100, (r || 0) * 100)}%;height:100%;background:${colorCarga(r)}"></div></div>
           <span style="white-space:nowrap">${num(hh)} / ${num(cap)}${r != null && r > 1.05 ? ' ⚠' : ''}</span></div>`;
       };
-      return pieFiltro(f) + tablaPDF([{ titulo: 'Responsable', ancho: 170, valor: l => l.nombre },
+      return `<p class="nota">${f.resp && f.resp !== 'todos' ? `Responsable: ${esc(nombre(f.resp))} · ` : 'Todo el equipo · '}Todos los proyectos (la capacidad es de cada persona)</p>` + tablaPDF([{ titulo: 'Responsable', ancho: 170, valor: l => l.nombre },
         ...sem.map(s => ({ titulo: etiquetaSemana(s), ancho: 200, html: true, valor: l => celda(l, s) }))], personas) +
         '<p class="nota">Verde: carga normal · Ámbar: más del 90 % · Rojo: sobrecarga. La capacidad descuenta vacaciones y feriados.</p>';
     } },
-  { grupo: 'Seguimiento y control', id: 'acuerdos', titulo: 'Acuerdos de mejora (reunión semanal)', filtros: [], orientacion: 'portrait',
+  { grupo: 'Seguimiento y control', id: 'acuerdos', staff: true, titulo: 'Acuerdos de mejora (reunión semanal)', filtros: [], orientacion: 'portrait',
     async generar() {
       const acuerdos = (await api.list('acuerdos', { eq: { area_id: store.area.id } })).sort((a, b) => String(a.fecha || '').localeCompare(String(b.fecha || '')));
       return tablaPDF([
@@ -251,7 +219,7 @@ const REPORTES = [
       ], acuerdos);
     } },
 
-  { grupo: 'Configuración', id: 'proyectos', titulo: 'Catálogo de proyectos / procesos', filtros: [], orientacion: 'landscape',
+  { grupo: 'Configuración', id: 'proyectos', staff: true, titulo: 'Catálogo de proyectos / procesos', filtros: [], orientacion: 'landscape',
     async generar() {
       const orden = ['activo', 'en_pausa', 'cerrado', 'propuesto'];
       const grupos = agrupar([...store.proyectos].sort((a, b) => String(a.codigo).localeCompare(String(b.codigo))), p => p.estado);
@@ -264,7 +232,7 @@ const REPORTES = [
       return [...grupos.keys()].sort((a, b) => orden.indexOf(a) - orden.indexOf(b)).map(e =>
         `<h2>${esc(textoEstado('estados_proyecto', e) || e)} · ${grupos.get(e).length}</h2>` + tablaPDF(cols, grupos.get(e))).join('');
     } },
-  { grupo: 'Configuración', id: 'servicios', titulo: 'CET / Servicios', filtros: [], orientacion: 'portrait',
+  { grupo: 'Configuración', id: 'servicios', staff: true, titulo: 'CET / Servicios', filtros: [], orientacion: 'portrait',
     async generar() {
       const vals = valoresLista('servicios', { inactivos: true }).sort((a, b) => String(proyecto(a.extra?.proyecto_id)?.codigo || '~').localeCompare(String(proyecto(b.extra?.proyecto_id)?.codigo || '~')));
       return tablaPDF([
@@ -274,30 +242,25 @@ const REPORTES = [
         { titulo: 'Activo', ancho: 60, valor: v => (v.activo === false ? 'No' : 'Sí') },
       ], vals);
     } },
-  { grupo: 'Configuración', id: 'equipo', titulo: 'Usuarios y roles (con organigrama)', filtros: [], orientacion: 'landscape',
+  { grupo: 'Configuración', id: 'equipo', staff: true, titulo: 'Usuarios y roles (con organigrama)', filtros: [], orientacion: 'landscape',
     async generar() {
       // Mismo contenido que Configuración → Usuarios y roles: tabla con sus columnas y el organigrama
       const nodos = await api.list('organigrama_nodos', { eq: { area_id: store.area.id }, order: [['orden', true]] });
       return (await import('./organigrama.js')).informeEquipo(nodos);
     } },
-  { grupo: 'Configuración', id: 'plantillas', titulo: 'Plantillas (recurrentes y de servicio)', filtros: [], orientacion: 'landscape',
+  { grupo: 'Configuración', id: 'plantillas', staff: true, titulo: 'Plantillas (recurrentes y de servicio)', filtros: [], orientacion: 'landscape',
     async generar() {
-      const [pls, items] = await Promise.all([
+      const [pls, items, { columnasPlantilla }] = await Promise.all([
         api.list('plantillas', { eq: { area_id: store.area.id } }),
         api.list('plantilla_items', {}),
+        import('./plantillas.js'),
       ]);
-      const cols = [
-        { titulo: 'Semana', ancho: 90, valor: i => (i._tipo === 'servicio' ? (i.semana_offset ? `Semana +${i.semana_offset}` : 'Semana de inicio') : 'Cada semana') },
-        { titulo: 'Proyecto / Proceso', ancho: 180, valor: i => proyecto(i.proyecto_id)?.nombre_corto || '' },
-        { titulo: 'CET', ancho: 80, valor: i => store.valores.get(i.servicio_id)?.codigo || '' },
-        { titulo: 'Servicio', ancho: 160, valor: i => etiqueta(i.servicio_id) },
-        { titulo: 'Actividad', ancho: 300, valor: i => i.descripcion },
-        ...DIAS.slice(0, 5).map((d, k) => ({ titulo: 'LMXJV'[k], ancho: 36, num: true, valor: i => (Number(i[`hh_${d}`]) || '') })),
-        { titulo: 'HH', ancho: 45, num: true, valor: i => num(DIAS.reduce((s, d) => s + (Number(i[`hh_${d}`]) || 0), 0)) },
-      ];
       return pls.filter(p => p.activa !== false).sort((a, b) => a.tipo.localeCompare(b.tipo) || a.nombre.localeCompare(b.nombre)).map(p => {
-        const de = items.filter(i => i.plantilla_id === p.id).sort((a, b) => (a.orden || 0) - (b.orden || 0)).map(i => ({ ...i, _tipo: p.tipo }));
-        return `<h2>${p.tipo === 'servicio' ? '🧩' : '🔁'} ${esc(p.nombre)}${p.tipo === 'recurrente' ? ` · ${esc(nombre(p.propietario_id))}` : ''} · ${de.length} actividad(es)</h2>` + tablaPDF(cols, de);
+        const de = items.filter(i => i.plantilla_id === p.id).sort((a, b) => (a.orden || 0) - (b.orden || 0))
+          .map(i => ({ ...i, hh_total: DIAS.reduce((s, d) => s + (Number(i[`hh_${d}`]) || 0), 0) }));
+        // Mismas columnas que la pantalla Plantillas (que a su vez son las del Look Ahead)
+        return `<h2>${p.tipo === 'servicio' ? '🧩' : '🔁'} ${esc(p.nombre)}${p.tipo === 'recurrente' ? ` · ${esc(nombre(p.propietario_id))}` : ''} · ${de.length} actividad(es)</h2>` +
+          tablaPDF(columnasDeDefs(columnasPlantilla(p.tipo, p.propietario_id)), de);
       }).join('') || '<p class="nota">No hay plantillas.</p>';
     } },
 ];
@@ -309,11 +272,15 @@ export async function render(el) {
   const semanas = Array.from({ length: 20 }, (_, i) => sumarSemanas(lunes(), i - 13)).reverse();
   let opciones = { papel: 'A4', unaHoja: false };
   try { opciones = { ...opciones, ...JSON.parse(localStorage.getItem('lpsgt-reportes') || '{}') }; } catch { /* sin almacenamiento */ }
-  estado = { id: opciones.ultimo || 'plan', filtros: { semana: lunes(), periodo: 8, resp: esGestor() ? 'todos' : store.usuario.id }, opciones, orientacion: null };
-  const grupos = [...new Set(REPORTES.map(r => r.grupo))];
+  // Cada rol ve los reportes de las pantallas a las que tiene acceso (Consulta: los del Tablero)
+  disponibles = REPORTES.filter(r => !r.staff || esStaff());
+  // semana: null = la de cada reporte (Plan: la actual; indicadores: la última semana completa, como el Tablero)
+  estado = { id: disponibles.some(r => r.id === opciones.ultimo) ? opciones.ultimo : disponibles[0].id,
+    filtros: { semana: null, periodo: 8, resp: esGestor() ? 'todos' : store.usuario.id }, opciones, orientacion: null };
+  const grupos = [...new Set(disponibles.map(r => r.grupo))];
   const pag = html(`<div class="reportes">
     <div class="reportes-arbol">${grupos.map(g => `<details open><summary>${esc(g)}</summary>
-      ${REPORTES.filter(r => r.grupo === g).map(r => `<button data-r="${r.id}">${esc(r.titulo)}</button>`).join('')}</details>`).join('')}</div>
+      ${disponibles.filter(r => r.grupo === g).map(r => `<button data-r="${r.id}">${esc(r.titulo)}</button>`).join('')}</details>`).join('')}</div>
     <div class="reportes-vista">
       <div class="reportes-barra">
         <label>Papel <select data-o="papel">${Object.keys(PAPELES).map(p => `<option>${p}</option>`).join('')}</select></label>
@@ -331,7 +298,6 @@ export async function render(el) {
   el.append(pag);
   pag.querySelector('[data-o="papel"]').value = PAPELES[estado.opciones.papel] ? estado.opciones.papel : 'A4';   // un papel ya no ofrecido vuelve a A4
   pag.querySelector('[data-o="unaHoja"]').checked = !!estado.opciones.unaHoja;
-  pag.querySelector('[data-fl="semana"]').value = estado.filtros.semana;
   pag.querySelector('[data-fl="periodo"]').value = String(estado.filtros.periodo);
   pag.querySelector('[data-fl="resp"]').value = estado.filtros.resp;
   if (!esStaff()) pag.querySelector('[data-f="resp"]').classList.add('oculto');
@@ -359,11 +325,13 @@ export async function render(el) {
   await generar();
 }
 
-let ultimoHTML = '';
+let ultimoHTML = '', disponibles = REPORTES;
 async function generar(releer = true) {
   const pag = document.querySelector('#contenido .reportes');
   if (!pag) return;
-  const rep = REPORTES.find(r => r.id === estado.id) || REPORTES[0];
+  const rep = disponibles.find(r => r.id === estado.id) || disponibles[0];
+  const filtros = { ...estado.filtros, semana: estado.filtros.semana || (rep.semana ? rep.semana() : sumarSemanas(lunes(), -1)) };
+  pag.querySelector('[data-fl="semana"]').value = filtros.semana;
   pag.querySelectorAll('[data-r]').forEach(b => b.classList.toggle('activo', b.dataset.r === rep.id));
   for (const k of ['semana', 'periodo', 'resp']) pag.querySelector(`[data-f="${k}"]`).style.display = rep.filtros.includes(k) ? '' : 'none';
   const orientacion = estado.orientacion || rep.orientacion;
@@ -378,7 +346,7 @@ async function generar(releer = true) {
   try {
     if (releer || !ultimoHTML) {
       carg.classList.remove('oculto');
-      ultimoHTML = await rep.generar(estado.filtros);
+      ultimoHTML = await rep.generar(filtros);
     }
     pag.querySelector('[data-prev]').srcdoc = documentoReporte(rep.titulo, ultimoHTML, { papel, orientacion, unaHoja, archivo });
   } catch (e) {

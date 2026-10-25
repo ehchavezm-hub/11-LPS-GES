@@ -6,10 +6,11 @@ import { crearGrilla } from '../ui/grid.js';
 import { kpi, badge } from '../ui/ui.js';
 import { resumenRestricciones } from '../services/indicadores.js';
 import { columnasPersonalizadas } from '../services/columnas.js';
-import { abrirDetalle } from './detalle.js';
+import { abrirDetalle, sincronizarEstadoLA } from './detalle.js';
 import { imprimirPDF, tablaPDF, kpisPDF } from '../services/pdf.js';
 
 let grilla, desuscribir = [], estado;
+const porSincronizar = new Set();   // actividades cuyo Estado LA se recalcula después de guardar
 
 export async function render(el, params) {
   estado = { todas: false, rests: [], acts: new Map() };
@@ -27,26 +28,7 @@ export async function render(el, params) {
 
   grilla = crearGrilla(pag.querySelector('[data-grilla]'), {
     id: 'restricciones', tabla: 'restricciones', titulo: 'Restricciones',
-    columnas: [
-      { field: '_act', title: 'Actividad', tipo: 'texto', ancho: 230, calc: true,
-        formato: (v, r) => esc(estado.acts.get(r.actividad_id)?.descripcion || (r.actividad_id ? '(actividad)' : '—')) },
-      { field: 'proyecto_id', title: 'Proyecto', tipo: 'lista', ancho: 170, opciones: opcionesProyectos },
-      { field: 'descripcion', title: 'Restricción', tipo: 'texto', ancho: 260 },
-      { field: 'tipo_id', title: 'Tipo', tipo: 'lista', ancho: 150, opciones: () => opciones('tipos_restriccion') },
-      { field: 'responsable', title: 'Responsable', tipo: 'texto', ancho: 140, ayuda: 'Persona o área que debe levantarla (puede ser externa)' },
-      { field: 'f_identificada', title: 'F. identificada', tipo: 'fecha', ancho: 105 },
-      { field: 'f_requerida', title: 'F. requerida', tipo: 'fecha', ancho: 105 },
-      { field: 'f_prometida', title: 'F. prometida', tipo: 'fecha', ancho: 105 },
-      { field: 'f_levantada', title: 'F. levantada', tipo: 'fecha', ancho: 105 },
-      { field: 'estado', title: 'Estado', tipo: 'lista', ancho: 115, colorear: true,
-        opciones: () => opcionesEstado('estados_restriccion').map(o => ({ ...o, color: colorEstado('estados_restriccion', o.value) })) },
-      { field: '_atraso', title: 'Días atraso', tipo: 'numero', ancho: 80, calc: true, filtro: false,
-        formato: (v, r) => { const d = atraso(r); return d > 0 ? `<span class="celda-alerta">${d}</span>` : ''; } },
-      { field: 'comentarios', title: 'Comentarios', tipo: 'texto', ancho: 200 },
-      { field: '_colab', title: '💬', tipo: 'texto', ancho: 46, calc: true, filtro: false,
-        formato: (v, r) => r.id ? '<button class="mini-btn">＋</button>' : '', click: (r, e) => { if (r.id && e.target.closest('button')) abrirDetalle('restriccion', r); } },
-      ...columnasPersonalizadas('restricciones'),
-    ],
+    columnas: columnasRestricciones(() => estado.acts),
     agrupar: [{ field: 'estado', label: 'Estado' }, { field: 'tipo_id', label: 'Tipo' }, { field: 'proyecto_id', label: 'Proyecto' }, { field: 'responsable', label: 'Responsable' }],
     puedeEditarFila: () => esStaff(),
     nuevaFila: () => ({ area_id: store.area.id, proyecto_id: store.proyectoSel || null, estado: 'pendiente', f_identificada: hoy(), descripcion: '', extra: {} }),
@@ -54,7 +36,14 @@ export async function render(el, params) {
     derivar: (r, c) => ('estado' in c && c.estado === 'levantada' && !r.f_levantada ? { f_levantada: hoy() } : 'estado' in c && c.estado !== 'levantada' ? { f_levantada: null } : {}),
     claseFila: r => atraso(r) > 0 ? 'fila-alerta' : '',
     camposCalc: ['created_at', 'updated_at', 'created_by'],
-    alGuardar: () => cargarSilencioso(),
+    // Cambiar el estado de una restricción (o eliminarla) actualiza el Estado LA de su actividad, igual que en el Look Ahead
+    alEditar: (r, campo) => { if (campo === 'estado' && r.actividad_id) porSincronizar.add(r.actividad_id); },
+    eliminar: async r => { await api.remove('restricciones', r.id); if (r.actividad_id) porSincronizar.add(r.actividad_id); },
+    alGuardar: async () => {
+      const ids = [...porSincronizar]; porSincronizar.clear();
+      await Promise.all(ids.map(sincronizarEstadoLA));
+      cargarSilencioso();
+    },
     vacio: 'Sin restricciones. Agréguelas desde aquí o desde el Look Ahead (columna 🚧).',
   });
   desuscribir.push(api.subscribe(['restricciones'], ev => { grilla.aplicarRemoto(ev, filtro); cargarSilencioso(); }));
@@ -68,7 +57,32 @@ export async function render(el, params) {
 
 export function destruir() { desuscribir.forEach(f => f && f()); desuscribir = []; grilla?.destruir(); }
 
-function atraso(r) {
+/** Columnas del log de restricciones (pantalla, su PDF y el reporte "Log de restricciones").
+ *  actividades(): Map id → actividad, para mostrar la descripción de la actividad de cada restricción. */
+export function columnasRestricciones(actividades) {
+  return [
+    { field: '_act', title: 'Actividad', tipo: 'texto', ancho: 230, calc: true,
+      formato: (v, r) => esc(actividades().get(r.actividad_id)?.descripcion || (r.actividad_id ? '(actividad)' : '—')) },
+    { field: 'proyecto_id', title: 'Proyecto', tipo: 'lista', ancho: 170, opciones: opcionesProyectos },
+    { field: 'descripcion', title: 'Restricción', tipo: 'textoLargo', ancho: 260 },
+    { field: 'tipo_id', title: 'Tipo', tipo: 'lista', ancho: 150, opciones: () => opciones('tipos_restriccion') },
+    { field: 'responsable', title: 'Responsable', tipo: 'texto', ancho: 140, ayuda: 'Persona o área que debe levantarla (puede ser externa)' },
+    { field: 'f_identificada', title: 'F. identificada', tipo: 'fecha', ancho: 105 },
+    { field: 'f_requerida', title: 'F. requerida', tipo: 'fecha', ancho: 105 },
+    { field: 'f_prometida', title: 'F. prometida', tipo: 'fecha', ancho: 105 },
+    { field: 'f_levantada', title: 'F. levantada', tipo: 'fecha', ancho: 105 },
+    { field: 'estado', title: 'Estado', tipo: 'lista', ancho: 115, colorear: true,
+      opciones: () => opcionesEstado('estados_restriccion').map(o => ({ ...o, color: colorEstado('estados_restriccion', o.value) })) },
+    { field: '_atraso', title: 'Días atraso', tipo: 'numero', ancho: 80, calc: true, filtro: false,
+      formato: (v, r) => { const d = atraso(r); return d > 0 ? `<span class="celda-alerta">${d}</span>` : ''; } },
+    { field: 'comentarios', title: 'Comentarios', tipo: 'textoLargo', ancho: 200 },
+    { field: '_colab', title: '💬', tipo: 'texto', ancho: 46, calc: true, filtro: false,
+      formato: (v, r) => r.id ? '<button class="mini-btn">＋</button>' : '', click: (r, e) => { if (r.id && e.target.closest('button')) abrirDetalle('restriccion', r); } },
+    ...columnasPersonalizadas('restricciones'),
+  ];
+}
+
+export function atraso(r) {
   const fin = r.estado === 'levantada' ? r.f_levantada : hoy();
   if (!r.f_requerida || !fin || fin <= r.f_requerida) return 0;
   return Math.round((new Date(fin) - new Date(r.f_requerida)) / 86400000);

@@ -112,9 +112,7 @@ export async function abrirRestricciones(act, { alCambiar } = {}) {
       valores: { f_identificada: hoy(), estado: 'pendiente' },
       alGuardar: async d => {
         await api.insert('restricciones', { ...d, area_id: store.area.id, actividad_id: act.id, proyecto_id: act.proyecto_id });
-        if (act.estado_la && !['trasladada', 'cancelada'].includes(act.estado_la)) {
-          await api.update('actividades', act.id, { estado_la: 'con_restriccion' }).catch(() => {});
-        }
+        await sincronizarEstadoLA(act.id);
         ok('Restricción registrada.');
       },
     });
@@ -125,15 +123,31 @@ export async function abrirRestricciones(act, { alCambiar } = {}) {
     if (!b) return;
     try {
       await api.update('restricciones', b.dataset.levantar, { estado: 'levantada', f_levantada: hoy() });
-      const rs = await pintar();
-      if (!rs.some(r => r.estado !== 'levantada') && act.estado_la === 'con_restriccion') {
-        await api.update('actividades', act.id, { estado_la: 'lista' }).catch(() => {});
-      }
+      await pintar();
+      await sincronizarEstadoLA(act.id);
       alCambiar?.();
     } catch (err) { error(mensajeError(err)); }
   });
   await pintar();
   return m;
+}
+
+/**
+ * Estado LA de una actividad según sus restricciones (RN-07): con alguna pendiente pasa a "Con restricción";
+ * al levantar (o eliminar) la última, a "Lista". No toca las trasladadas al plan ni las canceladas.
+ * Se usa desde el Look Ahead, el Plan y la pantalla Restricciones, para que el resultado sea el mismo en todas.
+ */
+export async function sincronizarEstadoLA(actividadId) {
+  if (!actividadId) return;
+  try {
+    const [act] = await api.list('actividades', { eq: { id: actividadId } });
+    if (!act) return;
+    const rs = await api.list('restricciones', { eq: { actividad_id: actividadId } });
+    const abiertas = rs.some(r => r.estado !== 'levantada');
+    const nuevo = abiertas && ['pendiente', 'lista'].includes(act.estado_la) ? 'con_restriccion'
+      : !abiertas && act.estado_la === 'con_restriccion' ? 'lista' : null;
+    if (nuevo) await api.update('actividades', act.id, { estado_la: nuevo });
+  } catch { /* sin permiso sobre la actividad: la base lo sincroniza (migración 016) */ }
 }
 
 export function camposRestriccion() {
