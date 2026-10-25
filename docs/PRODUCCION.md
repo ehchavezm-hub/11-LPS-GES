@@ -45,6 +45,10 @@ Se crea una segunda área con su propio superadministrador y se verifica:
 
 ### ▶ Acción tuya: aplicar la migración en Supabase
 
+**Opción automática (recomendada):** cree una sola vez los secrets `SUPABASE_ACCESS_TOKEN` y `SUPABASE_PROJECT_REF` en GitHub (Settings → Secrets and variables → Actions). Desde entonces, el flujo **Migraciones Supabase** aplica cada migración nueva al publicarla, y puede ejecutarse a mano (Actions → Migraciones Supabase → Run workflow). Los mismos secrets instalan la función `admin-usuarios` (flujo **Funciones Supabase**).
+
+**Opción manual:**
+
 1. Supabase → **SQL Editor** → New query.
 2. Pegar el contenido de [`supabase/migrations/015_endurecimiento.sql`](../supabase/migrations/015_endurecimiento.sql) y ejecutar (**Run**).
 3. Repetir con [`supabase/migrations/016_restricciones_estado_la.sql`](../supabase/migrations/016_restricciones_estado_la.sql) (matriz de compatibilidad, pedido 98): el Estado LA sigue a las restricciones aunque las levante otra persona del equipo.
