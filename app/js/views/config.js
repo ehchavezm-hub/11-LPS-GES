@@ -1,5 +1,6 @@
 // Configuración (6.1, 6.2): usuarios y roles, listas configurables, parámetros, matriz de permisos,
 // columnas personalizadas, importación desde Excel, respaldo y auditoría.
+import { imprimirPDF } from '../services/pdf.js';
 import { leerDemo as leerDatosDemo } from '../services/traer-demo.js';
 const hayDatosDemo = () => !!leerDatosDemo();
 import { medir } from '../core/monitoreo.js';
@@ -52,7 +53,8 @@ async function usuarios(el) {
       <div class="barra" style="margin-bottom:10px"><h2 style="margin:0">Usuarios</h2><span class="flex"></span>
         ${principal ? '<button class="btn btn-sm btn-azul" data-a="delegado">⭐ Asignar / rotar administrador delegado</button>' : ''}
         <button class="btn btn-sm btn-primario" data-a="nuevo">＋ Nuevo usuario</button>
-        <button class="btn btn-sm" data-a="invitar" title="Enlace para que la persona se registre sola">✉ Invitar</button></div>
+        <button class="btn btn-sm" data-a="invitar" title="Enlace para que la persona se registre sola">✉ Invitar</button>
+        <button class="btn btn-sm" data-a="pdf-usuarios" title="Usuarios y roles con el organigrama">🖨 PDF</button></div>
       <table class="simple"><tr><th>Nombre</th><th>Código</th><th>Cargo</th><th>Correo</th><th>Rol</th><th>Gerencias (consulta)</th><th class="num">H/día</th><th>Estado</th><th></th></tr>
       ${perfiles.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.es_admin_principal ? ' ' + badge('Principal', '#E8762B') : ''}</td><td>${esc(p.codigo || '')}</td><td>${esc(p.cargo_id ? store.valores.get(p.cargo_id)?.valor || '' : '')}</td><td>${esc(p.email || '')}</td>
         <td>${badge(ROLES[p.rol] || p.rol, COLOR_ROL[p.rol])}</td>
@@ -70,6 +72,11 @@ async function usuarios(el) {
     const id = e.target.closest('[data-editar]')?.dataset.editar;
     const idClave = e.target.closest('[data-clave]')?.dataset.clave;
     const a = e.target.closest('[data-a]')?.dataset.a;
+    if (a === 'pdf-usuarios') {
+      const m = await import('./organigrama.js');
+      const nodos = await api.list('organigrama_nodos', { eq: { area_id: store.area.id }, order: [['orden', true]] });
+      return imprimirPDF('Usuarios y roles', m.informeEquipo(nodos), { proyectoTexto: store.area.nombre || 'Todos los proyectos', orientacion: 'landscape' });
+    }
     if (id) await editarUsuario(perfiles.find(p => p.id === id));
     if (idClave) await restablecerClave(perfiles.find(p => p.id === idClave));
     const idEliminar = e.target.closest('[data-eliminar]')?.dataset.eliminar;

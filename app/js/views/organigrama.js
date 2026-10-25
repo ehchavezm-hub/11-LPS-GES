@@ -3,10 +3,10 @@
 // Nodos: "unidad" (área o especialidad) y "persona" (vinculada a un usuario: muestra nombre, cargo y rol).
 import { api, mensajeError } from '../data/api.js';
 import { store, puede, nombre } from '../core/store.js';
-import { ROLES, PLANIFICADORES } from '../data/catalogos.js';
+import { ROLES, PLANIFICADORES, COLOR_ROL } from '../data/catalogos.js';
 import { esc, html, debounce } from '../core/util.js';
 import { pedirDatos, confirmar, ok, error } from '../ui/ui.js';
-import { imprimirPDF } from '../services/pdf.js';
+import { imprimirPDF, tablaPDF } from '../services/pdf.js';
 
 const ANCHO = 200, ALTO = 92, SEP_X = 40, SEP_Y = 70;
 let estado = null;
@@ -250,19 +250,63 @@ async function generarDesdeUsuarios() {
 
 function imprimir() {
   if (!estado?.nodos.length) return;
-  const { w, h } = limites();
-  const escala = Math.min(1, 1000 / w, 640 / h);
-  const copia = estado.lienzo.cloneNode(true);
-  copia.querySelectorAll('.org-acciones').forEach(x => x.remove());
-  copia.style.transform = `scale(${escala})`; copia.style.transformOrigin = '0 0';
-  imprimirPDF('Organigrama del equipo',
-    `<style>${ESTILO_IMPRESION}</style><div style="position:relative;width:${w * escala}px;height:${h * escala}px">${copia.outerHTML}</div>`,
+  imprimirPDF('Organigrama del equipo', organigramaSVG(estado.nodos),
     { proyectoTexto: store.area.nombre || 'Todos los proyectos', orientacion: 'landscape' });
 }
 
-const ESTILO_IMPRESION = `
-  .org-lienzo { position: relative; } .org-lineas { position: absolute; inset: 0; overflow: visible; }
-  .org-lineas path { fill: none; stroke: #A0AEC0; stroke-width: 1.5; }
-  .org-nodo { position: absolute; box-sizing: border-box; border: 2px solid; border-radius: 10px; padding: 8px; text-align: center; font-size: 11px; }
-  .org-unidad { border-color: #2B6CB0; background: #EBF4FF; color: #2B6CB0; } .org-persona { border-color: #2F855A; background: #F0FFF4; color: #22543D; }
-  .org-ico { font-size: 16px; } .org-tit { font-weight: 700; } .org-sub, .org-rol { font-size: 9.5px; color: #4A5568; }`;
+// ---------- Versión para PDF y reportes ----------
+// El organigrama se dibuja como una imagen vectorial (SVG) con las mismas posiciones, tarjetas y líneas que en
+// pantalla: se ve igual en la vista previa y en el PDF, y se escala para ocupar el ancho de la hoja.
+function partir(texto, max) {
+  const palabras = String(texto || '').split(/\s+/).filter(Boolean), lineas = [];
+  let l = '';
+  for (const p of palabras) {
+    if ((l + ' ' + p).trim().length > max && l) { lineas.push(l); l = p; } else l = (l + ' ' + p).trim();
+  }
+  if (l) lineas.push(l);
+  return lineas.length > 3 ? [...lineas.slice(0, 2), lineas.slice(2).join(' ').slice(0, max - 1) + '…'] : lineas;
+}
+
+export function organigramaSVG(nodos) {
+  const validos = nodos.filter(n => n.x != null && n.y != null);
+  if (!validos.length) return '<p class="nota">Aún no hay organigrama.</p>';
+  const porId = new Map(validos.map(n => [n.id, n]));
+  const nHijos = id => validos.filter(n => n.padre_id === id).length;
+  const minX = Math.min(...validos.map(n => Number(n.x))), minY = Math.min(...validos.map(n => Number(n.y)));
+  const w = Math.max(...validos.map(n => Number(n.x))) - minX + ANCHO + 20, h = Math.max(...validos.map(n => Number(n.y))) - minY + ALTO + 20;
+  const X = n => Number(n.x) - minX + 10, Y = n => Number(n.y) - minY + 10;
+  const lineasSVG = validos.filter(n => n.padre_id && porId.has(n.padre_id)).map(n => {
+    const p = porId.get(n.padre_id);
+    const x1 = X(p) + ANCHO / 2, y1 = Y(p) + ALTO, x2 = X(n) + ANCHO / 2, y2 = Y(n), my = (y1 + y2) / 2;
+    return `<path d="M${x1},${y1} C${x1},${my} ${x2},${my} ${x2},${y2}" fill="none" stroke="#A0AEC0" stroke-width="1.5"/>`;
+  }).join('');
+  const tarjetas = validos.map(n => {
+    const p = n.tipo === 'persona' ? store.perfiles.find(x => x.id === n.usuario_id) : null;
+    const titulo = n.tipo === 'unidad' ? (n.titulo || 'Unidad') : (p?.nombre || n.titulo || 'Vacante');
+    const sub = n.tipo === 'unidad' ? `${nHijos(n.id)} dependiente(s)` : ((p?.cargo_id && store.valores.get(p.cargo_id)?.valor) || n.titulo || '');
+    const rol = p ? ROLES[p.rol] || p.rol : '';
+    const [borde, fondo, color] = n.tipo === 'unidad' ? ['#2B6CB0', '#EBF4FF', '#2B6CB0'] : ['#2F855A', '#F0FFF4', '#22543D'];
+    const lt = partir(titulo, 26), ls = partir(sub, 34);
+    let y = Y(n) + 22;
+    const txt = (t, size, peso, col) => { const e = `<text x="${X(n) + ANCHO / 2}" y="${y}" text-anchor="middle" font-size="${size}" font-weight="${peso}" fill="${col}">${esc(t)}</text>`; y += size + 2; return e; };
+    return `<rect x="${X(n)}" y="${Y(n)}" width="${ANCHO}" height="${ALTO}" rx="10" fill="${fondo}" stroke="${borde}" stroke-width="2"/>
+      ${txt(n.tipo === 'unidad' ? '🏢' : '👤', 12, 400, color)}${lt.map(t => txt(t, 11, 700, color)).join('')}${ls.map(t => txt(t, 9, 400, '#4A5568')).join('')}${rol ? txt(rol, 8.5, 400, '#718096') : ''}`;
+  }).join('');
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-height:170mm;font-family:Manrope,Arial,sans-serif" preserveAspectRatio="xMidYMin meet">${lineasSVG}${tarjetas}</svg>`;
+}
+
+/** Usuarios y roles: misma tabla que la pantalla (columnas y anchos) y el organigrama. */
+export function informeEquipo(nodos) {
+  const personas = store.perfiles.filter(p => !p.eliminado).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  return tablaPDF([
+    { titulo: 'Nombre', ancho: 140, html: true, valor: p => `<b>${esc(p.nombre)}</b>${p.es_admin_principal ? ' <span class="badge" style="--c:#E8762B">Principal</span>' : ''}` },
+    { titulo: 'Código', ancho: 70, valor: p => p.codigo || '' },
+    { titulo: 'Cargo', ancho: 220, valor: p => (p.cargo_id ? store.valores.get(p.cargo_id)?.valor || '' : '') },
+    { titulo: 'Correo', ancho: 165, valor: p => p.email || '' },
+    { titulo: 'Rol', ancho: 150, html: true, valor: p => `<span class="badge" style="--c:${COLOR_ROL[p.rol] || '#4E79A7'}">${esc(ROLES[p.rol] || p.rol)}</span>` },
+    { titulo: 'Gerencias (consulta)', ancho: 230, valor: p => (p.gerencia_ids || []).map(g => store.valores.get(g)?.codigo || '').join(', ') },
+    { titulo: 'H/día', ancho: 50, num: true, valor: p => p.horas_dia ?? '—' },
+    { titulo: 'Estado', ancho: 60, valor: p => (p.activo ? 'Activo' : 'Inactivo') },
+  ], personas) + '<h2>Organigrama del equipo</h2>' + organigramaSVG(nodos);
+}
+

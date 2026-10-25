@@ -5,7 +5,6 @@ import { api, mensajeError } from '../data/api.js';
 import { store, lideres, equipo, nombre, proyecto, etiqueta, textoEstado, colorEstado, param, valoresLista, esGestor, esStaff } from '../core/store.js';
 import { lunes, sumarSemanas, sumarDias, etiquetaSemana, esc, html, num, pct, fmtFecha, hoy, DIAS, agrupar } from '../core/util.js';
 import { error } from '../ui/ui.js';
-import { ROLES } from '../data/catalogos.js';
 import { columnasActividad } from '../services/columnas.js';
 import { resumenPAC, resumenHistorico, colorPAC, paretoCNC, resumenRestricciones, capacidadSemana, colorCarga, restriccionesActivas } from '../services/indicadores.js';
 import { tablaPDF, kpisPDF, documentoReporte, nombreProyectoActual, PAPELES } from '../services/pdf.js';
@@ -275,15 +274,11 @@ const REPORTES = [
         { titulo: 'Activo', ancho: 60, valor: v => (v.activo === false ? 'No' : 'Sí') },
       ], vals);
     } },
-  { grupo: 'Configuración', id: 'equipo', titulo: 'Equipo y roles', filtros: [], orientacion: 'portrait',
+  { grupo: 'Configuración', id: 'equipo', titulo: 'Usuarios y roles (con organigrama)', filtros: [], orientacion: 'landscape',
     async generar() {
-      const personas = store.perfiles.filter(p => !p.eliminado).sort((a, b) => a.nombre.localeCompare(b.nombre));
-      return tablaPDF([
-        { titulo: 'Nombre', ancho: 170, valor: p => p.nombre }, { titulo: 'Código', ancho: 60, valor: p => p.codigo || '' },
-        { titulo: 'Cargo', ancho: 200, valor: p => etiqueta(p.cargo_id) }, { titulo: 'Rol', ancho: 140, valor: p => ROLES[p.rol] || p.rol },
-        { titulo: 'H/día', ancho: 50, num: true, valor: p => (p.horas_dia ?? '') },
-        { titulo: 'Estado', ancho: 70, valor: p => (p.activo ? 'Activo' : 'Inactivo') },
-      ], personas);
+      // Mismo contenido que Configuración → Usuarios y roles: tabla con sus columnas y el organigrama
+      const nodos = await api.list('organigrama_nodos', { eq: { area_id: store.area.id }, order: [['orden', true]] });
+      return (await import('./organigrama.js')).informeEquipo(nodos);
     } },
   { grupo: 'Configuración', id: 'plantillas', titulo: 'Plantillas (recurrentes y de servicio)', filtros: [], orientacion: 'landscape',
     async generar() {
