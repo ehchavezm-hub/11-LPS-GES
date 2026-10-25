@@ -82,7 +82,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .menu-proy-cab { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
 .menu-proy-cab h3 { font-size: 13px; text-transform: uppercase; letter-spacing: .5px; color: var(--texto-3); }
 .pestanas { display: flex; gap: 2px; background: var(--surface-2); border-radius: 8px; padding: 2px; margin-bottom: 6px; }
-.pestanas button { flex: 1; border: none; background: transparent; padding: 5px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--texto-2); }
+.pestanas button { white-space: nowrap; flex: 1; border: none; background: transparent; padding: 5px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: var(--texto-2); }
 .pestanas button.activo { background: var(--surface); color: var(--azul-ejec); box-shadow: var(--sombra); }
 .menu-proy input[type=search] { width: 100%; padding: 6px 9px; border: 1px solid var(--borde); border-radius: 7px; margin-bottom: 6px; }
 .proy-lista { overflow-y: auto; flex: 1; }
@@ -337,8 +337,9 @@ body.pantalla-completa .contenido { padding: 24px 34px; font-size: 16px; }
 /* Pestaña con aviso (p. ej. sobrecargas en la carga vs capacidad del Look Ahead) */
 .badge-alerta:empty { display: none; }
 .badge-alerta { margin-left: 6px; padding: 1px 7px; border-radius: 10px; background: #FDECEC; color: #C62828; font-size: 11.5px; font-weight: 700; }
-.pestanas-la { max-width: 560px; }
-.pestanas-la button { font-size: 14px; padding: 8px 12px; }
+.pestanas-la { margin: 0; flex: 0 0 auto; }
+.pestanas-la button { flex: 0 0 auto; white-space: nowrap; }
+.pestanas-la button { font-size: 13.5px; padding: 6px 14px; }
 
 /* Reportes: árbol a la izquierda y presentación preliminar a la derecha */
 .reportes { display: grid; grid-template-columns: 260px 1fr; gap: 12px; height: calc(100vh - 110px); }

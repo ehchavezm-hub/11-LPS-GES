@@ -101,9 +101,10 @@ export function imprimirPDF(modulo, contenidoHTML, { orientacion = 'portrait', p
     capa.querySelectorAll('[data-ori]').forEach(b => b.classList.toggle('activo', b.dataset.ori === estado.orientacion));
     marco.srcdoc = documentoReporte(modulo, contenidoHTML, { papel, orientacion: estado.orientacion, unaHoja, proyectoTexto, archivo });
   };
-  const cerrar = () => { capa.remove(); removeEventListener('keydown', tecla); };
+  const cerrar = () => { capa.remove(); removeEventListener('keydown', tecla); removeEventListener('hashchange', cerrar); };
   const tecla = e => { if (e.key === 'Escape') cerrar(); };
   addEventListener('keydown', tecla);
+  addEventListener('hashchange', cerrar);   // al ir a otra pantalla se cierra la vista previa
   capa.querySelector('[data-x]').onclick = cerrar;
   capa.addEventListener('mousedown', e => { if (e.target === capa) cerrar(); });
   capa.querySelectorAll('[data-ori]').forEach(b => { b.onclick = () => { estado.orientacion = b.dataset.ori; pintar(); }; });

@@ -23,12 +23,12 @@ export async function render(el, { query }) {
   const pag = html(`<div>
     <div class="pagina-cab"><h1>Look Ahead</h1>
       <span class="pagina-sub">${estado.semanas.length} semanas: ${esc(etiquetaSemana(estado.semanas[0]))} → ${esc(etiquetaSemana(estado.semanas.at(-1)).split('·')[0])}</span>
-      <select class="sel" data-resp aria-label="Responsable"></select><span data-proy></span>
+      <select class="sel" data-resp aria-label="Responsable"></select>
+      <div class="pestanas pestanas-la">
+        <button data-v="la">🔭 Look Ahead</button>
+        <button data-v="carga">📊 Carga vs capacidad (HH) <span class="badge-alerta" data-alerta></span></button>
+      </div><span data-proy></span>
       <span class="flex"></span><button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
-    <div class="pestanas pestanas-la" style="margin-bottom:12px">
-      <button data-v="la">🔭 Look Ahead</button>
-      <button data-v="carga">📊 Carga vs capacidad (HH) <span class="badge-alerta" data-alerta></span></button>
-    </div>
     <div data-vista="carga" class="oculto"><div class="tarjeta"><h2>Carga vs capacidad (HH)</h2><div data-carga></div></div></div>
     <div data-vista="la">
     <div class="aviso">El Look Ahead responde <b>¿qué PUEDE hacerse?</b> Registre las actividades de las próximas semanas, identifique sus restricciones y márquelas como <b>Lista</b> cuando estén libres. En la reunión del viernes se comprometen las de la semana siguiente.</div>
