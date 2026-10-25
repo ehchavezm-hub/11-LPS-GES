@@ -33,17 +33,18 @@ export function montarLayout(raiz, { alSalir }) {
   raiz.innerHTML = '';
   const app = html(`<div id="app">
     <header class="cabecera">
-      <button class="btn-icono btn-menu" data-a="menu" aria-label="Menú">☰</button>
+      <button class="btn-icono btn-menu" data-a="menu" aria-label="Contraer o expandir el menú" title="Contraer / expandir el menú lateral">☰</button>
       <a class="logo" href="#/"><span>LPS<b>-GT</b></span></a>
       <span class="cab-area">${esc(store.area?.nombre || '')}</span>
       ${modoDemo ? '<span class="demo-chip" title="Datos ficticios guardados solo en este navegador">MODO DEMOSTRACIÓN</span>' : ''}
       <span class="flex"></span>
+      <span class="tam-letra" title="Tamaño de letra y de las filas"><button data-a="letra-normal" aria-label="Letra normal">A</button><button data-a="letra-grande" aria-label="Letra grande">A+</button></span>
       <span class="btn-actualizar"><button class="btn-texto-cab" data-a="actualizar" title="Actualizar la página">Actualizar</button><button class="btn-icono btn-flecha" data-a="actualizar-menu" title="Más opciones de actualización" aria-label="Opciones de actualización">▾</button></span>
       <button class="btn-icono" data-a="ayuda" title="Ayuda y recorrido guiado" aria-label="Ayuda">❔</button>
       <button class="btn-icono" data-a="notif" title="Notificaciones" aria-label="Notificaciones">🔔<span class="contador oculto"></span></button>
       <button class="usuario-btn" data-a="usuario"><span class="avatar">${esc(iniciales)}</span><span class="nom">${esc(u.nombre)}</span></button>
     </header>
-    <aside class="lateral">
+    <aside class="lateral"><div class="lateral-tirador" title="Arrastre para cambiar el ancho del menú (doble clic: ancho normal)"></div>
       <nav class="nav" aria-label="Navegación principal"></nav>
       <section class="menu-proy" aria-label="Menú de proyectos">
         <div class="menu-proy-cab"><h3>Proyectos</h3>
@@ -63,6 +64,8 @@ export function montarLayout(raiz, { alSalir }) {
 
   pintarNav();
   pintarProyectos();
+  aplicarPreferencias({});
+  tiradorLateral(app);
   document.addEventListener('ruta', pintarNav);
   on('catalogo', () => { pintarProyectos(); });
   on('proyecto', () => pintarProyectos());
@@ -96,7 +99,12 @@ export function montarLayout(raiz, { alSalir }) {
 
   app.querySelector('.cabecera').addEventListener('click', e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
-    if (a === 'menu') document.body.classList.toggle('menu-abierto');
+    if (a === 'menu') {
+      // En celular abre/cierra el menú flotante; en pantallas grandes lo contrae a solo íconos
+      if (matchMedia('(max-width: 900px)').matches) document.body.classList.toggle('menu-abierto');
+      else aplicarPreferencias({ contraido: !preferencias.contraido });
+    }
+    if (a === 'letra-normal' || a === 'letra-grande') aplicarPreferencias({ letraGrande: a === 'letra-grande' });
     if (a === 'notif') panelNotificaciones();
     if (a === 'usuario') menuUsuario(alSalir);
     if (a === 'actualizar') location.reload();
@@ -130,13 +138,49 @@ function debounceCatalogo() {
   return () => { clearTimeout(t); t = setTimeout(() => cargarCatalogo().catch(() => {}), 800); };
 }
 
+// ---------- Preferencias de vista (por computadora): letra grande, ancho y menú contraído ----------
+const preferencias = (() => {
+  try { return { ancho: 260, contraido: false, letraGrande: false, ...JSON.parse(localStorage.getItem('lpsgt-vista') || '{}') }; }
+  catch { return { ancho: 260, contraido: false, letraGrande: false }; }
+})();
+
+function aplicarPreferencias(cambios) {
+  Object.assign(preferencias, cambios);
+  try { localStorage.setItem('lpsgt-vista', JSON.stringify(preferencias)); } catch { /* sin almacenamiento */ }
+  const app = document.getElementById('app');
+  if (app) app.style.setProperty('--lateral', preferencias.contraido ? '60px' : `${preferencias.ancho}px`);
+  document.body.classList.toggle('lateral-contraido', !!preferencias.contraido);
+  document.documentElement.classList.toggle('letra-grande', !!preferencias.letraGrande);
+  document.querySelectorAll('.tam-letra button').forEach(b => b.classList.toggle('activo', (b.dataset.a === 'letra-grande') === !!preferencias.letraGrande));
+  // Las grillas recalculan anchos y altos de fila
+  clearTimeout(aplicarPreferencias.t);
+  aplicarPreferencias.t = setTimeout(() => (window.Tabulator?.findTable?.('.tabulator') || []).forEach(t => t.redraw(true)), 80);
+}
+
+function tiradorLateral(app) {
+  const tirador = app.querySelector('.lateral-tirador');
+  tirador.addEventListener('dblclick', () => aplicarPreferencias({ ancho: 260, contraido: false }));
+  tirador.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const x0 = e.clientX, a0 = preferencias.contraido ? 60 : preferencias.ancho;
+    document.body.classList.add('arrastrando-lateral');
+    const mover = ev => {
+      const ancho = Math.round(Math.min(460, Math.max(60, a0 + ev.clientX - x0)));
+      // Muy angosto: queda contraído (solo íconos)
+      aplicarPreferencias(ancho < 150 ? { contraido: true } : { contraido: false, ancho });
+    };
+    const soltar = () => { document.body.classList.remove('arrastrando-lateral'); removeEventListener('mousemove', mover); removeEventListener('mouseup', soltar); };
+    addEventListener('mousemove', mover); addEventListener('mouseup', soltar);
+  });
+}
+
 function pintarNav() {
   const nav = document.querySelector('.nav');
   if (!nav) return;
   const actual = location.hash.replace(/^#/, '').split('?')[0];
   nav.innerHTML = NAV.filter(n => n.grupo || n.si()).map(n => n.grupo
     ? `<div class="nav-grupo">${esc(n.grupo)}</div>`
-    : `<a href="#${n.ruta}" class="${actual === n.ruta || actual.startsWith((n.prefijo || n.ruta) + '/') ? 'activo' : ''}"><span class="ico">${n.ico}</span>${esc(n.texto)}</a>`).join('');
+    : `<a href="#${n.ruta}" title="${esc(n.texto)}" class="${actual === n.ruta || actual.startsWith((n.prefijo || n.ruta) + '/') ? 'activo' : ''}"><span class="ico">${n.ico}</span><span class="txt">${esc(n.texto)}</span></a>`).join('');
   nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => document.body.classList.remove('menu-abierto')));
 }
 
