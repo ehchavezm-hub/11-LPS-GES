@@ -332,11 +332,11 @@ async function parametros(el) {
     { name: 'umbral_ambar', label: 'Semáforo ámbar desde (%)', type: 'number', min: 0, max: 100, value: Math.round(p.umbral_ambar * 100) },
     { name: 'semanas_lookahead', label: 'Semanas del Look Ahead', type: 'number', min: 1, max: 8, value: p.semanas_lookahead },
     // Pedido 110: cuándo se registra el Look Ahead y qué semana planifica
-    { name: 'la_dia', label: 'Día de registro del Look Ahead', type: 'select', value: String(configLookAhead().dia),
+    { name: 'la_dias', label: 'Días de registro del Look Ahead', type: 'multiselect', value: configLookAhead().dias.map(String),
       options: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((d, i) => ({ value: String(i + 1), label: d })) },
     { name: 'la_semana', label: 'Semana que planifica el Look Ahead', type: 'select', value: configLookAhead().semana,
       options: [{ value: 'actual', label: 'La misma semana (p. ej. el lunes, para esa semana)' }, { value: 'siguiente', label: 'La semana siguiente (p. ej. el viernes, para la próxima)' }],
-      help: 'Define la primera semana del Look Ahead, la semana que se compromete y si lo agregado ese día al Plan cuenta como programado' },
+      help: 'Define la primera semana del Look Ahead y la semana que se compromete. Con «la misma semana», lo que se agrega al Plan hasta el último día de registro cuenta como programado' },
     { name: 'horas_dia', label: 'Horas disponibles por día (por defecto)', type: 'number', min: 1, max: 24, step: 0.5, value: p.horas_dia },
     { name: 'dias_laborables', label: 'Días laborables', type: 'multiselect', value: (p.dias_laborables || []).map(String),
       options: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((d, i) => ({ value: String(i + 1), label: d })) },
@@ -368,7 +368,7 @@ async function parametros(el) {
       const d = f.leer();
       const valores = {
         meta_pac: (d.meta_pac ?? 80) / 100, umbral_ambar: (d.umbral_ambar ?? 60) / 100, semanas_lookahead: d.semanas_lookahead ?? 3,
-        look_ahead: { dia: Number(d.la_dia) || 5, semana: d.la_semana === 'actual' ? 'actual' : 'siguiente' },
+        look_ahead: { dias: (d.la_dias || []).map(Number).sort((a, b) => a - b), semana: d.la_semana === 'actual' ? 'actual' : 'siguiente' },
         horas_dia: d.horas_dia ?? 8, dias_laborables: d.dias_laborables.map(Number).sort(), trabajo_fin_semana: !!d.trabajo_fin_semana, cierre: { dia: Number(d.cierre_dia), hora: d.cierre_hora || '17:00' },
         reunion: { dia: Number(d.reunion_dia), hora: d.reunion_hora || '08:00' }, cierre_automatico: d.cierre_automatico, alerta_dias: d.alerta_dias ?? 3,
         arrastre_alerta: d.arrastre_alerta ?? 2, version_app: d.version_app || 'LPS_GT V1.00.01', firma_pdf: d.firma_pdf || 'By EHCM',
@@ -376,6 +376,7 @@ async function parametros(el) {
         reconocimientos: { mejor_pac: d.rec_mejor, mayor_mejora: d.rec_mejora },
       };
       if (valores.umbral_ambar > valores.meta_pac) return error('El umbral ámbar no puede ser mayor que la meta.');
+      if (!valores.look_ahead.dias.length) return error('Marque al menos un día de registro del Look Ahead.');
       try {
         await api.upsert('parametros', Object.entries(valores).map(([clave, valor]) => ({ area_id: store.area.id, clave, valor })), 'area_id,clave');
         await cargarCatalogo();

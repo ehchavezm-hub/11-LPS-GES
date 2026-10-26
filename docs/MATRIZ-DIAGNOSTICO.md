@@ -83,7 +83,7 @@ Revisión completa del aplicativo al **25/10/2026** (pedido 98). Reemplaza la ma
 |---|---|:-:|:-:|---|
 | **3.1** | **Look Ahead** | | | |
 | 3.1.1 | Pestañas 🔭 Look Ahead / 📊 Carga vs capacidad (HH), junto a "Todo el equipo" (85, 94) | ✅ | — | ✅ ⚠ con el número de semanas sobrecargadas |
-| 3.1.1.1 | Día de registro y semana que planifica (misma o siguiente), configurables (110) | ✅ | ✅ Parámetro `look_ahead` | ✅ Look Ahead, Comprometer, Plan (programada / no programada), Cartera, Reunión, Reportes y Ayuda usan la misma regla |
+| 3.1.1.1 | Días de registro (casillas, 111) y semana que planifica (misma o siguiente), configurables (110) | ✅ | ✅ Parámetro `look_ahead` | ✅ Look Ahead, Comprometer, Plan (programada / no programada), Cartera, Reunión, Reportes y Ayuda usan la misma regla |
 | 3.1.2 | Grilla agrupada por semana (horizonte según el parámetro) | ✅ | ✅ | ✅ Al elegir otra semana, la fila pasa a su grupo (79) |
 | 3.1.3 | Filas nuevas sin datos se conservan al actualizar (78) | ✅ | — | ✅ Borradores por usuario y por grilla |
 | 3.1.4 | Estado LA con su significado al pasar el mouse (75, 76) | ✅ | ✅ | ✅ |

@@ -137,6 +137,7 @@ Estado de cada observación al 25/10/2026.
 | 99-c | Crear un usuario nuevo en la versión real | ✅ Funciona. Se corrigió que el usuario creado por el administrador no quedaba obligado a cambiar su contraseña temporal y que llegaban avisos falsos de «Nuevo usuario por aprobar» | Prueba del usuario y consulta en la base | ✅ Función versión 2 instalada; usuario de prueba corregido y 3 avisos falsos retirados |
 | 100 | Los líderes pueden agregar proyectos y CET / Servicio (los proyectos son únicos y los ve todo el equipo) | ✅ Permisos nuevos «Agregar proyectos» y «Agregar CET / Servicio» (migración 018, aplicada en Supabase); ＋ en el menú de proyectos y clic derecho en el título CET o Servicio | `lider100.js` (11 verificaciones) y pruebas de base de datos | ✅ Regresión completa, humo y base de datos sin errores |
 | 110 | Elegir en Configuración el día en que se registra el Look Ahead (los lunes, para esa misma semana) | ✅ Configuración → Parámetros: «Día de registro del Look Ahead» y «Semana que planifica el Look Ahead». Se aplica en el Look Ahead, Comprometer, Plan, Cartera, Reunión, Reportes y Ayuda; tu proyecto quedó en lunes / misma semana | `la110.js` (9 verificaciones) | ✅ Regresión completa y humo sin errores |
+| 111 | Días de registro del Look Ahead como casillas (varios días, p. ej. lunes y martes) | ✅ Siete casillas en Configuración → Parámetros; lo agregado al Plan cuenta como programado hasta el último día marcado | `la110.js` (lunes y martes) | ✅ Humo sin errores |
 
 ## Lo que encontró la reconfirmación
 

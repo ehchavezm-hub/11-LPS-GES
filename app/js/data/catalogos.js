@@ -87,8 +87,8 @@ export const PARAMETROS_INICIALES = {
   meta_pac: 0.8,
   umbral_ambar: 0.6,
   semanas_lookahead: 3,
-  // Look Ahead (pedido 110): día en que se registra y qué semana planifica ('actual' = esa misma semana, 'siguiente' = la próxima)
-  look_ahead: { dia: 5, semana: 'siguiente' },
+  // Look Ahead (pedidos 110 y 111): días en que se registra y qué semana planifica ('actual' = esa misma semana, 'siguiente' = la próxima)
+  look_ahead: { dias: [5], semana: 'siguiente' },
   horas_dia: 8,
   dias_laborables: [1, 2, 3, 4, 5],
   trabajo_fin_semana: false,   // muestra sábado y domingo para registrar trabajo esos días

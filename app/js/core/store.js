@@ -127,7 +127,10 @@ export function param(clave) { return store.parametros[clave] ?? PARAMETROS_INIC
 // Configuración → Parámetros: día en que se registra el Look Ahead y si planifica esa misma semana o la siguiente.
 export function configLookAhead() {
   const c = { ...PARAMETROS_INICIALES.look_ahead, ...(param('look_ahead') || {}) };
-  return { dia: Number(c.dia) || 5, semana: c.semana === 'actual' ? 'actual' : 'siguiente' };
+  // Varios días (pedido 111); se acepta el formato anterior de un solo día ("dia")
+  const lista = (Array.isArray(c.dias) && c.dias.length ? c.dias : [c.dia ?? 5]).map(Number).filter(d => d >= 1 && d <= 7);
+  const dias = [...new Set(lista.length ? lista : [5])].sort((a, b) => a - b);
+  return { dias, ultimo: dias.at(-1), semana: c.semana === 'actual' ? 'actual' : 'siguiente' };
 }
 /** Primera semana del Look Ahead: la que se planifica y se compromete (la actual o la siguiente). */
 export function semanaInicioLA() { return configLookAhead().semana === 'actual' ? lunes() : sumarSemanas(lunes(), 1); }
@@ -142,10 +145,13 @@ export function semanaEnPlanificacion(semana) {
   if (semana > actual) return true;
   if (semana < actual || configLookAhead().semana !== 'actual') return false;
   const diaHoy = ((new Date().getDay() + 6) % 7) + 1;   // 1 = lunes … 7 = domingo
-  return diaHoy <= configLookAhead().dia;
+  return diaHoy <= configLookAhead().ultimo;   // hasta el último día de registro
 }
-/** "lunes", "viernes"… */
-export function diaLookAhead() { return DIAS_NOMBRE[configLookAhead().dia - 1].toLowerCase(); }
+/** "lunes", "lunes y martes", "lunes, martes y miércoles"… */
+export function diaLookAhead() {
+  const n = configLookAhead().dias.map(d => DIAS_NOMBRE[d - 1].toLowerCase());
+  return n.length > 1 ? `${n.slice(0, -1).join(', ')} y ${n.at(-1)}` : n[0];
+}
 
 // ---------- Personas ----------
 export function perfil(id) { return store.perfiles.find(p => p.id === id); }
