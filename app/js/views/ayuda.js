@@ -1,7 +1,7 @@
 // Ayuda en línea, guía rápida en PDF y recorrido guiado la primera vez (M-11).
 import { arrastrable } from '../ui/ui.js';
 import { api } from '../data/api.js';
-import { store, param, esStaff } from '../core/store.js';
+import { store, param, esStaff, configLookAhead, diaLookAhead } from '../core/store.js';
 import { esc, html } from '../core/util.js';
 import { imprimirPDF } from '../services/pdf.js';
 
@@ -15,7 +15,7 @@ function guia() {
       El indicador principal es el <b>PAC</b> (Porcentaje de Actividades Cumplidas) = completadas ÷ (completadas + no completadas) de los compromisos programados.</p>`],
     ['Flujo semanal', `<ol>
       <li><b>Durante la semana:</b> actualice el avance de sus compromisos en <a href="#/plan">Plan semanal</a> y registre las actividades no programadas que surjan.</li>
-      <li><b>Lunes a jueves:</b> mantenga su <a href="#/lookahead">Look Ahead</a> (${param('semanas_lookahead')} semanas) y levante sus <a href="#/restricciones">restricciones</a>.</li>
+      <li><b>Look Ahead (los ${esc(diaLookAhead())}):</b> registre su <a href="#/lookahead">Look Ahead</a> (${param('semanas_lookahead')} semanas, desde la ${configLookAhead().semana === 'actual' ? 'misma semana' : 'semana siguiente'}) y levante sus <a href="#/restricciones">restricciones</a>.</li>
       <li><b>Reunión del ${DIAS[r.dia] || 'viernes'} ${esc(r.hora || '08:00')}:</b> se revisa el PAC y las causas, el avance, las restricciones y se comprometen las actividades de la semana siguiente.</li>
       <li><b>Cierre del ${DIAS[c.dia] || 'viernes'} ${esc(c.hora || '17:00')}:</b> marque cada compromiso como Completado, No completado (con su CNC) o Cancelado, registre las HH reales y use <b>🔒 Cerrar semana</b>.
         Si no lo hace, la semana se cierra automáticamente y lo pendiente queda como "No reportado".</li></ol>`],
@@ -34,7 +34,7 @@ function guia() {
     ['Del Look Ahead al Plan semanal', `<ul>
       <li><b>Pendiente</b>: aún no se revisa si se puede hacer. <b>Con restricción</b>: tiene algo que la impide (se marca sola al registrar una restricción).
         <b>Lista</b>: sin impedimentos (se marca sola al levantar la última restricción, desde cualquier pantalla). <b>Trasladada al plan</b>: ya está comprometida en el Plan semanal. <b>Cancelada</b>: no se hará.</li>
-      <li>En la reunión, <b>✔ Comprometer semana siguiente</b> pasa al Plan las actividades <b>Lista</b> (o las filas seleccionadas). En el Plan, <b>⬇ Traer del Look Ahead</b> hace lo mismo para la semana que está viendo.</li>
+      <li><b>✔ Comprometer</b> (Look Ahead) pasa al Plan, de la primera semana del Look Ahead, las actividades <b>Lista</b> (o las filas seleccionadas). En el Plan, <b>⬇ Traer del Look Ahead</b> hace lo mismo para la semana que está viendo.</li>
       <li>También puede elegir <b>Trasladada al plan</b> en la columna Estado LA; mientras el compromiso no tenga estado final puede volver a <b>Lista</b> y sale del Plan.</li>
       <li>El trabajo que surge durante la semana se registra directamente en el Plan como <b>No programada</b>: no afecta el PAC y queda en el reporte "Actividades no programadas".</li></ul>`],
     ['Menú de proyectos', `<p>En el panel izquierdo elija un proyecto para filtrar todas las pantallas. Use las pestañas <b>Mis</b>, <b>Todos</b> y <b>★ Favoritos</b>.

@@ -1,6 +1,7 @@
 // Estado de la sesión y catálogo en memoria (listas, parámetros, permisos, usuarios, proyectos).
 import { api } from '../data/api.js';
 import { PARAMETROS_INICIALES, PLANIFICADORES, AYUDA_ESTADOS } from '../data/catalogos.js';
+import { lunes, sumarSemanas, DIAS_NOMBRE } from './util.js';
 
 const bus = new EventTarget();
 
@@ -121,6 +122,30 @@ export function opcionesEstado(clave) {
 }
 
 export function param(clave) { return store.parametros[clave] ?? PARAMETROS_INICIALES[clave]; }
+
+// ---------- Look Ahead (pedido 110) ----------
+// Configuración → Parámetros: día en que se registra el Look Ahead y si planifica esa misma semana o la siguiente.
+export function configLookAhead() {
+  const c = { ...PARAMETROS_INICIALES.look_ahead, ...(param('look_ahead') || {}) };
+  return { dia: Number(c.dia) || 5, semana: c.semana === 'actual' ? 'actual' : 'siguiente' };
+}
+/** Primera semana del Look Ahead: la que se planifica y se compromete (la actual o la siguiente). */
+export function semanaInicioLA() { return configLookAhead().semana === 'actual' ? lunes() : sumarSemanas(lunes(), 1); }
+/** Semanas del horizonte del Look Ahead, desde semanaInicioLA(). */
+export function semanasLookAhead() {
+  const n = Number(param('semanas_lookahead')) || 3;
+  return Array.from({ length: n }, (_, i) => sumarSemanas(semanaInicioLA(), i));
+}
+/** ¿La semana todavía se está planificando? Lo que se agregue al Plan cuenta como programado (no como "no programado"). */
+export function semanaEnPlanificacion(semana) {
+  const actual = lunes();
+  if (semana > actual) return true;
+  if (semana < actual || configLookAhead().semana !== 'actual') return false;
+  const diaHoy = ((new Date().getDay() + 6) % 7) + 1;   // 1 = lunes … 7 = domingo
+  return diaHoy <= configLookAhead().dia;
+}
+/** "lunes", "viernes"… */
+export function diaLookAhead() { return DIAS_NOMBRE[configLookAhead().dia - 1].toLowerCase(); }
 
 // ---------- Personas ----------
 export function perfil(id) { return store.perfiles.find(p => p.id === id); }

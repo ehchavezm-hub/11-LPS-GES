@@ -19,8 +19,8 @@ export const AYUDA_ESTADOS = {
   estados_la: {
     pendiente: 'Registrada, pero aún no se revisa si puede hacerse. Estado inicial de toda actividad nueva.',
     con_restriccion: 'Algo impide hacerla (información, planos, aprobaciones, recursos…). Se marca sola al registrar una restricción 🚧.',
-    lista: 'Sin impedimentos: se puede comprometer. Se marca sola al levantar la última restricción. Solo las "Lista" pasan al Plan con «Comprometer semana siguiente».',
-    trasladada: 'Ya pasó al Plan semanal como compromiso (se marca sola al comprometer la semana siguiente).',
+    lista: 'Sin impedimentos: se puede comprometer. Se marca sola al levantar la última restricción. Solo las "Lista" pasan al Plan con «Comprometer semana».',
+    trasladada: 'Ya pasó al Plan semanal como compromiso (se marca sola al comprometer la semana).',
     cancelada: 'Ya no se hará. No cuenta en la carga ni en la capacidad.',
   },
   estados_compromiso: {
@@ -87,6 +87,8 @@ export const PARAMETROS_INICIALES = {
   meta_pac: 0.8,
   umbral_ambar: 0.6,
   semanas_lookahead: 3,
+  // Look Ahead (pedido 110): día en que se registra y qué semana planifica ('actual' = esa misma semana, 'siguiente' = la próxima)
+  look_ahead: { dia: 5, semana: 'siguiente' },
   horas_dia: 8,
   dias_laborables: [1, 2, 3, 4, 5],
   trabajo_fin_semana: false,   // muestra sábado y domingo para registrar trabajo esos días

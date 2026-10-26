@@ -1,6 +1,6 @@
 // Cartera de servicios por líder (6.5) y formulario de solicitudes de otras gerencias (M-01).
 import { api, mensajeError } from '../data/api.js';
-import { store, on, esGestor, esStaff, puede, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado, lideres, colorValor, opcionesServicio } from '../core/store.js';
+import { store, on, esGestor, esStaff, puede, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado, lideres, colorValor, opcionesServicio, semanaInicioLA, semanasLookAhead } from '../core/store.js';
 import { esc, html, hoy, fmtFecha, lunes, sumarSemanas, etiquetaSemana } from '../core/util.js';
 import { crearGrilla } from '../ui/grid.js';
 import { kpi, badge, pedirDatos, ok, error, vacio, toast } from '../ui/ui.js';
@@ -148,7 +148,7 @@ async function aceptar(c) {
       { name: 'criticidad_id', label: 'Criticidad', type: 'select', options: opciones('criticidad'), value: c.criticidad_id },
       { name: 'tipo_id', label: 'Tipo', type: 'select', options: opciones('tipos_cartera'), value: c.tipo_id },
       { name: 'semana_la', label: 'Crear actividad en el Look Ahead', type: 'select',
-        options: [{ value: '', label: 'No por ahora' }, ...[1, 2, 3].map(i => ({ value: sumarSemanas(lunes(), i), label: etiquetaSemana(sumarSemanas(lunes(), i)) }))] },
+        options: [{ value: '', label: 'No por ahora' }, ...semanasLookAhead().map(s => ({ value: s, label: etiquetaSemana(s) }))] },
     ],
     alGuardar: async d => {
       if (!esGestor() && d.responsable_id !== store.usuario.id) throw new Error('Solo puede aceptar solicitudes asignándolas a usted.');
@@ -170,7 +170,7 @@ async function rechazar(c) {
 
 async function crearActividad(c, semana) {
   if (!c.id) return;
-  const sem = semana || sumarSemanas(lunes(), 1);
+  const sem = semana || semanaInicioLA();
   if (c.responsable_id !== store.usuario.id && !puede('editar_actividades_otros')) return toast('Solo el responsable puede crear actividades de esta solicitud.', 'warn');
   try {
     await api.insert('actividades', {

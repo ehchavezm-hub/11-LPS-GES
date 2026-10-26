@@ -9,14 +9,11 @@ import { columnasActividad, derivarActividad, CAMPOS_CALC_ACT } from '../service
 import { capacidadSemana, colorCarga, restriccionesActivas } from '../services/indicadores.js';
 import { abrirDetalle, abrirRestricciones, confirmarRestricciones } from './detalle.js';
 import { imprimirPDF, tablaPDF } from '../services/pdf.js';
-import { textoEstado, servicioDeProyecto } from '../core/store.js';
+import { textoEstado, servicioDeProyecto, semanasLookAhead, configLookAhead, diaLookAhead } from '../core/store.js';
 
 let grilla, desuscribir = [], estado;
 
-function semanasLA() {
-  const n = Number(param('semanas_lookahead')) || 3;
-  return Array.from({ length: n }, (_, i) => sumarSemanas(lunes(), i + 1));
-}
+const semanasLA = () => semanasLookAhead();   // según Configuración → Parámetros (pedido 110)
 
 export async function render(el, { query }) {
   estado = { resp: query.get('resp') || (esGestor() ? 'todos' : store.usuario.id), semanas: semanasLA(), acts: [], rests: [], ubic: [], colab: new Map() };
@@ -31,9 +28,9 @@ export async function render(el, { query }) {
       <span class="flex"></span><button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <div data-vista="carga" class="oculto"><div class="tarjeta"><h2>Carga vs capacidad (HH)</h2><div data-carga></div></div></div>
     <div data-vista="la">
-    <div class="aviso">El Look Ahead responde <b>¿qué PUEDE hacerse?</b> Registre las actividades de las próximas semanas, identifique sus restricciones y márquelas como <b>Lista</b> cuando estén libres. En la reunión del viernes se comprometen las de la semana siguiente.</div>
+    <div class="aviso">El Look Ahead responde <b>¿qué PUEDE hacerse?</b> Registre las actividades de las próximas semanas, identifique sus restricciones y márquelas como <b>Lista</b> cuando estén libres. El Look Ahead se registra los <b>${esc(diaLookAhead())}</b> y se compromete la <b>${esc(etiquetaSemana(estado.semanas[0]))}</b>${configLookAhead().semana === 'actual' ? ' (la misma semana)' : ' (la semana siguiente)'}. Puede cambiarlo en Configuración → Parámetros.</div>
     <div class="barra" style="margin-bottom:10px">
-      <button class="btn btn-sm btn-azul" data-a="comprometer" title="Pasar al plan de la semana siguiente las filas seleccionadas o las Listas">✔ Comprometer semana siguiente</button>
+      <button class="btn btn-sm btn-azul" data-a="comprometer" title="Pasar al Plan semanal las filas seleccionadas o las Listas de la ${esc(etiquetaSemana(estado.semanas[0]))}">✔ Comprometer ${esc(etiquetaSemana(estado.semanas[0]).split('·')[0].trim())}</button>
       <button class="btn btn-sm" data-a="plantilla" title="Generar actividades desde una plantilla de servicio (M-05)">🧩 Aplicar plantilla de servicio</button>
       <button class="btn btn-sm" data-a="cartera" title="Crear actividades desde la cartera">🗂 Desde la cartera</button>
       ${puede('agregar_cet') || puede('gestionar_listas') ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}

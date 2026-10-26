@@ -11,7 +11,7 @@ import { resumenPAC, colorPAC, capacidadSemana, colorCarga, restriccionesActivas
 import { abrirDetalle, abrirRestricciones, confirmarRestricciones } from './detalle.js';
 import { mostrarResumen } from '../services/resumen.js';
 import { imprimirPDF, tablaPDF, kpisPDF } from '../services/pdf.js';
-import { etiqueta, textoEstado, servicioDeProyecto } from '../core/store.js';
+import { etiqueta, textoEstado, servicioDeProyecto, semanaEnPlanificacion } from '../core/store.js';
 
 let grilla, desuscribir = [], estado;
 
@@ -132,7 +132,8 @@ function respNuevo() { return estado.resp !== 'todos' ? estado.resp : store.usua
 
 function nuevaFila() {
   const p = store.proyectoSel ? proyecto(store.proyectoSel) : null;
-  const empezo = lunes() >= estado.semana;
+  // Programada mientras la semana se esté planificando (con Look Ahead de la misma semana: hasta el día de registro)
+  const empezo = !semanaEnPlanificacion(estado.semana);
   return {
     area_id: store.area.id, semana: estado.semana, responsable_id: respNuevo(), comprometida: true,
     tipo: empezo ? 'no_programada' : 'programada', estado: 'programado', estado_la: 'trasladada', origen: 'manual',

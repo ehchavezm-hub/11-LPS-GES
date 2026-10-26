@@ -2,7 +2,7 @@
 // "Todo en 1 hoja", nombre del archivo y Guardar PDF). Los datos se leen de la base con los mismos cálculos
 // que las pantallas (PAC, Pareto de CNC, capacidad…) para que el reporte coincida con lo que se ve en la app.
 import { api, mensajeError } from '../data/api.js';
-import { store, lideres, equipo, nombre, proyecto, etiqueta, textoEstado, colorEstado, param, valoresLista, esGestor, esStaff, visibleParaConsulta } from '../core/store.js';
+import { store, lideres, equipo, nombre, proyecto, etiqueta, textoEstado, colorEstado, param, valoresLista, esGestor, esStaff, visibleParaConsulta, semanasLookAhead } from '../core/store.js';
 import { lunes, sumarSemanas, sumarDias, etiquetaSemana, esc, html, num, pct, fmtFecha, hoy, DIAS, agrupar } from '../core/util.js';
 import { error } from '../ui/ui.js';
 import { columnasActividad } from '../services/columnas.js';
@@ -36,10 +36,7 @@ function barras(datos, { max = Math.max(1, ...datos.map(d => d.valor || 0)), alt
   </svg>`;
 }
 
-function semanasLA() {
-  const n = Number(param('semanas_lookahead')) || 3;
-  return Array.from({ length: n }, (_, i) => sumarSemanas(lunes(), i + 1));
-}
+const semanasLA = () => semanasLookAhead();   // mismo horizonte que la pantalla Look Ahead (pedido 110)
 
 /** Serie semanal de PAC (actividades y, si no hay, el histórico importado), como en el Tablero. */
 async function seriePAC(f) {
