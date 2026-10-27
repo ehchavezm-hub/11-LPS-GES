@@ -1,7 +1,7 @@
 // Ventanas de detalle reutilizables: comentarios y menciones (M-06), enlaces (M-07), restricciones de una
 // actividad y historial de cambios.
 import { api, mensajeError } from '../data/api.js';
-import { store, nombre, puede, esStaff, opciones, opcionesEstado, colorEstado, textoEstado, etiqueta } from '../core/store.js';
+import { store, nombre, puede, esStaff, esGestor, opciones, opcionesEstado, colorEstado, textoEstado, etiqueta } from '../core/store.js';
 import { esc, html, fmtFechaHora, fmtFecha, hoy } from '../core/util.js';
 import { modal, error, ok, badge, confirmar, pedirDatos } from '../ui/ui.js';
 
