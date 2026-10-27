@@ -5,9 +5,9 @@ Look Ahead de 3 semanas, plan semanal con compromisos, cierre con PAC y causas d
 restricciones, cartera y solicitudes de otras gerencias, tablero de indicadores, reunión semanal guiada,
 capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GES_Alcance_v0.7.docx`](docs/LPS-GES_Alcance_v0.7.docx).
 
-**Aplicativo en producción:** <https://ehchavezm-hub.github.io/11-LPS_GT/>
+**Aplicativo en producción:** <https://ehchavezm-hub.github.io/11-LPS_GES/>
 
-**Modo demostración** (datos ficticios, solo en su navegador): <https://ehchavezm-hub.github.io/11-LPS_GT/?demo>
+**Modo demostración** (datos ficticios, solo en su navegador): <https://ehchavezm-hub.github.io/11-LPS_GES/?demo>
 
 - **Pruébelo sin instalar nada:** abra el aplicativo publicado y agregue `?demo` a la dirección (datos ficticios que se guardan solo en su navegador).
 - Funciona en PC y celular; se puede instalar como aplicación (PWA).
@@ -36,7 +36,7 @@ capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GES_Alcance_v0
    ```
    (Revisa cada hora; solo cierra las semanas cuyo plazo ya venció. El respaldo de GitHub también lo ejecuta.)
 4. **Authentication → Providers → Email**: activado. Recomendado: *Confirm email* activado.
-5. **Authentication → URL Configuration**: *Site URL* = la dirección del aplicativo en GitHub Pages (paso 2), p. ej. `https://ehchavezm-hub.github.io/11-LPS_GT/`.
+5. **Authentication → URL Configuration**: *Site URL* = la dirección del aplicativo en GitHub Pages (paso 2), p. ej. `https://ehchavezm-hub.github.io/11-LPS_GES/`.
 6. **Project Settings → API**: copie la *Project URL* y la *anon / publishable key*. **Nunca** use la *service_role / secret key* en el aplicativo.
 
 7. **Alta de usuarios por el administrador** (crear usuarios con contraseña y restablecerlas). Instale la función `admin-usuarios` de una de estas dos formas:

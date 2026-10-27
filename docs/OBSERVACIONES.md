@@ -20,7 +20,7 @@ Estado de cada observación al 25/10/2026.
 | 1 | Inicio del proyecto LPS-GES | ✅ | — | ✅ Repositorio activo |
 | 2 | ¿Hay acceso de lectura a ECM Project? | ✅ Respondida | — | — |
 | 3 | Tomar de ECM las plantillas, tomas de datos y reportes, **sin los datos** | ✅ | Revisión: el repositorio no tiene datos de la empresa | ✅ Sin Excel ni respaldos en el repositorio; control automático *gitleaks* |
-| 4 | Todo el proyecto vive en `ehchavezm-hub/11-LPS_GT` | ✅ | — | ✅ |
+| 4 | Todo el proyecto vive en `ehchavezm-hub/11-LPS_GES` | ✅ | — | ✅ |
 | 5 | Lo de ECM solo es referencial | ✅ | — | — |
 | 6 | Definir el alcance en Word (LPS en un área funcional, 10 líderes, administración) | ✅ v0.1 | Revisión del documento | ✅ `docs/LPS-GES_Alcance_v0.1.docx` |
 | 7 | v0.2: registro flexible tipo Excel y sección de proyectos como menú | ✅ v0.3 | Revisión del documento | ✅ Grilla tipo Excel y menú de proyectos en la app |
