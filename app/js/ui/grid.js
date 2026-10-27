@@ -20,15 +20,36 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
   caja.rows = 1;
   caja.style.cssText = 'display:block;width:100%;box-sizing:border-box;padding:4px;border:0;outline:none;resize:none;' +
     'white-space:pre-wrap;overflow-wrap:anywhere;overflow:hidden;font:inherit;line-height:1.35;background:#fff;align-self:stretch;';
-  // Alto = todo el texto ajustado al ancho de la columna (nunca menos que la celda): se ve completo mientras se edita
   const crecer = () => {
     caja.style.height = 'auto';
     const celda = cell.getElement();
-    caja.style.height = Math.max(caja.scrollHeight, celda ? celda.clientHeight - 2 : 0) + 'px';
-    try { cell.checkHeight(); } catch { /* la fila se ajusta al guardar */ }
+    const h = Math.max(caja.scrollHeight, celda ? celda.clientHeight - 2 : 0);
+    caja.style.height = h + 'px';
+    // Tabulator pone height inline en celda y en fila; hay que pisar ambos.
+    // La celda tiene overflow:hidden que recorta el textarea aunque la fila crezca.
+    if (celda) { celda.style.height = h + 'px'; celda.style.overflow = 'visible'; }
+    const fila = celda?.closest('.tabulator-row');
+    if (fila) {
+      fila.style.height = h + 'px'; fila.style.overflow = 'visible';
+      // En tablas agrupadas (Look Ahead, Plan Semanal con agrupación) el contenedor de grupo
+      // también tiene overflow recortado — hay que quitarlo para que la fila crezca visualmente.
+      const grupo = fila.closest('.tabulator-row-group');
+      if (grupo) { grupo.style.overflow = 'visible'; }
+    }
+    try { cell.checkHeight(); } catch { /* no disponible */ }
+  };
+  const limpiarFila = () => {
+    const celda = cell.getElement();
+    if (celda) { celda.style.height = ''; celda.style.overflow = ''; }
+    const fila = celda?.closest('.tabulator-row');
+    if (fila) {
+      fila.style.height = ''; fila.style.overflow = '';
+      const grupo = fila.closest('.tabulator-row-group');
+      if (grupo) { grupo.style.overflow = ''; }
+    }
   };
   let listo = false;
-  const guardar = () => { if (listo) return; listo = true; success(caja.value); };
+  const guardar = () => { if (listo) return; listo = true; limpiarFila(); success(caja.value); };
   caja.addEventListener('input', crecer);
   caja.addEventListener('blur', guardar);
   caja.addEventListener('keydown', e => {
@@ -40,7 +61,7 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
     } else if (e.key === 'Enter') {
       e.preventDefault(); guardar();
     } else if (e.key === 'Escape') {
-      listo = true; cancel();
+      listo = true; limpiarFila(); cancel();
     } else if (e.key !== 'Tab') {
       e.stopPropagation();   // flechas, Inicio, Fin… se mueven dentro del texto (Tab sigue pasando a la celda siguiente)
     }
@@ -237,23 +258,23 @@ export function crearGrilla(contenedor, cfg) {
     if (!d) return null;
     const items = [];
     // CET / Servicio: los líderes con "agregar_cet" agregan uno nuevo sin salir de la grilla (pedido 100)
-    if (d.lista === 'servicios' && (puede('agregar_cet') || puede('gestionar_listas'))) {
+    if (d.lista === 'servicios' && (esGestor())) {
       items.push({ label: '＋ Agregar CET / Servicio…', action: async () => {
         const id = await (await import('../views/proyectos.js')).nuevoCETServicio({ proyectoId: store.proyectoSel || null });
         if (id) tabla.getRows().forEach(r => r.reformat());
       } });
     }
     // Proyecto / Proceso: el formulario de proyecto nuevo se abre aquí mismo
-    if (d.ruta && (puede('crear_proyecto') || puede('agregar_proyecto') || puede('proponer_proyecto'))) {
-      items.push({ label: `＋ ${puede('crear_proyecto') || puede('agregar_proyecto') ? 'Agregar' : 'Proponer'} proyecto…`, action: async () => {
+    if (d.ruta && (esGestor() || puede('crear_cartera'))) {
+      items.push({ label: `＋ ${esGestor() ? 'Agregar' : 'Proponer'} proyecto…`, action: async () => {
         await (await import('../views/proyectos.js')).formularioProyecto();
         tabla.getRows().forEach(r => r.reformat());
       } });
     }
-    const permitido = d.ruta ? puede('crear_proyecto') : puede('gestionar_listas');
+    const permitido = esGestor();
     if (permitido) {
       const ruta = (d.rutaSinConfig && !esGestor() ? d.rutaSinConfig : d.ruta) || `#/config/listas?lista=${encodeURIComponent(d.lista)}`;
-      items.push({ label: `✎ ${d.ruta && !puede('crear_proyecto') ? 'Agregar' : 'Agregar, editar o eliminar'} ${esc(d.texto)}`, action: () => { location.hash = ruta; } });
+      items.push({ label: `✎ ${d.ruta && !esGestor() ? 'Agregar' : 'Agregar, editar o eliminar'} ${esc(d.texto)}`, action: () => { location.hash = ruta; } });
     }
     return items.length ? items : null;
   }
@@ -276,7 +297,7 @@ export function crearGrilla(contenedor, cfg) {
       porLista.get(clave).textos.add(x.texto.trim());
     }
     const resumen = [...porLista.values()].map(g => `${g.titulo}: ${[...g.textos].join(', ')}`).join(' · ');
-    const puedeAgregar = clave => puede('gestionar_listas') || (clave === 'servicios' && puede('agregar_cet'));
+    const puedeAgregar = () => esGestor();
     if (![...porLista.keys()].every(puedeAgregar)) {
       toast(`Estos valores no existen en las listas y se omitieron (pida al administrador que los agregue): ${resumen}`, 'warn', 9000);
       return;

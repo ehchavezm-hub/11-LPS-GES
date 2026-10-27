@@ -11,12 +11,12 @@ export const NAV = [
   { ruta: '/plan', ico: '📅', texto: 'Plan semanal', si: esStaff },
   { ruta: '/lookahead', ico: '🔭', texto: 'Look Ahead', si: esStaff },
   { ruta: '/restricciones', ico: '🚧', texto: 'Restricciones', si: esStaff },
-  { ruta: '/cartera', ico: '🗂', texto: 'Cartera y solicitudes', si: () => esStaff() || puede('registrar_solicitud') },
+  { ruta: '/cartera', ico: '🗂', texto: 'Cartera y solicitudes', si: () => esStaff() || puede('crear_solicitud') },
   { grupo: 'Seguimiento' },
-  { ruta: '/tablero', ico: '📊', texto: 'Tablero', si: () => puede('ver_tablero') },
+  { ruta: '/tablero', ico: '📊', texto: 'Tablero', si: () => puede('ver_indicadores') },
   { ruta: '/reunion', ico: '👥', texto: 'Reunión semanal', si: esStaff },
   { ruta: '/equipo', ico: '🧭', texto: 'Equipo y capacidad', si: esStaff },
-  { ruta: '/reportes', ico: '🖨', texto: 'Reportes', si: () => esStaff() || puede('ver_tablero') },
+  { ruta: '/reportes', ico: '🖨', texto: 'Reportes', si: () => esStaff() || puede('ver_indicadores') },
   { grupo: 'Más' },
   { ruta: '/config/usuarios', ico: '⚙', texto: 'Configuración', si: esGestor, prefijo: '/config' },
   { ruta: '/plantillas', ico: '🧩', texto: 'Plantillas', si: esStaff },
@@ -34,7 +34,7 @@ export function montarLayout(raiz, { alSalir }) {
   const app = html(`<div id="app">
     <header class="cabecera">
       <button class="btn-icono btn-menu" data-a="menu" aria-label="Contraer o expandir el menú" title="Contraer / expandir el menú lateral">☰</button>
-      <a class="logo" href="#/"><span>LPS<b>-GT</b></span></a>
+      <a class="logo" href="#/"><span>LPS<b>-GES</b></span></a>
       <span class="cab-area">${esc(store.area?.nombre || '')}</span>
       ${modoDemo ? '<span class="demo-chip" title="Datos ficticios guardados solo en este navegador">MODO DEMOSTRACIÓN</span>' : ''}
       <span class="flex"></span>
@@ -48,7 +48,7 @@ export function montarLayout(raiz, { alSalir }) {
       <nav class="nav" aria-label="Navegación principal"></nav>
       <section class="menu-proy" aria-label="Menú de proyectos">
         <div class="menu-proy-cab"><h3>Proyectos</h3>
-          ${puede('crear_proyecto') || puede('agregar_proyecto') || puede('proponer_proyecto') ? `<button class="btn btn-sm btn-primario btn-agregar-proy" data-a="nuevo-proy" title="Agregar un proyecto nuevo (lo verá todo el equipo)">＋ ${puede('crear_proyecto') || puede('agregar_proyecto') ? 'Agregar' : 'Proponer'}</button>` : ''}</div>
+          ${esGestor() || puede('crear_cartera') ? `<button class="btn btn-sm btn-primario btn-agregar-proy" data-a="nuevo-proy" title="Agregar un proyecto nuevo (lo verá todo el equipo)">＋ ${esGestor() ? 'Agregar' : 'Proponer'}</button>` : ''}</div>
         <div class="pestanas" role="tablist">
           ${esStaff() ? '<button data-p="mis">Mis</button>' : ''}<button data-p="todos">Todos</button><button data-p="fav">★ Favoritos</button>
         </div>

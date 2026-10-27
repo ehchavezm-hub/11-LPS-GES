@@ -91,15 +91,15 @@ export function puede(accion) {
   return !!propio;
 }
 /** Agregar proyectos activos al menú (administración o permiso "agregar_proyecto", pedido 100). */
-export function puedeAgregarProyecto() { return puede('crear_proyecto') || puede('agregar_proyecto'); }
+export function puedeAgregarProyecto() { return esGestor(); }
 /** Editar un proyecto: quien administra proyectos, quien lo agregó (si tiene el permiso) o quien lo propuso. */
 export function puedeEditarProyecto(p) {
   if (!p) return false;
   const yo = store.usuario?.id;
-  return puede('crear_proyecto') || (puede('agregar_proyecto') && p.created_by === yo) || (p.estado === 'propuesto' && p.propuesto_por === yo);
+  return esGestor() || (p.estado === 'propuesto' && p.propuesto_por === yo);
 }
 export function puedeEditarActividad(a) {
-  return a.responsable_id === store.usuario?.id || puede('editar_actividades_otros');
+  return a.responsable_id === store.usuario?.id || esGestor();
 }
 
 // ---------- Listas ----------

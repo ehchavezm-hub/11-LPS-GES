@@ -10,7 +10,7 @@ const ESTADOS = { recibida: ['Recibida', '#BAB0AC'], en_analisis: ['En análisis
 export async function render(el) {
   el.innerHTML = '';
   const items = await api.list('solicitudes_cambio', { eq: { area_id: store.area.id }, order: [['created_at', false]] });
-  const gestiona = puede('gestionar_solicitudes_cambio');
+  const gestiona = puede('ver_solicitud');
   el.append(html(`<div>
     <div class="pagina-cab"><h1>Mejoras del aplicativo</h1><span class="pagina-sub">Pida mejoras o reporte errores de LPS-GES</span>
       <span class="flex"></span><button class="btn btn-primario" data-a="nueva">＋ Nueva solicitud</button></div>

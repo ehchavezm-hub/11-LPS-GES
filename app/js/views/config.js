@@ -5,7 +5,7 @@ import { leerDemo as leerDatosDemo } from '../services/traer-demo.js';
 const hayDatosDemo = () => !!leerDatosDemo();
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError, modoDemo } from '../data/api.js';
-import { store, on, cargarCatalogo, esAdmin, esSuperadmin, puede, opciones, opcionesProyectos, nombre, valoresLista, configLookAhead, diasReunion } from '../core/store.js';
+import { store, on, cargarCatalogo, esAdmin, esSuperadmin, esGestor, puede, opciones, opcionesProyectos, nombre, valoresLista, configLookAhead, diasReunion } from '../core/store.js';
 import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista, LISTAS_RETIRADAS } from '../data/catalogos.js';
 import { esc, html, fmtFechaHora, fmtFecha, normalizar } from '../core/util.js';
 import { ir } from '../core/router.js';
@@ -109,7 +109,7 @@ function puedeRestablecer(p) {
 
 // Administradores con permiso (no el delegado); nunca a sí mismo ni al principal; a un administrador solo el super administrador
 function puedeEliminar(p) {
-  return esAdmin() && puede('eliminar_usuarios') && p.id !== store.usuario.id && !p.es_admin_principal &&
+  return esAdmin() && p.id !== store.usuario.id && !p.es_admin_principal &&
     (esSuperadmin() || !['superadmin', 'admin'].includes(p.rol));
 }
 
@@ -229,7 +229,7 @@ async function rotarDelegado(perfiles) {
 async function listas(el, claveSel) {
   const todas = Object.values(store.listas).map(x => x.lista).filter(l => !LISTAS_RETIRADAS.includes(l.clave)).sort((a, b) => a.nombre.localeCompare(b.nombre));
   const sel = claveSel || todas.find(l => l.clave === 'gerencias')?.clave || todas[0]?.clave;
-  const editable = puede('gestionar_listas');
+  const editable = esGestor();
   // Grupos: los iniciales en su orden, luego los creados por el usuario y al final "Otras listas"
   const grupos = [...new Set([...GRUPOS_LISTAS.slice(0, 3), ...todas.map(grupoDeLista).sort(), GRUPOS_LISTAS[3]])];
   const opcionesGrupo = grupos.map(g => {
@@ -324,7 +324,7 @@ async function listas(el, claveSel) {
 // ---------- Parámetros ----------
 async function parametros(el) {
   const p = store.parametros;
-  const editable = puede('gestionar_parametros');
+  const editable = esGestor();
   const form = html('<div class="tarjeta"></div>');
   el.append(form);
   const campos = [
@@ -374,7 +374,7 @@ async function parametros(el) {
         look_ahead: { dias: (d.la_dias || []).map(Number).sort((a, b) => a - b), semana: d.la_semana === 'actual' ? 'actual' : 'siguiente' },
         horas_dia: d.horas_dia ?? 8, dias_laborables: d.dias_laborables.map(Number).sort(), trabajo_fin_semana: !!d.trabajo_fin_semana, cierre: { dia: Number(d.cierre_dia), hora: d.cierre_hora || '17:00' },
         reunion: { dias: (d.reunion_dias || []).map(Number).sort((a, b) => a - b), hora: d.reunion_hora || '08:00' }, cierre_automatico: d.cierre_automatico, alerta_dias: d.alerta_dias ?? 3,
-        arrastre_alerta: d.arrastre_alerta ?? 2, version_app: d.version_app || 'LPS_GT V1.00.01', firma_pdf: d.firma_pdf || 'By EHCM',
+        arrastre_alerta: d.arrastre_alerta ?? 2, version_app: d.version_app || 'LPS-GES V1.00.01', firma_pdf: d.firma_pdf || 'By EHCM',
         reunion_minutos: Object.fromEntries(Object.keys(p.reunion_minutos || PARAMETROS_INICIALES.reunion_minutos).map(k => [k, d['rm_' + k] ?? 10])),
         reconocimientos: { mejor_pac: d.rec_mejor, mayor_mejora: d.rec_mejora },
       };
@@ -393,7 +393,7 @@ async function parametros(el) {
 // ---------- Permisos ----------
 async function permisos(el) {
   const editable = esAdmin();
-  const roles = ['admin', 'delegado', ...PLANIFICADORES, 'consulta'];
+  const roles = ['admin', 'delegado', 'lider', 'consulta'];
   // Valor efectivo (igual que public.puede): admin sin fila = permitido; rol de planificación sin fila = como el líder
   const valor = (r, a) => store.permisos[r]?.[a] ?? (r === 'admin' ? true : PLANIFICADORES.includes(r) ? !!store.permisos.lider?.[a] : false);
   const celdaEditable = r => editable && (r !== 'admin' || esSuperadmin());
@@ -416,7 +416,7 @@ async function permisos(el) {
 
 // ---------- Columnas personalizadas ----------
 async function columnas(el) {
-  const editable = puede('crear_columnas');
+  const editable = esGestor();
   el.innerHTML = `<div class="aviso">Agregue columnas a las grillas sin programar. Para columnas de tipo "lista", primero cree la lista en <a href="#/config/listas">Listas</a>.</div><div data-g></div>`;
   const listasOps = Object.values(store.listas).map(x => ({ value: x.lista.id, label: x.lista.nombre }));
   grilla?.destruir();
@@ -443,7 +443,7 @@ async function columnas(el) {
 
 // ---------- Importación ----------
 async function importarVista(el) {
-  if (!puede('importar_historico')) { el.innerHTML = '<p class="nota">No tiene permiso para importar.</p>'; return; }
+  if (!puede('importar_datos')) { el.innerHTML = '<p class="nota">No tiene permiso para importar.</p>'; return; }
   el.innerHTML = `<div class="grid-2">
     <div class="tarjeta"><h2>Histórico de planificación (Excel)</h2>
       <p>Importa las hojas <b>Plan_semanal</b> (libro OT_LA) y <b>2_Cumplimiento_Plan_semanal</b> (libro LPS_OT): actividades, responsables, HH por día, cumplimiento y CNC.
@@ -497,9 +497,9 @@ async function importarHistorico(archivo, salida) {
 async function respaldo(el) {
   el.innerHTML = `<div class="grid-2"><div class="tarjeta"><h2>Descargar respaldo</h2>
       <p>Descarga toda la información del área en un archivo JSON (para restaurar) o en Excel (para revisar). Además, ${modoDemo ? 'en producción ' : ''}se ejecuta un respaldo automático semanal hacia la carpeta privada de Google Drive configurada (ver README).</p>
-      <div class="barra"><button class="btn btn-primario" data-a="json" ${esAdmin() && puede('exportar_respaldo') ? '' : 'disabled'}>⬇ Respaldo completo (JSON)</button>
+      <div class="barra"><button class="btn btn-primario" data-a="json" ${esAdmin() ? '' : 'disabled'}>⬇ Respaldo completo (JSON)</button>
       <button class="btn" data-a="excel">⬇ Datos principales (Excel)</button></div>
-      ${esAdmin() && puede('exportar_respaldo') ? '' : '<p class="nota">El respaldo completo solo lo descarga el administrador (si el super administrador se lo permite).</p>'}</div>
+      ${esAdmin() ? '' : '<p class="nota">El respaldo completo solo lo descarga el administrador (si el super administrador se lo permite).</p>'}</div>
     ${!modoDemo && esSuperadmin() && hayDatosDemo() ? `<div class="tarjeta"><h2>Datos del modo demostración</h2>
       <p>En este navegador hay datos cargados en el modo demostración (proyectos, actividades, personas…). Puedes pasarlos a la base de datos real.</p>
       <div class="barra"><button class="btn btn-primario" data-a="traer-demo">⬆ Traer datos del modo demostración</button></div></div>` : ''}
@@ -532,7 +532,7 @@ function descargar(blob, nombreArchivo) {
 
 // ---------- Auditoría ----------
 async function auditoria(el) {
-  if (!puede('ver_auditoria')) { el.innerHTML = '<p class="nota">No tiene permiso para ver la auditoría.</p>'; return; }
+  if (!esGestor()) { el.innerHTML = '<p class="nota">No tiene permiso para ver la auditoría.</p>'; return; }
   const regs = await api.list('auditoria', { eq: { area_id: store.area.id }, order: [['created_at', false]], limit: 300 });
   el.innerHTML = `<div class="tarjeta"><p class="nota">Últimos 300 cambios. El detalle de cada registro también se ve en su ventana de "Comentarios y enlaces".</p>
     <table class="simple"><tr><th>Fecha</th><th>Usuario</th><th>Tabla</th><th>Acción</th><th>Cambios</th></tr>

@@ -2,7 +2,7 @@
 // lienzo con tarjetas movibles, líneas de dependencia, agregar/editar/eliminar, organizar, ajustar, pantalla completa e imprimir.
 // Nodos: "unidad" (área o especialidad) y "persona" (vinculada a un usuario: muestra nombre, cargo y rol).
 import { api, mensajeError } from '../data/api.js';
-import { store, puede, nombre } from '../core/store.js';
+import { store, puede, nombre, esAdmin } from '../core/store.js';
 import { ROLES, PLANIFICADORES, COLOR_ROL } from '../data/catalogos.js';
 import { esc, html, debounce } from '../core/util.js';
 import { pedirDatos, confirmar, ok, error } from '../ui/ui.js';
@@ -14,7 +14,7 @@ let estado = null;
 /** Dibuja el organigrama dentro de "cont". Devuelve una función para desmontarlo. */
 export async function montarOrganigrama(cont) {
   desmontarOrganigrama();
-  const editable = puede('gestionar_usuarios');
+  const editable = esAdmin();
   const raiz = html(`<div class="tarjeta org">
     <div class="barra" style="margin-bottom:10px"><h2 style="margin:0">Organigrama del equipo</h2><span class="flex"></span>
       ${editable ? `<button class="btn btn-sm btn-primario" data-o="unidad">＋ Unidad</button>

@@ -31,7 +31,7 @@ export function destruir() { grilla?.destruir(); grilla = null; }
 
 function puedeEditar() {
   if (estado.modo === 'recurrente') return estado.duenio === store.usuario.id || esGestor();
-  return puede('gestionar_plantillas_servicio');
+  return esGestor();
 }
 
 async function cargar() {

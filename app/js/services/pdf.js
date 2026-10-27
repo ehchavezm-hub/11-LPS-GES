@@ -207,7 +207,7 @@ export function documentoReporte(titulo, contenidoHTML, { papel = 'A4', orientac
   const fecha = `${dosDig(d.getDate())}-${dosDig(d.getMonth() + 1)}-${d.getFullYear()}`;
   const hora = `${dosDig(d.getHours())}:${dosDig(d.getMinutes())}`;
   const proy = proyectoTexto || nombreProyectoActual();
-  const version = param('version_app') || 'LPS_GT V1.00.01';
+  const version = param('version_app') || 'LPS-GES V1.00.01';
   const firma = param('firma_pdf') || 'By EHCM';
   const [a, b] = PAPELES[papel] || PAPELES.A4;
   const [ancho, alto] = orientacion === 'landscape' ? [b, a] : [a, b];
