@@ -98,7 +98,7 @@ export const PARAMETROS_INICIALES = {
   alerta_dias: 3,
   arrastre_alerta: 2,
   zona_horaria: 'America/Lima',
-  version_app: 'LPS_GT V1.00.01',
+  version_app: 'LPS-GES V1.00.01',
   firma_pdf: 'By EHCM',
   reunion_minutos: { cierre: 10, avance: 10, restricciones: 10, compromisos: 20, lookahead: 10 },
   reconocimientos: { mejor_pac: true, mayor_mejora: true },

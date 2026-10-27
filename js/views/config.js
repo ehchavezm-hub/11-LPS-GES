@@ -5,7 +5,7 @@ import { leerDemo as leerDatosDemo } from '../services/traer-demo.js';
 const hayDatosDemo = () => !!leerDatosDemo();
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError, modoDemo } from '../data/api.js';
-import { store, on, cargarCatalogo, esAdmin, esSuperadmin, puede, opciones, opcionesProyectos, nombre, valoresLista, configLookAhead, diasReunion } from '../core/store.js';
+import { store, on, cargarCatalogo, esAdmin, esSuperadmin, esGestor, puede, opciones, opcionesProyectos, nombre, valoresLista, configLookAhead, diasReunion } from '../core/store.js';
 import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista, LISTAS_RETIRADAS } from '../data/catalogos.js';
 import { esc, html, fmtFechaHora, fmtFecha, normalizar } from '../core/util.js';
 import { ir } from '../core/router.js';
@@ -84,7 +84,7 @@ async function usuarios(el) {
     if (a === 'nuevo') await nuevoUsuario();
     if (a === 'invitar') {
       const url = location.origin + location.pathname;
-      modal({ titulo: 'Invitar usuarios', ancho: 560, cuerpo: `<p>Envíe este enlace a las personas que deben usar LPS-GT. Al registrarse quedan <b>pendientes</b> y usted les asigna el rol aquí.</p>
+      modal({ titulo: 'Invitar usuarios', ancho: 560, cuerpo: `<p>Envíe este enlace a las personas que deben usar LPS-GES. Al registrarse quedan <b>pendientes</b> y usted les asigna el rol aquí.</p>
         <p><input class="inp" style="width:100%" readonly value="${esc(url)}"></p>
         <p class="nota">También puede crear la cuenta usted mismo con "＋ Nuevo usuario" y entregarle una contraseña temporal.</p>`,
         botones: [{ texto: 'Copiar enlace', clase: 'btn-primario', accion: async () => { await navigator.clipboard?.writeText(url).catch(() => {}); ok('Enlace copiado.'); } }] });
@@ -109,7 +109,7 @@ function puedeRestablecer(p) {
 
 // Administradores con permiso (no el delegado); nunca a sí mismo ni al principal; a un administrador solo el super administrador
 function puedeEliminar(p) {
-  return esAdmin() && esAdmin() && p.id !== store.usuario.id && !p.es_admin_principal &&
+  return esAdmin() && p.id !== store.usuario.id && !p.es_admin_principal &&
     (esSuperadmin() || !['superadmin', 'admin'].includes(p.rol));
 }
 
@@ -128,7 +128,7 @@ async function eliminarUsuario(p) {
 }
 
 function mostrarCredenciales(titulo, email, clave) {
-  const texto = `LPS-GT\nEnlace: ${location.origin + location.pathname}\nUsuario: ${email}\nContraseña temporal: ${clave}\n(Se le pedirá cambiarla al ingresar)`;
+  const texto = `LPS-GES\nEnlace: ${location.origin + location.pathname}\nUsuario: ${email}\nContraseña temporal: ${clave}\n(Se le pedirá cambiarla al ingresar)`;
   modal({
     titulo, ancho: 520,
     cuerpo: `<p>Entregue estos datos a la persona por un medio privado. Al ingresar se le pedirá definir su propia contraseña.</p>
@@ -374,7 +374,7 @@ async function parametros(el) {
         look_ahead: { dias: (d.la_dias || []).map(Number).sort((a, b) => a - b), semana: d.la_semana === 'actual' ? 'actual' : 'siguiente' },
         horas_dia: d.horas_dia ?? 8, dias_laborables: d.dias_laborables.map(Number).sort(), trabajo_fin_semana: !!d.trabajo_fin_semana, cierre: { dia: Number(d.cierre_dia), hora: d.cierre_hora || '17:00' },
         reunion: { dias: (d.reunion_dias || []).map(Number).sort((a, b) => a - b), hora: d.reunion_hora || '08:00' }, cierre_automatico: d.cierre_automatico, alerta_dias: d.alerta_dias ?? 3,
-        arrastre_alerta: d.arrastre_alerta ?? 2, version_app: d.version_app || 'LPS_GT V1.00.01', firma_pdf: d.firma_pdf || 'By EHCM',
+        arrastre_alerta: d.arrastre_alerta ?? 2, version_app: d.version_app || 'LPS-GES V1.00.01', firma_pdf: d.firma_pdf || 'By EHCM',
         reunion_minutos: Object.fromEntries(Object.keys(p.reunion_minutos || PARAMETROS_INICIALES.reunion_minutos).map(k => [k, d['rm_' + k] ?? 10])),
         reconocimientos: { mejor_pac: d.rec_mejor, mayor_mejora: d.rec_mejora },
       };
@@ -393,7 +393,7 @@ async function parametros(el) {
 // ---------- Permisos ----------
 async function permisos(el) {
   const editable = esAdmin();
-  const roles = ['admin', 'delegado', ...PLANIFICADORES, 'consulta'];
+  const roles = ['admin', 'delegado', 'lider', 'consulta'];
   // Valor efectivo (igual que public.puede): admin sin fila = permitido; rol de planificación sin fila = como el líder
   const valor = (r, a) => store.permisos[r]?.[a] ?? (r === 'admin' ? true : PLANIFICADORES.includes(r) ? !!store.permisos.lider?.[a] : false);
   const celdaEditable = r => editable && (r !== 'admin' || esSuperadmin());
@@ -497,9 +497,9 @@ async function importarHistorico(archivo, salida) {
 async function respaldo(el) {
   el.innerHTML = `<div class="grid-2"><div class="tarjeta"><h2>Descargar respaldo</h2>
       <p>Descarga toda la información del área en un archivo JSON (para restaurar) o en Excel (para revisar). Además, ${modoDemo ? 'en producción ' : ''}se ejecuta un respaldo automático semanal hacia la carpeta privada de Google Drive configurada (ver README).</p>
-      <div class="barra"><button class="btn btn-primario" data-a="json" ${esAdmin() && esAdmin() ? '' : 'disabled'}>⬇ Respaldo completo (JSON)</button>
+      <div class="barra"><button class="btn btn-primario" data-a="json" ${esAdmin() ? '' : 'disabled'}>⬇ Respaldo completo (JSON)</button>
       <button class="btn" data-a="excel">⬇ Datos principales (Excel)</button></div>
-      ${esAdmin() && esAdmin() ? '' : '<p class="nota">El respaldo completo solo lo descarga el administrador (si el super administrador se lo permite).</p>'}</div>
+      ${esAdmin() ? '' : '<p class="nota">El respaldo completo solo lo descarga el administrador (si el super administrador se lo permite).</p>'}</div>
     ${!modoDemo && esSuperadmin() && hayDatosDemo() ? `<div class="tarjeta"><h2>Datos del modo demostración</h2>
       <p>En este navegador hay datos cargados en el modo demostración (proyectos, actividades, personas…). Puedes pasarlos a la base de datos real.</p>
       <div class="barra"><button class="btn btn-primario" data-a="traer-demo">⬆ Traer datos del modo demostración</button></div></div>` : ''}
