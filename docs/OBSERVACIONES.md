@@ -139,6 +139,7 @@ Estado de cada observación al 25/10/2026.
 | 110 | Elegir en Configuración el día en que se registra el Look Ahead (los lunes, para esa misma semana) | ✅ Configuración → Parámetros: «Día de registro del Look Ahead» y «Semana que planifica el Look Ahead». Se aplica en el Look Ahead, Comprometer, Plan, Cartera, Reunión, Reportes y Ayuda; tu proyecto quedó en lunes / misma semana | `la110.js` (9 verificaciones) | ✅ Regresión completa y humo sin errores |
 | 111 | Días de registro del Look Ahead como casillas (varios días, p. ej. lunes y martes) | ✅ Siete casillas en Configuración → Parámetros; lo agregado al Plan cuenta como programado hasta el último día marcado | `la110.js` (lunes y martes) | ✅ Humo sin errores |
 | 112 | Días de la reunión de cumplimiento del plan semanal como casillas (p. ej. viernes, sábado o domingo) | ✅ Siete casillas en Configuración → Parámetros; se pueden marcar varios días; la Ayuda los muestra | `reu112.js` (5 verificaciones) | ✅ Humo sin errores |
+| 114 | Configuración → Parámetros: al inicio Días laborables, Trabajo en sábado y domingo y Horas disponibles por día | ✅ | Captura de la pantalla | ✅ Pruebas de parámetros sin errores |
 
 ## Lo que encontró la reconfirmación
 
