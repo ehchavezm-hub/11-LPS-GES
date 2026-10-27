@@ -94,6 +94,7 @@ export function crearFormulario(campos, valores = {}) {
   const f = html('<form class="form" novalidate></form>');
   for (const c of campos) {
     if (c.type === 'separador') { f.append(html(`<h3 class="form-sep">${esc(c.label)}</h3>`)); continue; }
+    if (c.type === 'vacio') { f.append(html('<div class="campo campo-vacio" aria-hidden="true"></div>')); continue; }   // celda libre (alinea el campo siguiente)
     const v = valores[c.name] ?? c.value ?? '';
     const id = 'f-' + c.name + '-' + Math.random().toString(36).slice(2, 6);
     const req = c.required ? ' required' : '';
@@ -124,7 +125,7 @@ export function crearFormulario(campos, valores = {}) {
   f.leer = () => {
     const out = {};
     for (const c of campos) {
-      if (c.type === 'separador') continue;
+      if (c.type === 'separador' || c.type === 'vacio') continue;
       if (c.type === 'multiselect') {
         out[c.name] = [...f.querySelectorAll(`[data-name="${c.name}"] input:checked`)].map(i => i.value);
         continue;
@@ -139,7 +140,7 @@ export function crearFormulario(campos, valores = {}) {
   };
   f.validar = () => {
     for (const c of campos) {
-      if (!c.required || c.type === 'separador') continue;
+      if (!c.required || c.type === 'separador' || c.type === 'vacio') continue;
       const el = f.elements[c.name];
       if (el && !String(el.value).trim()) { el.focus(); el.classList.add('invalido'); return `Complete el campo "${c.label}".`; }
     }
