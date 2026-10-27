@@ -1,6 +1,6 @@
 {
-  "name": "LPS-GT — Last Planner System para la Gerencia Técnica",
-  "short_name": "LPS-GT",
+  "name": "LPS-GES — Last Planner System para la Gerencia Técnica",
+  "short_name": "LPS-GES",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
