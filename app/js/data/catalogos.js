@@ -143,15 +143,11 @@ export const ROLES = {
   superadmin: 'Super administrador',
   admin: 'Administrador',
   delegado: 'Administrador delegado',
-  resp_equipo: 'Responsable del equipo',
   lider: 'Líder de especialidad',
-  resp_proceso: 'Responsable de proceso',
-  resp_actividad: 'Responsable de actividad',
   consulta: 'Consulta',
   pendiente: 'Pendiente de aprobación',
 };
 
 /** Roles que planifican: tienen plan semanal, Look Ahead y PAC (equivale a public.rol_planifica). */
-export const PLANIFICADORES = ['resp_equipo', 'lider', 'resp_proceso', 'resp_actividad'];
-export const COLOR_ROL = { superadmin: '#1A365D', admin: '#E8762B', delegado: '#4E79A7', resp_equipo: '#B07AA1', lider: '#59A14F', resp_proceso: '#9C755F',
-  resp_actividad: '#EDC948', consulta: '#76B7B2', pendiente: '#BAB0AC' };
+export const PLANIFICADORES = ['lider'];
+export const COLOR_ROL = { superadmin: '#1A365D', admin: '#E8762B', delegado: '#4E79A7', lider: '#59A14F', consulta: '#76B7B2', pendiente: '#BAB0AC' };

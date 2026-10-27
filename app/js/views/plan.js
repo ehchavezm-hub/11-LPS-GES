@@ -209,7 +209,7 @@ function pintarCabecera() {
   const pendientesLA = estado.acts.filter(a => !a.comprometida && a.semana === estado.semana && (!resp || a.responsable_id === resp) && a.estado_la !== 'cancelada');
   const cerradosEquipo = lideres().filter(l => cerrada(l.id)).length;
   aviso.innerHTML = [
-    cerradaResp ? `<div class="aviso ok">🔒 La semana de ${esc(nombre(resp))} está cerrada${estado.cierres.find(c => c.responsable_id === resp)?.automatico ? ' (cierre automático)' : ''}. ${esAdmin() ? 'Puede reabrirla si necesita corregir algo.' : 'Solo el administrador puede reabrirla.'}</div>` : '',
+    cerradaResp ? `<div class="aviso ok">🔒 La semana de ${esc(nombre(resp))} está cerrada${estado.cierres.find(c => c.responsable_id === resp)?.automatico ? ' (cierre automático)' : ''}. ${esGestor() ? 'Puede reabrirla si necesita corregir algo.' : 'Solo el administrador o delegado puede reabrirla.'}</div>` : '',
     !resp ? `<div class="aviso">Semanas cerradas: <b>${cerradosEquipo}</b> de ${lideres().length} líderes. Elija un responsable para cerrar o reabrir su semana.</div>` : '',
     pendientesLA.length ? `<div class="aviso warn">Hay ${pendientesLA.length} actividad(es) del Look Ahead de esta semana aún no comprometidas. Use "Traer del Look Ahead".</div>` : '',
     estado.semana < actual && resp && !cerradaResp ? `<div class="aviso warn">Esta semana ya pasó y aún no está cerrada. Complete estados, CNC y HH reales y ciérrela.</div>` : '',
@@ -225,7 +225,7 @@ function pintarCabecera() {
     ${esGestor() ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
     <span class="flex"></span>
     ${puedeOperar && !cerradaResp ? '<button class="btn btn-azul" data-a="cerrar">🔒 Cerrar semana</button>' : ''}
-    ${resp && cerradaResp && esAdmin() ? '<button class="btn" data-a="reabrir">🔓 Reabrir semana</button>' : ''}`;
+    ${resp && cerradaResp && esGestor() ? '<button class="btn" data-a="reabrir">🔓 Reabrir semana</button>' : ''}`;
 }
 
 function pintarKPIs() {
