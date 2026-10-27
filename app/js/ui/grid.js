@@ -19,34 +19,25 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
   caja.value = cell.getValue() ?? '';
   caja.rows = 1;
   caja.style.cssText = 'display:block;width:100%;box-sizing:border-box;padding:4px;border:0;outline:none;resize:none;' +
-    'white-space:pre-wrap;overflow-wrap:anywhere;overflow:hidden;font:inherit;line-height:1.35;background:#fff;align-self:stretch;';
+    'white-space:pre-wrap;overflow-wrap:anywhere;overflow:hidden;font:inherit;line-height:1.35;background:#fff;';
   const crecer = () => {
-    caja.style.height = 'auto';
-    const celda = cell.getElement();
-    const h = Math.max(caja.scrollHeight, celda ? celda.clientHeight - 2 : 0);
+    // height=0 antes de leer scrollHeight garantiza que scrollHeight = altura real del contenido,
+    // no la altura del contenedor (que con height:auto en flex puede ser grande).
+    caja.style.height = '0px';
+    const h = Math.max(caja.scrollHeight, 30);
     caja.style.height = h + 'px';
     // Tabulator pone height inline en celda y en fila; hay que pisar ambos.
-    // La celda tiene overflow:hidden que recorta el textarea aunque la fila crezca.
+    const celda = cell.getElement();
     if (celda) { celda.style.height = h + 'px'; celda.style.overflow = 'visible'; }
     const fila = celda?.closest('.tabulator-row');
-    if (fila) {
-      fila.style.height = h + 'px'; fila.style.overflow = 'visible';
-      // En tablas agrupadas (Look Ahead, Plan Semanal con agrupación) el contenedor de grupo
-      // (.tabulator-group) también tiene overflow recortado — hay que quitarlo para que la fila crezca.
-      const grupo = fila.closest('.tabulator-group');
-      if (grupo) { grupo.style.overflow = 'visible'; }
-    }
+    if (fila) { fila.style.height = h + 'px'; fila.style.overflow = 'visible'; }
     try { cell.checkHeight(); } catch { /* no disponible */ }
   };
   const limpiarFila = () => {
     const celda = cell.getElement();
     if (celda) { celda.style.height = ''; celda.style.overflow = ''; }
     const fila = celda?.closest('.tabulator-row');
-    if (fila) {
-      fila.style.height = ''; fila.style.overflow = '';
-      const grupo = fila.closest('.tabulator-group');
-      if (grupo) { grupo.style.overflow = ''; }
-    }
+    if (fila) { fila.style.height = ''; fila.style.overflow = ''; }
   };
   let listo = false;
   const guardar = () => { if (listo) return; listo = true; limpiarFila(); success(caja.value); };
