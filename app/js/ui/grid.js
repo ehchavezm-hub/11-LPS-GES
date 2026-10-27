@@ -250,7 +250,7 @@ export function crearGrilla(contenedor, cfg) {
         tabla.getRows().forEach(r => r.reformat());
       } });
     }
-    const permitido = d.ruta ? esGestor() : esGestor();
+    const permitido = esGestor();
     if (permitido) {
       const ruta = (d.rutaSinConfig && !esGestor() ? d.rutaSinConfig : d.ruta) || `#/config/listas?lista=${encodeURIComponent(d.lista)}`;
       items.push({ label: `✎ ${d.ruta && !esGestor() ? 'Agregar' : 'Agregar, editar o eliminar'} ${esc(d.texto)}`, action: () => { location.hash = ruta; } });
@@ -276,7 +276,7 @@ export function crearGrilla(contenedor, cfg) {
       porLista.get(clave).textos.add(x.texto.trim());
     }
     const resumen = [...porLista.values()].map(g => `${g.titulo}: ${[...g.textos].join(', ')}`).join(' · ');
-    const puedeAgregar = clave => esGestor() || (clave === 'servicios' && esGestor());
+    const puedeAgregar = () => esGestor();
     if (![...porLista.keys()].every(puedeAgregar)) {
       toast(`Estos valores no existen en las listas y se omitieron (pida al administrador que los agregue): ${resumen}`, 'warn', 9000);
       return;

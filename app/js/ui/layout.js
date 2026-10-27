@@ -34,7 +34,7 @@ export function montarLayout(raiz, { alSalir }) {
   const app = html(`<div id="app">
     <header class="cabecera">
       <button class="btn-icono btn-menu" data-a="menu" aria-label="Contraer o expandir el menú" title="Contraer / expandir el menú lateral">☰</button>
-      <a class="logo" href="#/"><span>LPS<b>-GT</b></span></a>
+      <a class="logo" href="#/"><span>LPS<b>-GES</b></span></a>
       <span class="cab-area">${esc(store.area?.nombre || '')}</span>
       ${modoDemo ? '<span class="demo-chip" title="Datos ficticios guardados solo en este navegador">MODO DEMOSTRACIÓN</span>' : ''}
       <span class="flex"></span>

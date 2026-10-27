@@ -374,7 +374,7 @@ async function parametros(el) {
         look_ahead: { dias: (d.la_dias || []).map(Number).sort((a, b) => a - b), semana: d.la_semana === 'actual' ? 'actual' : 'siguiente' },
         horas_dia: d.horas_dia ?? 8, dias_laborables: d.dias_laborables.map(Number).sort(), trabajo_fin_semana: !!d.trabajo_fin_semana, cierre: { dia: Number(d.cierre_dia), hora: d.cierre_hora || '17:00' },
         reunion: { dias: (d.reunion_dias || []).map(Number).sort((a, b) => a - b), hora: d.reunion_hora || '08:00' }, cierre_automatico: d.cierre_automatico, alerta_dias: d.alerta_dias ?? 3,
-        arrastre_alerta: d.arrastre_alerta ?? 2, version_app: d.version_app || 'LPS_GT V1.00.01', firma_pdf: d.firma_pdf || 'By EHCM',
+        arrastre_alerta: d.arrastre_alerta ?? 2, version_app: d.version_app || 'LPS-GES V1.00.01', firma_pdf: d.firma_pdf || 'By EHCM',
         reunion_minutos: Object.fromEntries(Object.keys(p.reunion_minutos || PARAMETROS_INICIALES.reunion_minutos).map(k => [k, d['rm_' + k] ?? 10])),
         reconocimientos: { mejor_pac: d.rec_mejor, mayor_mejora: d.rec_mejora },
       };
@@ -497,9 +497,9 @@ async function importarHistorico(archivo, salida) {
 async function respaldo(el) {
   el.innerHTML = `<div class="grid-2"><div class="tarjeta"><h2>Descargar respaldo</h2>
       <p>Descarga toda la información del área en un archivo JSON (para restaurar) o en Excel (para revisar). Además, ${modoDemo ? 'en producción ' : ''}se ejecuta un respaldo automático semanal hacia la carpeta privada de Google Drive configurada (ver README).</p>
-      <div class="barra"><button class="btn btn-primario" data-a="json" ${esAdmin() && esAdmin() ? '' : 'disabled'}>⬇ Respaldo completo (JSON)</button>
+      <div class="barra"><button class="btn btn-primario" data-a="json" ${esAdmin() ? '' : 'disabled'}>⬇ Respaldo completo (JSON)</button>
       <button class="btn" data-a="excel">⬇ Datos principales (Excel)</button></div>
-      ${esAdmin() && esAdmin() ? '' : '<p class="nota">El respaldo completo solo lo descarga el administrador (si el super administrador se lo permite).</p>'}</div>
+      ${esAdmin() ? '' : '<p class="nota">El respaldo completo solo lo descarga el administrador (si el super administrador se lo permite).</p>'}</div>
     ${!modoDemo && esSuperadmin() && hayDatosDemo() ? `<div class="tarjeta"><h2>Datos del modo demostración</h2>
       <p>En este navegador hay datos cargados en el modo demostración (proyectos, actividades, personas…). Puedes pasarlos a la base de datos real.</p>
       <div class="barra"><button class="btn btn-primario" data-a="traer-demo">⬆ Traer datos del modo demostración</button></div></div>` : ''}

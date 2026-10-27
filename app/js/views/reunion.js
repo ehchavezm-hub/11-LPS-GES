@@ -1,6 +1,6 @@
 // Reunión semanal (6.13) y modo reunión a pantalla completa con temporizador por paso (M-04).
 import { api, mensajeError } from '../data/api.js';
-import { store, puede, lideres, equipo, semanaInicioLA, semanasLookAhead, nombre, etiqueta, param, opciones, opcionesLideres, proyecto, textoEstado, colorEstado } from '../core/store.js';
+import { store, puede, esGestor, lideres, equipo, semanaInicioLA, semanasLookAhead, nombre, etiqueta, param, opciones, opcionesLideres, proyecto, textoEstado, colorEstado } from '../core/store.js';
 import { lunes, sumarSemanas, etiquetaSemana, esc, html, pct, num, hoy, fmtFecha, sumarDias } from '../core/util.js';
 import { kpi, badge, ok, error, pedirDatos } from '../ui/ui.js';
 import { resumenPAC, colorPAC, paretoCNC, resumenRestricciones, capacidadSemana, colorCarga } from '../services/indicadores.js';

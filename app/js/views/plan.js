@@ -1,7 +1,7 @@
 // Plan semanal (6.9): compromisos de la semana, avance, cierre con CNC y HH reales, PAC.
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError } from '../data/api.js';
-import { store, on, esGestor, puede, puedeEditarActividad, lideres, nombre, proyecto, horasDia } from '../core/store.js';
+import { store, on, esGestor, esAdmin, puede, puedeEditarActividad, lideres, nombre, proyecto, horasDia } from '../core/store.js';
 import { lunes, sumarSemanas, etiquetaSemana, esc, html, hoy, pct, num, sumarDias, fmtFecha, DIAS } from '../core/util.js';
 import { actualizarQuery } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
