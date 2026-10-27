@@ -93,7 +93,7 @@ export const PARAMETROS_INICIALES = {
   dias_laborables: [1, 2, 3, 4, 5],
   trabajo_fin_semana: false,   // muestra sábado y domingo para registrar trabajo esos días
   cierre: { dia: 5, hora: '17:00' },
-  reunion: { dia: 5, hora: '08:00' },
+  reunion: { dias: [5], hora: '08:00' },   // días de la reunión de cumplimiento del plan semanal (pedido 112)
   cierre_automatico: true,
   alerta_dias: 3,
   arrastre_alerta: 2,

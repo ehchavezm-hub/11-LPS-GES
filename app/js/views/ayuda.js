@@ -1,7 +1,7 @@
 // Ayuda en línea, guía rápida en PDF y recorrido guiado la primera vez (M-11).
 import { arrastrable } from '../ui/ui.js';
 import { api } from '../data/api.js';
-import { store, param, esStaff, configLookAhead, diaLookAhead } from '../core/store.js';
+import { store, param, esStaff, configLookAhead, diaLookAhead, textoDiasReunion } from '../core/store.js';
 import { esc, html } from '../core/util.js';
 import { imprimirPDF } from '../services/pdf.js';
 
@@ -16,7 +16,7 @@ function guia() {
     ['Flujo semanal', `<ol>
       <li><b>Durante la semana:</b> actualice el avance de sus compromisos en <a href="#/plan">Plan semanal</a> y registre las actividades no programadas que surjan.</li>
       <li><b>Look Ahead (los ${esc(diaLookAhead())}):</b> registre su <a href="#/lookahead">Look Ahead</a> (${param('semanas_lookahead')} semanas, desde la ${configLookAhead().semana === 'actual' ? 'misma semana' : 'semana siguiente'}) y levante sus <a href="#/restricciones">restricciones</a>.</li>
-      <li><b>Reunión del ${DIAS[r.dia] || 'viernes'} ${esc(r.hora || '08:00')}:</b> se revisa el PAC y las causas, el avance, las restricciones y se comprometen las actividades de la semana siguiente.</li>
+      <li><b>Reunión de cumplimiento (${esc(textoDiasReunion())}, ${esc(r.hora || '08:00')}):</b> se revisa el PAC y las causas, el avance, las restricciones y se comprometen las actividades de la semana siguiente.</li>
       <li><b>Cierre del ${DIAS[c.dia] || 'viernes'} ${esc(c.hora || '17:00')}:</b> marque cada compromiso como Completado, No completado (con su CNC) o Cancelado, registre las HH reales y use <b>🔒 Cerrar semana</b>.
         Si no lo hace, la semana se cierra automáticamente y lo pendiente queda como "No reportado".</li></ol>`],
     ['La grilla tipo Excel', `<ul><li>Doble clic, Enter o simplemente escriba para editar. Se guarda solo.</li>

@@ -147,6 +147,15 @@ export function semanaEnPlanificacion(semana) {
   const diaHoy = ((new Date().getDay() + 6) % 7) + 1;   // 1 = lunes … 7 = domingo
   return diaHoy <= configLookAhead().ultimo;   // hasta el último día de registro
 }
+/** Días de la reunión de cumplimiento del plan semanal (pedido 112); acepta el formato anterior { dia }. */
+export function diasReunion() {
+  const r = { ...PARAMETROS_INICIALES.reunion, ...(param('reunion') || {}) };
+  const lista = (Array.isArray(r.dias) && r.dias.length ? r.dias : [r.dia ?? 5]).map(Number).filter(d => d >= 1 && d <= 7);
+  return [...new Set(lista.length ? lista : [5])].sort((a, b) => a - b);
+}
+const unirDias = ds => { const n = ds.map(d => DIAS_NOMBRE[d - 1].toLowerCase()); return n.length > 1 ? `${n.slice(0, -1).join(', ')} y ${n.at(-1)}` : n[0]; };
+/** "viernes", "viernes y sábado"… */
+export function textoDiasReunion() { return unirDias(diasReunion()); }
 /** "lunes", "lunes y martes", "lunes, martes y miércoles"… */
 export function diaLookAhead() {
   const n = configLookAhead().dias.map(d => DIAS_NOMBRE[d - 1].toLowerCase());
