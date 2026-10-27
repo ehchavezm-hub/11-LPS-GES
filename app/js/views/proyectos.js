@@ -37,8 +37,8 @@ export async function render(el, params) {
     <div class="pagina-cab">${params.incrustado ? '<h2 style="margin:0">Proyectos / Procesos</h2>' : '<h1>Proyectos</h1>'}
       <span class="pagina-sub">Catálogo que alimenta el menú de selección y las listas de todas las grillas</span>
       <span class="flex"></span>
-      ${puedeCrear || puede('proponer_proyecto') ? `<button class="btn btn-primario" data-a="nuevo">＋ ${puedeCrear ? 'Nuevo proyecto' : 'Proponer proyecto'}</button>` : ''}
-      ${puede('importar_historico') ? '<button class="btn btn-sm" data-a="importar">⬆ Importar desde Excel</button>' : ''}
+      ${puedeCrear || puede('crear_cartera') ? `<button class="btn btn-primario" data-a="nuevo">＋ ${puedeCrear ? 'Nuevo proyecto' : 'Proponer proyecto'}</button>` : ''}
+      ${puede('importar_datos') ? '<button class="btn btn-sm" data-a="importar">⬆ Importar desde Excel</button>' : ''}
       <button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <div data-propuestos></div>
     ${VENTANAS.map(([e, t]) => `<section class="ventana-estado ventana-${e}" data-ventana="${e}">
@@ -56,7 +56,7 @@ export async function render(el, params) {
   pintarPropuestos(pag);
 
   // Quien solo agrega proyectos (líderes) lo hace en la ventana Activos; eliminar sigue siendo de quien administra proyectos
-  for (const [estado] of VENTANAS) grillas[estado] = crearGrilla(pag.querySelector(`[data-grilla="${estado}"]`), configGrilla(estado, puede('crear_proyecto') || (puedeCrear && estado === 'activo')));
+  for (const [estado] of VENTANAS) grillas[estado] = crearGrilla(pag.querySelector(`[data-grilla="${estado}"]`), configGrilla(estado, esGestor() || (puedeCrear && estado === 'activo')));
   await Promise.all(VENTANAS.map(([e]) => grillas[e].inicializar(proyectosDe(e))));
   pintarCuentas();
 }
@@ -104,7 +104,7 @@ function configGrilla(estado, puedeCrear) {
       { field: 'fecha_fin', title: 'Fin', tipo: 'fecha', ancho: 100 },
       { field: '_ficha', title: '', tipo: 'texto', ancho: 70, calc: true, filtro: false, formato: (v, p) => p.id ? '<button class="mini-btn">Ficha ›</button>' : '',
         click: (p, e) => { if (p.id && e.target.closest('button')) ir('#/proyectos/' + p.id); } },
-      ...(puede('crear_proyecto') ? [{ field: '_borrar', title: '', tipo: 'texto', ancho: 46, calc: true, filtro: false, ordenable: false,
+      ...(esGestor() ? [{ field: '_borrar', title: '', tipo: 'texto', ancho: 46, calc: true, filtro: false, ordenable: false,
         formato: (v, p) => p.id ? '<button class="mini-btn mini-peligro" title="Eliminar proyecto">🗑</button>' : '',
         click: (p, e) => { if (p.id && e.target.closest('button')) eliminarProyecto(p, { confirmaciones: 2 }).then(r => r && redistribuir()); } }] : []),
       ...columnasPersonalizadas('proyectos'),
@@ -128,12 +128,12 @@ function configGrilla(estado, puedeCrear) {
     eliminar: p => eliminarProyecto(p, { confirmaciones: 1 }),   // la grilla ya hizo la primera pregunta
     menuFila: p => [
       { label: '📄 Ver ficha', action: () => p.id && ir('#/proyectos/' + p.id) },
-      ...(p.id && puede('crear_proyecto') ? [p.estado === 'cerrado'
+      ...(p.id && esGestor() ? [p.estado === 'cerrado'
         ? { label: '▶ Reactivar proyecto', action: () => cambiarEstado(p, 'activo') }
         : { label: '⛔ Desactivar proyecto (Cerrado)', action: () => cambiarEstado(p, 'cerrado') }] : []),
-      { label: '👥 Asignar líderes…', action: () => p.id && asignarLideres(p), disabled: !puede('crear_proyecto') },
+      { label: '👥 Asignar líderes…', action: () => p.id && asignarLideres(p), disabled: !esGestor() },
       { label: '🏗 Seleccionar en el menú', action: () => p.id && seleccionarProyecto(p.id) },
-      ...(p.id && (puede('agregar_cet') || puede('gestionar_listas')) ? [{ label: '＋ Agregar CET / Servicio a este proyecto…', action: () => nuevoCETServicio({ proyectoId: p.id }) }] : []),
+      ...(p.id && esGestor() ? [{ label: '＋ Agregar CET / Servicio a este proyecto…', action: () => nuevoCETServicio({ proyectoId: p.id }) }] : []),
     ],
   };
 }
@@ -170,7 +170,7 @@ async function usosDeProyecto(id) {
 // Proyecto con historial: lo recomendado es desactivarlo. Un administrador puede además eliminarlo con todo su
 // historial (p. ej. proyectos de prueba), confirmando con el código del proyecto.
 function proyectoConHistorial(p, usos) {
-  const puedeBorrarTodo = esAdmin() && puede('eliminar_usuarios');
+  const puedeBorrarTodo = esAdmin();
   return new Promise(resolver => {
     let resultado = false, siguePregunta = false;   // al pasar a la confirmación por código, cerrar este aviso no responde todavía
     const botones = [{ texto: 'Cancelar' }];
@@ -210,7 +210,7 @@ async function eliminarConHistorial(p, usos) {
 
 // confirmaciones: cuántas preguntas hacer antes de borrar (el botón 🗑 y la ficha hacen dos)
 async function eliminarProyecto(p, { confirmaciones = 2 } = {}) {
-  if (!puede('crear_proyecto')) throw new Error('No tiene permiso para eliminar proyectos.');
+  if (!esGestor()) throw new Error('No tiene permiso para eliminar proyectos.');
   const usos = await usosDeProyecto(p.id);
   if (usos.length) return proyectoConHistorial(p, usos);
   if (confirmaciones >= 2 && !await confirmar(`¿Eliminar el proyecto "${p.codigo} · ${p.nombre_corto}"? No tiene actividades ni otros registros.`,
@@ -234,7 +234,7 @@ function pintarPropuestos(pag) {
   const props = store.proyectos.filter(p => p.estado === 'propuesto');
   const cont = pag.querySelector('[data-propuestos]');
   if (!props.length || !esStaff()) { cont.innerHTML = ''; return; }
-  const aprueba = puede('aprobar_proyecto');
+  const aprueba = esGestor();
   cont.innerHTML = `<div class="tarjeta" style="margin-bottom:12px;border-left:4px solid var(--amarillo)"><h2>Proyectos propuestos por aprobar (${props.length})</h2>
     <table class="simple"><tr><th>Código</th><th>Nombre</th><th>Gerencia</th><th>Propuesto por</th><th>Observaciones</th><th></th></tr>
     ${props.map(p => `<tr><td>${esc(p.codigo)}</td><td>${esc(p.nombre_corto)}</td><td>${esc(etiqueta(p.gerencia_id))}</td><td>${esc(nombre(p.propuesto_por))}</td>
@@ -357,7 +357,7 @@ async function ficha(el, id) {
       <span class="flex"></span>
       <button class="btn btn-sm" data-a="menu">🏗 Seleccionar en el menú</button>
       ${puedeEditarProyecto(p) ? '<button class="btn btn-sm" data-a="editar">✏ Editar</button>' : ''}
-      ${puede('crear_proyecto') ? (p.estado === 'cerrado' ? '<button class="btn btn-sm" data-a="reactivar">▶ Reactivar</button>'
+      ${esGestor() ? (p.estado === 'cerrado' ? '<button class="btn btn-sm" data-a="reactivar">▶ Reactivar</button>'
         : '<button class="btn btn-sm" data-a="desactivar" title="Recomendado: sale de menús y selectores y conserva el historial">⛔ Desactivar</button>') +
         '<button class="btn btn-sm btn-peligro-borde" data-a="eliminar" title="Solo si no tiene actividades ni otros registros">🗑 Eliminar</button>' : ''}
       <button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>

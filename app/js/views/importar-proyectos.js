@@ -2,7 +2,7 @@
 // Reconoce los títulos de columna (en cualquier orden y hoja), agrega los proyectos nuevos, actualiza los existentes
 // (mismo código) con los datos que traiga el archivo y ofrece agregar a las listas las gerencias, fases o países nuevos.
 import { api, mensajeError } from '../data/api.js';
-import { store, cargarCatalogo, valoresLista, puede } from '../core/store.js';
+import { store, cargarCatalogo, valoresLista, puede, esGestor } from '../core/store.js';
 import { esc, html, normalizar, parseFecha, fmtFecha } from '../core/util.js';
 import { modal, ok, error, toast } from '../ui/ui.js';
 
@@ -131,7 +131,7 @@ export async function importarProyectos(archivo) {
         <p class="nota">Títulos que se reconocen: ${CAMPOS.map(([, t, alias]) => `<b>${esc(t)}</b> (${esc(alias.slice(0, 3).join(', '))})`).join(' · ')}.
         La fila de títulos puede estar en cualquiera de las primeras 25 filas.</p>` });
   }
-  const puedeListas = puede('gestionar_listas');
+  const puedeListas = esGestor();
   const cuerpo = html('<div></div>');
   let hoja = hojas[0], a = analizar(hoja);
   const pintar = () => {

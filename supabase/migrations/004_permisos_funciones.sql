@@ -1,4 +1,4 @@
--- LPS-GT · 004 · Permisos de ejecución de funciones sensibles
+-- LPS-GES · 004 · Permisos de ejecución de funciones sensibles
 -- Supabase concede EXECUTE a anon y authenticated sobre toda función nueva de "public".
 -- Las funciones de mantenimiento y respaldo no deben poder llamarse con la clave pública (anon).
 

@@ -10,9 +10,9 @@ const ESTADOS = { recibida: ['Recibida', '#BAB0AC'], en_analisis: ['En análisis
 export async function render(el) {
   el.innerHTML = '';
   const items = await api.list('solicitudes_cambio', { eq: { area_id: store.area.id }, order: [['created_at', false]] });
-  const gestiona = puede('gestionar_solicitudes_cambio');
+  const gestiona = puede('ver_solicitud');
   el.append(html(`<div>
-    <div class="pagina-cab"><h1>Mejoras del aplicativo</h1><span class="pagina-sub">Pida mejoras o reporte errores de LPS-GT</span>
+    <div class="pagina-cab"><h1>Mejoras del aplicativo</h1><span class="pagina-sub">Pida mejoras o reporte errores de LPS-GES</span>
       <span class="flex"></span><button class="btn btn-primario" data-a="nueva">＋ Nueva solicitud</button></div>
     <div class="tarjeta">${items.length ? `<table class="simple"><tr><th>Fecha</th><th>Solicitud</th><th>Pantalla</th><th>Autor</th><th>Prioridad</th><th>Estado</th><th>Respuesta</th><th></th></tr>
       ${items.map(s => `<tr><td>${fmtFecha(s.created_at)}</td><td><b>${esc(s.titulo)}</b><div class="nota">${esc(s.descripcion || '')}</div></td><td>${esc(s.pantalla || '')}</td>

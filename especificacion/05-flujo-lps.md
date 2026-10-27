@@ -31,7 +31,7 @@ Textos guía que la UI mostraba en cada paso:
 - **Paso 1 de 3 — LookAhead (CAN occur):** "Registra aquí las actividades que *pueden* ejecutarse en las próximas semanas. Luego levanta sus restricciones en 'Log de Restricciones'. Solo las actividades con estado ✅ Lista (sin restricciones pendientes) deben pasar al 'Plan Semanal'."
 - **Paso 3 de 3 — Plan Semanal / WWP (WILL occur):** "Marca las actividades que tu equipo *se compromete* a ejecutar esta semana. Solo incluye actividades que estén ✅ Listas. Al finalizar la semana, registra los incumplimientos con su causa → se calcula el PPC. Meta PPC: 75–90 %."
 
-## Brechas detectadas (oportunidades para LPS-GT)
+## Brechas detectadas (oportunidades para LPS-GES)
 
 | # | Brecha en ECM Project | Impacto |
 |---|---|---|
@@ -50,7 +50,7 @@ Textos guía que la UI mostraba en cada paso:
 | 13 | El impreso del Dashboard no incluye gráficos ni Pareto; el del Log no incluye estado | Bajo |
 | 14 | Sin acta de reunión semanal (asistentes, acuerdos, compromisos) | Medio |
 
-## Plantillas candidatas para LPS-GT (marcar las que se usarán)
+## Plantillas candidatas para LPS-GES (marcar las que se usarán)
 
 > El usuario indicó que solo se usarán **algunas** plantillas. Marcar con `[x]`.
 

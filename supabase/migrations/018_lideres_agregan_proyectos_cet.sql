@@ -1,4 +1,4 @@
--- LPS-GT · 018_lideres_agregan_proyectos_cet.sql
+-- LPS-GES · 018_lideres_agregan_proyectos_cet.sql
 -- Pedido 100: los líderes pueden agregar proyectos y CET / Servicio sin pasar por el administrador.
 -- Dos permisos nuevos en la matriz (editables por el administrador en Configuración → Permisos):
 --   · agregar_proyecto: agrega proyectos activos al menú y edita los que agregó. No elimina ni desactiva

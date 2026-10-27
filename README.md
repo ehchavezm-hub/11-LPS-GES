@@ -1,13 +1,13 @@
-# LPS-GT
+# LPS-GES
 
 Aplicativo web para aplicar el **Last Planner System®** a la gestión de un área funcional (Gerencia Técnica):
 Look Ahead de 3 semanas, plan semanal con compromisos, cierre con PAC y causas de no cumplimiento (CNC),
 restricciones, cartera y solicitudes de otras gerencias, tablero de indicadores, reunión semanal guiada,
-capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GT_Alcance_v0.7.docx`](docs/LPS-GT_Alcance_v0.7.docx).
+capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GES_Alcance_v0.7.docx`](docs/LPS-GES_Alcance_v0.7.docx).
 
-**Aplicativo en producción:** <https://ehchavezm-hub.github.io/11-LPS_GT/>
+**Aplicativo en producción:** <https://ehchavezm-hub.github.io/11-LPS-GES/>
 
-**Modo demostración** (datos ficticios, solo en su navegador): <https://ehchavezm-hub.github.io/11-LPS_GT/?demo>
+**Modo demostración** (datos ficticios, solo en su navegador): <https://ehchavezm-hub.github.io/11-LPS-GES/?demo>
 
 - **Pruébelo sin instalar nada:** abra el aplicativo publicado y agregue `?demo` a la dirección (datos ficticios que se guardan solo en su navegador).
 - Funciona en PC y celular; se puede instalar como aplicación (PWA).
@@ -36,7 +36,7 @@ capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GT_Alcance_v0.
    ```
    (Revisa cada hora; solo cierra las semanas cuyo plazo ya venció. El respaldo de GitHub también lo ejecuta.)
 4. **Authentication → Providers → Email**: activado. Recomendado: *Confirm email* activado.
-5. **Authentication → URL Configuration**: *Site URL* = la dirección del aplicativo en GitHub Pages (paso 2), p. ej. `https://ehchavezm-hub.github.io/11-LPS_GT/`.
+5. **Authentication → URL Configuration**: *Site URL* = la dirección del aplicativo en GitHub Pages (paso 2), p. ej. `https://ehchavezm-hub.github.io/11-LPS-GES/`.
 6. **Project Settings → API**: copie la *Project URL* y la *anon / publishable key*. **Nunca** use la *service_role / secret key* en el aplicativo.
 
 7. **Alta de usuarios por el administrador** (crear usuarios con contraseña y restablecerlas). Instale la función `admin-usuarios` de una de estas dos formas:
@@ -73,7 +73,7 @@ y el viernes por la noche genera el respaldo completo (JSON comprimido) y lo sub
    - `SUPABASE_URL` — Project URL.
    - `SUPABASE_SERVICE_ROLE_KEY` — *service_role / secret key* (solo aquí, como secreto).
    - `RCLONE_CONF` — contenido de `rclone.conf`.
-4. Opcional: variable `GDRIVE_CARPETA` (por defecto `LPS-GT/respaldos`).
+4. Opcional: variable `GDRIVE_CARPETA` (por defecto `LPS-GES/respaldos`).
 5. Pruebe con **Actions → Respaldo y mantenimiento → Run workflow**.
 
 El administrador también puede descargar un respaldo (JSON o Excel) en cualquier momento desde Configuración → Respaldo.

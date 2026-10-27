@@ -1,4 +1,4 @@
-# LPS-GT · Inventario de reportes
+# LPS-GES · Inventario de reportes
 
 Revisión de todos los módulos y procesos del aplicativo al 25/10/2026: cada reporte, impresión y exportación, con su ubicación y contenido.
 
@@ -46,7 +46,7 @@ Revisión de todos los módulos y procesos del aplicativo al 25/10/2026: cada re
 | 24 | Usuarios → Organigrama | Organigrama del equipo | Organigrama en imagen vectorial |
 | 25 | Configuración → Listas → Proyectos | Catálogo de proyectos | Columnas de las ventanas de proyectos |
 | 26 | Ficha del proyecto | Ficha de proyecto | PAC, HH plan, restricciones abiertas, datos del proyecto e hitos |
-| 27 | Ayuda | Guía rápida LPS-GT | Guía de uso del aplicativo |
+| 27 | Ayuda | Guía rápida LPS-GES | Guía de uso del aplicativo |
 
 ## 3. Exportación a Excel (botón ⬇ Excel de cada grilla)
 

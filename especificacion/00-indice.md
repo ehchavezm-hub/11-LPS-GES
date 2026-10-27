@@ -7,7 +7,7 @@
 
 ## Cómo usar esta carpeta
 
-> ⚠ **Todo este contenido es REFERENCIAL.** LPS-GT solo adoptará *algunas* plantillas de ECM Project. La selección se marca en la lista de [`05-flujo-lps.md`](05-flujo-lps.md#plantillas-candidatas-para-lps-gt-marcar-las-que-se-usarán); lo no marcado queda solo como consulta.
+> ⚠ **Todo este contenido es REFERENCIAL.** LPS-GES solo adoptará *algunas* plantillas de ECM Project. La selección se marca en la lista de [`05-flujo-lps.md`](05-flujo-lps.md#plantillas-candidatas-para-lps-gt-marcar-las-que-se-usarán); lo no marcado queda solo como consulta.
 
 Cada archivo describe *qué* hacía ECM Project y *cómo* lo hacía (campos, reglas, fórmulas), con referencia al archivo fuente original para consultar el detalle.
 
@@ -35,7 +35,7 @@ Cada archivo describe *qué* hacía ECM Project y *cómo* lo hacía (campos, reg
 
 ### Vistas y paneles
 
-| # | Módulo | Archivo fuente | Tipo | Relevancia para LPS-GT |
+| # | Módulo | Archivo fuente | Tipo | Relevancia para LPS-GES |
 |---|---|---|---|---|
 | 1 | **Last Planner System (LPS)** — 5 pestañas | `js/lookahead-detailed.js` | Panel overlay | ★★★ núcleo |
 | 2 | Vista Lookahead 3/6 semanas (desde CPM) | `js/lookahead.js` | Panel overlay | ★★★ |

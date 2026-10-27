@@ -1,4 +1,4 @@
--- LPS-GT · 003_datos_iniciales.sql
+-- LPS-GES · 003_datos_iniciales.sql
 -- Valores iniciales de listas, parámetros y matriz de permisos (todo editable luego desde el aplicativo).
 -- sembrar_area() también sirve para habilitar nuevas áreas en el futuro.
 -- No contiene datos de proyectos ni de personas: esos se cargan desde el aplicativo.
@@ -135,29 +135,32 @@ begin
     (p_area, 'alerta_dias',         '3',                    'Días de anticipación para alertas de restricciones'),
     (p_area, 'arrastre_alerta',     '2',                    'Semanas pendientes desde las que se alerta un arrastre'),
     (p_area, 'zona_horaria',        '"America/Lima"',       'Zona horaria del área'),
-    (p_area, 'version_app',         '"LPS_GT V1.00.01"',    'Texto del encabezado de los PDF'),
+    (p_area, 'version_app',         '"LPS_GES V1.00.01"',    'Texto del encabezado de los PDF'),
     (p_area, 'firma_pdf',           '"By EHCM"',            'Texto del pie de los PDF'),
     (p_area, 'reunion_minutos',     '{"cierre":10,"avance":10,"restricciones":10,"compromisos":20,"lookahead":10}', 'Minutos por paso del modo reunión'),
     (p_area, 'reconocimientos',     '{"mejor_pac":true,"mayor_mejora":true}', 'Reconocimientos mensuales del tablero');
 
-  -- Matriz de permisos inicial (el administrador siempre puede todo)
+  -- Matriz de permisos inicial 20 acciones × 4 roles (admin siempre puede todo).
+  -- delegado=true por defecto; lider y consulta parten en false, luego se activan los permitidos.
   insert into public.permisos (area_id, rol, accion, permitido)
   select p_area, r.rol, a.accion,
          (r.rol = 'delegado')
     from (values ('delegado'),('lider'),('consulta')) r(rol)
     cross join (values
-      ('gestionar_usuarios'),('gestionar_listas'),('gestionar_parametros'),('crear_proyecto'),
-      ('proponer_proyecto'),('aprobar_proyecto'),('editar_actividades_otros'),('crear_columnas'),
-      ('reabrir_semana'),('cerrar_semana_otros'),('aceptar_solicitudes'),('registrar_solicitud'),
-      ('comentar'),('exportar'),('ver_tablero'),('gestionar_plantillas_servicio'),
-      ('gestionar_reuniones'),('ver_auditoria'),('importar_historico'),('gestionar_solicitudes_cambio')
+      ('ver_semana'),('crear_semana'),('editar_semana'),('cerrar_semana'),
+      ('ver_compromiso'),('crear_compromiso'),('editar_compromiso'),('cerrar_compromiso'),
+      ('ver_restriccion'),('crear_restriccion'),('editar_restriccion'),('resolver_restriccion'),
+      ('ver_cartera'),('crear_cartera'),('editar_cartera'),('exportar_pdf'),
+      ('ver_indicadores'),('importar_datos'),('ver_solicitud'),('crear_solicitud')
     ) a(accion);
+  -- lider: 6 acciones activas por defecto
   update public.permisos set permitido = true
    where area_id = p_area and rol = 'lider'
-     and accion in ('proponer_proyecto','aceptar_solicitudes','registrar_solicitud','comentar','exportar','ver_tablero');
+     and accion in ('ver_semana','crear_semana','editar_semana','ver_compromiso','crear_compromiso','editar_compromiso');
+  -- consulta: 3 acciones activas por defecto
   update public.permisos set permitido = true
    where area_id = p_area and rol = 'consulta'
-     and accion in ('registrar_solicitud','exportar','ver_tablero');
+     and accion in ('ver_semana','ver_compromiso','ver_indicadores');
 end $$;
 
 -- ============================================================
@@ -253,7 +256,7 @@ do $$
 declare v_area uuid;
 begin
   if not exists (select 1 from public.areas) then
-    insert into public.areas (nombre, descripcion) values ('Gerencia Técnica', 'Área inicial de LPS-GT')
+    insert into public.areas (nombre, descripcion) values ('Gerencia Técnica', 'Área inicial de LPS-GES')
     returning id into v_area;
     perform public.sembrar_area(v_area);
   end if;

@@ -92,57 +92,49 @@ export const PARAMETROS_INICIALES = {
   horas_dia: 8,
   dias_laborables: [1, 2, 3, 4, 5],
   trabajo_fin_semana: false,   // muestra sábado y domingo para registrar trabajo esos días
-  cierre: { dia: 5, hora: '17:00' },
+  cierre: { dias: [5], dia: 5, hora: '17:00' },
   reunion: { dias: [5], hora: '08:00' },   // días de la reunión de cumplimiento del plan semanal (pedido 112)
   cierre_automatico: true,
   alerta_dias: 3,
   arrastre_alerta: 2,
   zona_horaria: 'America/Lima',
-  version_app: 'LPS_GT V1.00.01',
+  version_app: 'LPS-GES V1.00.01',
   firma_pdf: 'By EHCM',
   reunion_minutos: { cierre: 10, avance: 10, restricciones: 10, compromisos: 20, lookahead: 10 },
   reconocimientos: { mejor_pac: true, mayor_mejora: true },
 };
 
 export const ACCIONES = [
-  ['gestionar_usuarios', 'Gestionar usuarios, roles y gerencias'],
-  ['gestionar_listas', 'Editar listas configurables'],
-  ['gestionar_parametros', 'Editar parámetros generales'],
-  ['crear_proyecto', 'Crear y editar proyectos del menú'],
-  ['proponer_proyecto', 'Proponer proyectos (requiere aprobación)'],
-  ['agregar_proyecto', 'Agregar proyectos al menú y editar los propios'],
-  ['agregar_cet', 'Agregar CET / Servicio'],
-  ['aprobar_proyecto', 'Aprobar o rechazar proyectos propuestos'],
-  ['editar_actividades_otros', 'Editar actividades de otros líderes'],
-  ['crear_columnas', 'Crear columnas personalizadas'],
-  ['reabrir_semana', 'Reabrir semanas cerradas'],
-  ['cerrar_semana_otros', 'Cerrar la semana de otros líderes'],
-  ['aceptar_solicitudes', 'Aceptar o rechazar solicitudes de servicio'],
-  ['registrar_solicitud', 'Registrar solicitudes de servicio'],
-  ['comentar', 'Comentar y mencionar'],
-  ['exportar', 'Exportar reportes (Excel / PDF)'],
-  ['ver_tablero', 'Ver el tablero'],
-  ['gestionar_plantillas_servicio', 'Gestionar plantillas de servicio'],
-  ['gestionar_reuniones', 'Gestionar reuniones y acuerdos'],
-  ['ver_auditoria', 'Ver el historial de cambios (auditoría)'],
-  ['importar_historico', 'Importar histórico y datos desde Excel'],
-  ['gestionar_solicitudes_cambio', 'Gestionar solicitudes de cambio del aplicativo'],
-  ['eliminar_usuarios', 'Eliminar usuarios'],
-  ['exportar_respaldo', 'Descargar el respaldo completo de la base de datos'],
+  ['ver_semana',          'Ver semanas del plan semanal'],
+  ['crear_semana',        'Crear compromisos en el plan semanal'],
+  ['editar_semana',       'Editar compromisos del plan semanal'],
+  ['cerrar_semana',       'Cerrar semanas (propias y de otros líderes)'],
+  ['ver_compromiso',      'Ver compromisos y detalle de actividades'],
+  ['crear_compromiso',    'Crear nuevos compromisos'],
+  ['editar_compromiso',   'Editar compromisos existentes'],
+  ['cerrar_compromiso',   'Cerrar compromisos al final de semana'],
+  ['ver_restriccion',     'Ver restricciones del Look Ahead'],
+  ['crear_restriccion',   'Registrar nuevas restricciones'],
+  ['editar_restriccion',  'Editar restricciones existentes'],
+  ['resolver_restriccion','Marcar restricciones como levantadas'],
+  ['ver_cartera',         'Ver la cartera de proyectos y servicios'],
+  ['crear_cartera',       'Crear proyectos y solicitudes en cartera'],
+  ['editar_cartera',      'Editar proyectos y solicitudes de cartera'],
+  ['exportar_pdf',        'Exportar reportes a PDF / Excel'],
+  ['ver_indicadores',     'Ver el tablero de indicadores y KPIs'],
+  ['importar_datos',      'Importar histórico y datos desde Excel'],
+  ['ver_solicitud',       'Ver solicitudes de servicio a la GT'],
+  ['crear_solicitud',     'Registrar solicitudes de servicio a la GT'],
 ];
 
-const PERMISOS_LIDER = ['proponer_proyecto', 'aceptar_solicitudes', 'registrar_solicitud', 'comentar', 'exportar', 'ver_tablero'];
 const conPermisos = lista => Object.fromEntries(ACCIONES.map(([a]) => [a, lista.includes(a)]));
 
-// El super administrador tiene todo siempre; la columna "admin" la edita solo él (por defecto, todo permitido)
+// Valores por defecto (migración 003). El admin siempre tiene todo; delegado/lider/consulta son editables.
 export const PERMISOS_INICIALES = {
-  admin: Object.fromEntries(ACCIONES.map(([a]) => [a, true])),
-  delegado: Object.fromEntries(ACCIONES.map(([a]) => [a, !['eliminar_usuarios', 'exportar_respaldo'].includes(a)])),
-  resp_equipo: conPermisos([...PERMISOS_LIDER, 'agregar_proyecto', 'agregar_cet', 'editar_actividades_otros', 'cerrar_semana_otros', 'gestionar_reuniones', 'gestionar_plantillas_servicio']),
-  lider: conPermisos([...PERMISOS_LIDER, 'agregar_proyecto', 'agregar_cet']),
-  resp_proceso: conPermisos([...PERMISOS_LIDER, 'agregar_proyecto', 'agregar_cet']),
-  resp_actividad: conPermisos(PERMISOS_LIDER.filter(a => !['proponer_proyecto', 'aceptar_solicitudes'].includes(a))),
-  consulta: conPermisos(['registrar_solicitud', 'exportar', 'ver_tablero']),
+  admin:    Object.fromEntries(ACCIONES.map(([a]) => [a, true])),
+  delegado: Object.fromEntries(ACCIONES.map(([a]) => [a, true])),
+  lider:    conPermisos(['ver_semana', 'crear_semana', 'editar_semana', 'ver_compromiso', 'crear_compromiso', 'editar_compromiso']),
+  consulta: conPermisos(['ver_semana', 'ver_compromiso', 'ver_indicadores']),
 };
 
 // El orden define cómo se muestran en listas y en la matriz de permisos.
@@ -151,18 +143,14 @@ export const ROLES = {
   superadmin: 'Super administrador',
   admin: 'Administrador',
   delegado: 'Administrador delegado',
-  resp_equipo: 'Responsable del equipo',
   lider: 'Líder de especialidad',
-  resp_proceso: 'Responsable de proceso',
-  resp_actividad: 'Responsable de actividad',
   consulta: 'Consulta',
   pendiente: 'Pendiente de aprobación',
 };
 
 /** Roles que planifican: tienen plan semanal, Look Ahead y PAC (equivale a public.rol_planifica). */
-export const PLANIFICADORES = ['resp_equipo', 'lider', 'resp_proceso', 'resp_actividad'];
-export const COLOR_ROL = { superadmin: '#1A365D', admin: '#E8762B', delegado: '#4E79A7', resp_equipo: '#B07AA1', lider: '#59A14F', resp_proceso: '#9C755F',
-  resp_actividad: '#EDC948', consulta: '#76B7B2', pendiente: '#BAB0AC' };
+export const PLANIFICADORES = ['lider'];
+export const COLOR_ROL = { superadmin: '#1A365D', admin: '#E8762B', delegado: '#4E79A7', lider: '#59A14F', consulta: '#76B7B2', pendiente: '#BAB0AC' };
 
 /**
  * Listas, parámetros y permisos iniciales de una empresa nueva (pedido 113). Salen de estos mismos catálogos;

@@ -1,4 +1,4 @@
--- LPS-GT · 008 · Grupos de listas (para ordenarlas en Configuración → Listas). Editable desde el aplicativo.
+-- LPS-GES · 008 · Grupos de listas (para ordenarlas en Configuración → Listas). Editable desde el aplicativo.
 alter table public.listas add column if not exists grupo text;
 
 update public.listas set grupo = case

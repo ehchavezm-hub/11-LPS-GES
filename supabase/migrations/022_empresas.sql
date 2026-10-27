@@ -1,4 +1,4 @@
--- LPS-GT · 019_empresas.sql
+-- LPS-GT · 022_empresas.sql
 -- Varias empresas en la misma aplicación web (pedido 113). Cada empresa es un "área": sus usuarios, proyectos,
 -- listas, parámetros y permisos están aislados por las políticas existentes (area_id = mi_area()).
 --   · profiles.es_plataforma: administrador de la plataforma (ve y crea empresas desde Configuración → Empresas).

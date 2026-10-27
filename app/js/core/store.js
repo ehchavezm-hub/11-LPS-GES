@@ -91,15 +91,15 @@ export function puede(accion) {
   return !!propio;
 }
 /** Agregar proyectos activos al menú (administración o permiso "agregar_proyecto", pedido 100). */
-export function puedeAgregarProyecto() { return puede('crear_proyecto') || puede('agregar_proyecto'); }
+export function puedeAgregarProyecto() { return esGestor(); }
 /** Editar un proyecto: quien administra proyectos, quien lo agregó (si tiene el permiso) o quien lo propuso. */
 export function puedeEditarProyecto(p) {
   if (!p) return false;
   const yo = store.usuario?.id;
-  return puede('crear_proyecto') || (puede('agregar_proyecto') && p.created_by === yo) || (p.estado === 'propuesto' && p.propuesto_por === yo);
+  return esGestor() || (p.estado === 'propuesto' && p.propuesto_por === yo);
 }
 export function puedeEditarActividad(a) {
-  return a.responsable_id === store.usuario?.id || puede('editar_actividades_otros');
+  return a.responsable_id === store.usuario?.id || esGestor();
 }
 
 // ---------- Listas ----------
@@ -156,6 +156,13 @@ export function diasReunion() {
 const unirDias = ds => { const n = ds.map(d => DIAS_NOMBRE[d - 1].toLowerCase()); return n.length > 1 ? `${n.slice(0, -1).join(', ')} y ${n.at(-1)}` : n[0]; };
 /** "viernes", "viernes y sábado"… */
 export function textoDiasReunion() { return unirDias(diasReunion()); }
+/** Días de cierre semanal (casillas, como el Look Ahead). Los parámetros anteriores guardaban un solo "dia". */
+export function diasCierre() {
+  const c = { ...PARAMETROS_INICIALES.cierre, ...(param('cierre') || {}) };
+  const lista = (Array.isArray(c.dias) && c.dias.length ? c.dias : [c.dia ?? 5]).map(Number).filter(d => d >= 1 && d <= 7);
+  return [...new Set(lista.length ? lista : [5])].sort((a, b) => a - b);
+}
+export function textoDiasCierre() { return unirDias(diasCierre()); }
 /** "lunes", "lunes y martes", "lunes, martes y miércoles"… */
 export function diaLookAhead() {
   const n = configLookAhead().dias.map(d => DIAS_NOMBRE[d - 1].toLowerCase());

@@ -65,7 +65,7 @@ async function pintar() {
   const laborables = (param('dias_laborables') || [1, 2, 3, 4, 5]).map(Number);
   const finde = !!param('trabajo_fin_semana');
   const dias = Array.from({ length: 7 }, (_, i) => i).filter(i => laborables.includes(i + 1) || i < 5 || finde);
-  document.querySelector('[data-finde]').innerHTML = puede('gestionar_parametros')
+  document.querySelector('[data-finde]').innerHTML = esGestor()
     ? `<button class="btn btn-sm${finde ? ' btn-azul' : ''}" data-a="finde" title="Mostrar u ocultar sábado y domingo para registrar trabajo esos días">${finde ? '✓ Sábado y domingo activos' : '＋ Activar sábado y domingo'}</button>`
     : (finde ? '<span class="nota">Sábado y domingo activos</span>' : '');
   const ops = valoresLista('ubicaciones');

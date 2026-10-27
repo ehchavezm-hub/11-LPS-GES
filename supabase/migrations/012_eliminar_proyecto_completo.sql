@@ -1,4 +1,4 @@
--- LPS-GT · 012 · Eliminar un proyecto con todo su historial (p. ej. proyectos de prueba)
+-- LPS-GES · 012 · Eliminar un proyecto con todo su historial (p. ej. proyectos de prueba)
 -- Solo administradores con permiso de crear proyectos y de eliminar usuarios. Borra actividades (también de semanas
 -- cerradas), restricciones, cartera, plantillas, hitos, comentarios y enlaces del proyecto. Queda en la auditoría.
 create or replace function public.eliminar_proyecto_completo(p_proyecto uuid) returns jsonb
