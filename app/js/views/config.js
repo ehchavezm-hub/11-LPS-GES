@@ -5,7 +5,7 @@ import { leerDemo as leerDatosDemo } from '../services/traer-demo.js';
 const hayDatosDemo = () => !!leerDatosDemo();
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError, modoDemo } from '../data/api.js';
-import { store, on, cargarCatalogo, esAdmin, esSuperadmin, puede, opciones, opcionesProyectos, nombre, valoresLista , configLookAhead } from '../core/store.js';
+import { store, on, cargarCatalogo, esAdmin, esSuperadmin, puede, opciones, opcionesProyectos, nombre, valoresLista, configLookAhead } from '../core/store.js';
 import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista, LISTAS_RETIRADAS } from '../data/catalogos.js';
 import { esc, html, fmtFechaHora, fmtFecha, normalizar } from '../core/util.js';
 import { ir } from '../core/router.js';
@@ -14,6 +14,7 @@ import { ok, error, confirmar, pedirDatos, modal, badge, toast } from '../ui/ui.
 import { leerLibro, analizar, importar, sugerirUsuario, sugerirProyecto } from '../services/importar.js';
 
 const SECCIONES = [
+  ['empresas', '🏢 Empresas', () => !!store.usuario?.es_plataforma],   // solo el administrador de la plataforma
   ['usuarios', '👤 Usuarios y roles'], ['listas', '📋 Listas'], ['parametros', '🔧 Parámetros'], ['permisos', '🔐 Permisos'],
   ['columnas', '▥ Columnas personalizadas'], ['importar', '⬆ Importar Excel'], ['respaldo', '💾 Respaldo'], ['auditoria', '🕑 Auditoría'],
 ];
@@ -27,11 +28,11 @@ export async function render(el, { seccion, query }) {
   dejarCatalogo = on('catalogo', () => grilla?.refrescar());
   el.innerHTML = '';
   el.append(html(`<div><div class="pagina-cab"><h1>Configuración</h1></div>
-    <div class="pestanas" style="margin-bottom:14px;flex-wrap:wrap">${SECCIONES.map(([k, t]) => `<button data-s="${k}" class="${k === seccion ? 'activo' : ''}">${t}</button>`).join('')}</div>
+    <div class="pestanas" style="margin-bottom:14px;flex-wrap:wrap">${SECCIONES.filter(([, , si]) => !si || si()).map(([k, t]) => `<button data-s="${k}" class="${k === seccion ? 'activo' : ''}">${t}</button>`).join('')}</div>
     <div data-sec></div></div>`));
   el.querySelector('.pestanas').addEventListener('click', e => { const s = e.target.closest('[data-s]')?.dataset.s; if (s) ir('#/config/' + s); });
   const cont = el.querySelector('[data-sec]');
-  const f = { usuarios, listas, parametros, permisos, columnas, importar: importarVista, respaldo, auditoria }[seccion];
+  const f = { empresas: store.usuario?.es_plataforma ? empresas : null, usuarios, listas, parametros, permisos, columnas, importar: importarVista, respaldo, auditoria }[seccion];
   if (f) await f(cont, query?.get('lista') || undefined); else cont.textContent = 'Sección no encontrada.';
 }
 export function destruir() { desmontarOrg?.(); grilla?.destruir(); grilla = null; dejarCatalogo?.(); dejarCatalogo = null; catalogoProyectos?.destruir(); catalogoProyectos = null; }
@@ -319,6 +320,59 @@ async function listas(el, claveSel) {
   });
   const valores = await api.list('lista_valores', { eq: { lista_id: lista.id }, order: [['orden', true]] });
   await grilla.inicializar(valores.map(v => ({ ...v, _cuenta: v.extra?.cuenta_capacidad !== false, _proyecto: v.extra?.proyecto_id || null })));
+}
+
+// ---------- Empresas (administrador de la plataforma, pedido 113) ----------
+// Todas las empresas usan esta misma aplicación web; los datos de cada una están aislados.
+async function empresas(el) {
+  el.innerHTML = '<div class="cargando"><span class="spinner"></span> Cargando empresas…</div>';
+  let lista = [];
+  try { ({ empresas: lista } = await api.adminUsuarios('empresas')); } catch (e) { el.innerHTML = `<div class="aviso error">${esc(mensajeError(e))}</div>`; return; }
+  el.innerHTML = '';
+  const tarjeta = html(`<div class="tarjeta">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><h2 style="margin:0">Empresas</h2><span class="flex"></span>
+      <button class="btn btn-primario" data-a="nueva">＋ Nueva empresa</button></div>
+    <p class="nota">Cada empresa entra por este mismo enlace con sus propios usuarios y solo ve sus datos: proyectos, actividades, listas,
+      parámetros y permisos. Al crear una empresa se crea también su primer administrador (super administrador de esa empresa),
+      que luego agrega a su equipo en Configuración → Usuarios y roles. Las listas propias (gerencias, CET / Servicio y cargos) empiezan vacías.</p>
+    <table class="simple"><tr><th>Empresa</th><th>Administrador principal</th><th class="num">Usuarios</th><th class="num">Proyectos</th><th>Creada</th><th>Estado</th><th></th></tr>
+    ${lista.map(a => `<tr><td><b>${esc(a.nombre)}</b>${a.mia ? ' <span class="nota">(la suya)</span>' : ''}${a.descripcion ? `<div class="nota">${esc(a.descripcion)}</div>` : ''}</td>
+      <td>${esc(a.administrador || '—')}</td><td class="num">${a.usuarios}</td><td class="num">${a.proyectos}</td><td>${fmtFecha(a.created_at)}</td>
+      <td>${a.activa ? badge('Activa', '#59A14F') : badge('Desactivada', '#BAB0AC')}</td>
+      <td>${a.mia ? '' : `<button class="btn btn-sm" data-estado="${a.id}" data-activa="${a.activa ? '0' : '1'}">${a.activa ? 'Desactivar' : 'Activar'}</button>`}</td></tr>`).join('')}</table></div>`);
+  el.append(tarjeta);
+  tarjeta.querySelector('[data-a="nueva"]').onclick = async () => {
+    const { semillaEmpresa } = await import('../data/catalogos.js');
+    const r = await pedirDatos({
+      titulo: 'Nueva empresa', texto: 'Crear empresa',
+      antes: 'Se crean la empresa, sus listas y parámetros iniciales, y su primer administrador. Él deberá cambiar la contraseña en su primer ingreso.',
+      campos: [
+        { name: 'nombre_empresa', label: 'Nombre de la empresa', required: true, full: true },
+        { name: 'descripcion', label: 'Descripción / rubro (opcional)', full: true },
+        { name: 'separador', type: 'separador', label: 'Primer administrador de la empresa' },
+        { name: 'nombre', label: 'Nombre y apellido', required: true },
+        { name: 'email', label: 'Correo', type: 'email', required: true },
+        { name: 'clave', label: 'Contraseña temporal (mínimo 8 caracteres)', required: true },
+      ],
+      alGuardar: async d => {
+        if (String(d.clave || '').length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
+        await api.adminUsuarios('crear_empresa', { ...d, semilla: semillaEmpresa() });
+        ok(`Empresa "${d.nombre_empresa}" creada. Comparta con ${d.nombre} el enlace del aplicativo, su correo y la contraseña temporal.`);
+      },
+    });
+    if (r) empresas(el);
+  };
+  tarjeta.addEventListener('click', async e => {
+    const b = e.target.closest('[data-estado]');
+    if (!b) return;
+    const activar = b.dataset.activa === '1';
+    const nom = lista.find(a => a.id === b.dataset.estado)?.nombre || '';
+    if (!await confirmar(activar ? `¿Activar la empresa "${nom}"? Sus usuarios podrán volver a ingresar.`
+      : `¿Desactivar la empresa "${nom}"? Sus usuarios no podrán ingresar. Sus datos se conservan y puede reactivarla cuando quiera.`,
+    { titulo: activar ? 'Activar empresa' : 'Desactivar empresa', texto: activar ? 'Activar' : 'Desactivar', peligro: !activar })) return;
+    try { await api.adminUsuarios('estado_empresa', { area_id: b.dataset.estado, activa: activar }); ok(activar ? 'Empresa activada.' : 'Empresa desactivada.'); empresas(el); }
+    catch (err) { error(mensajeError(err)); }
+  });
 }
 
 // ---------- Parámetros ----------

@@ -72,6 +72,10 @@ async function arrancar() {
   }
   usuarioMonitoreo(store.usuario, store.usuario.area_id);
   try { await medir('catalogo.cargar', cargarCatalogo); } catch (e) { error(mensajeError(e)); }
+  // Empresa desactivada por el administrador de la plataforma (pedido 113): sus usuarios no ingresan
+  if (store.area && store.area.activa === false && !store.usuario.es_plataforma) {
+    return mostrarPendiente(raiz, `La empresa "${store.area.nombre}" está desactivada. Comuníquese con el administrador de la plataforma.`);
+  }
 
   const contenido = montarLayout(raiz, {
     alSalir: async () => { await borrarDatosLocales(); await api.auth.salir(); location.hash = ''; location.reload(); },

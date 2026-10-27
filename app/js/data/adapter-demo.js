@@ -85,6 +85,46 @@ export function crearAdaptadorDemo() {
   const esSuper = p => p?.rol === 'superadmin' || !!p?.es_admin_principal;
   const GESTORES = ['superadmin', 'admin', 'delegado'];
   const SIN_HISTORIAL = new Set(['profiles', 'notificaciones', 'proyecto_favoritos', 'vistas', 'proyecto_lideres', 'auditoria']);
+  // Emula las acciones de empresas de "admin-usuarios" (administrador de la plataforma, pedido 113)
+  async function empresasDemo(accion, d, yo) {
+    if (!yo.es_plataforma) throw new Error('Solo el administrador de la plataforma gestiona empresas.');
+    const ahora = new Date().toISOString();
+    if (accion === 'empresas') {
+      return { empresas: tabla('areas').map(a => {
+        const ps = tabla('profiles').filter(p => p.area_id === a.id && !p.eliminado);
+        const pr = ps.find(p => p.es_admin_principal);
+        return { ...clon(a), activa: a.activa !== false, usuarios: ps.filter(p => p.activo && p.rol !== 'pendiente').length,
+          proyectos: tabla('proyectos').filter(p => p.area_id === a.id).length, administrador: pr ? `${pr.nombre} (${pr.email})` : '', mia: a.id === yo.area_id };
+      }) };
+    }
+    if (accion === 'estado_empresa') {
+      if (d.area_id === yo.area_id && d.activa === false) throw new Error('No puede desactivar su propia empresa.');
+      const a = tabla('areas').find(x => x.id === d.area_id);
+      if (a) { a.activa = !!d.activa; guardar(); }
+      return { ok: true };
+    }
+    const nombreEmpresa = String(d.nombre_empresa || '').trim(), email = String(d.email || '').trim().toLowerCase();
+    if (!nombreEmpresa) throw new Error('Indique el nombre de la empresa.');
+    if (tabla('areas').some(a => a.nombre.toLowerCase() === nombreEmpresa.toLowerCase())) throw new Error('Ya existe una empresa con ese nombre.');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Correo no válido.');
+    if (tabla('profiles').some(p => p.email === email)) throw new Error('Ya existe un usuario con ese correo.');
+    if (String(d.clave || '').length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
+    const area = { id: crypto.randomUUID(), nombre: nombreEmpresa, descripcion: d.descripcion || null, activa: true, created_at: ahora, updated_at: ahora };
+    tabla('areas').push(area);
+    for (const l of d.semilla?.listas || []) {
+      const lid = crypto.randomUUID();
+      tabla('listas').push({ id: lid, area_id: area.id, clave: l.clave, nombre: l.nombre, grupo: l.grupo || null, sistema: true, created_at: ahora, updated_at: ahora });
+      (l.valores || []).forEach((v, i) => tabla('lista_valores').push({ id: crypto.randomUUID(), lista_id: lid, codigo: v.codigo ?? null, valor: v.valor,
+        orden: (i + 1) * 10, color: v.color ?? null, activo: true, protegido: !!v.protegido, extra: v.extra || {}, created_at: ahora, updated_at: ahora }));
+    }
+    for (const [clave, valor] of Object.entries(d.semilla?.parametros || {})) tabla('parametros').push({ id: crypto.randomUUID(), area_id: area.id, clave, valor, updated_at: ahora });
+    for (const x of d.semilla?.permisos || []) tabla('permisos').push({ id: crypto.randomUUID(), area_id: area.id, rol: x.rol, accion: x.accion, permitido: !!x.permitido });
+    const p = { id: crypto.randomUUID(), area_id: area.id, email, nombre: String(d.nombre || '').trim(), rol: 'superadmin', activo: true,
+      es_admin_principal: true, es_plataforma: false, debe_cambiar_clave: true, tour_visto: false, gerencia_ids: [], created_at: ahora, updated_at: ahora };
+    tabla('profiles').push(p);
+    guardar();
+    return { area_id: area.id, usuario_id: p.id };
+  }
   async function eliminarUsuarioDemo(id) {
     db = cargar();
     const yo = perfil();
@@ -309,6 +349,7 @@ export function crearAdaptadorDemo() {
     },
     async rpc(nombre, args = {}) {
       if (nombre === 'eliminar_usuario') return eliminarUsuarioDemo(args.p_usuario);
+      if (nombre === 'registro_abierto') return tabla('areas').filter(a => a.activa !== false).length <= 1;
       if (nombre === 'eliminar_proyecto_completo') {
         // Emula public.eliminar_proyecto_completo(): borra el proyecto con todo su historial
         db = cargar();
@@ -343,6 +384,7 @@ export function crearAdaptadorDemo() {
       db = cargar();
       const yo = perfil();
       if (!yo || !GESTORES.includes(yo.rol)) throw new Error('No tiene permiso para gestionar usuarios.');
+      if (['empresas', 'crear_empresa', 'estado_empresa'].includes(accion)) return empresasDemo(accion, d, yo);
       if (String(d.clave || '').length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
       if (accion === 'crear') {
         const email = String(d.email || '').trim().toLowerCase();

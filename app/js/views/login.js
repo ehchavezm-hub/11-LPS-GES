@@ -23,10 +23,13 @@ export function mostrarLogin(raiz, continuar) {
       <p class="nota">El administrador debe aprobar su cuenta y asignarle un rol antes de que pueda usar el aplicativo.</p>
     </form>
     <p style="display:flex;justify-content:space-between;margin-top:12px;font-size:13px">
-      <a href="#" data-a="alternar">Crear una cuenta</a><a href="#" data-a="olvido">Olvidé mi contraseña</a></p>
+      <a href="#" data-a="alternar" class="oculto">Crear una cuenta</a><a href="#" data-a="olvido">Olvidé mi contraseña</a></p>
     <p class="nota" style="text-align:center;margin-top:10px"><a href="#" data-a="demo">Probar el modo demostración</a></p>
   </div></div>`);
   raiz.append(caja);
+  // Con varias empresas en la plataforma, las cuentas las crea el administrador de cada empresa (pedido 113)
+  api.rpc('registro_abierto').then(abierto => { if (abierto !== false) caja.querySelector('[data-a="alternar"]').classList.remove('oculto'); })
+    .catch(() => caja.querySelector('[data-a="alternar"]').classList.remove('oculto'));   // base sin la migración 019
   const fIng = caja.querySelector('[data-f="ingresar"]');
   const fReg = caja.querySelector('[data-f="registrar"]');
   fIng.addEventListener('submit', async e => {

@@ -163,3 +163,20 @@ export const ROLES = {
 export const PLANIFICADORES = ['resp_equipo', 'lider', 'resp_proceso', 'resp_actividad'];
 export const COLOR_ROL = { superadmin: '#1A365D', admin: '#E8762B', delegado: '#4E79A7', resp_equipo: '#B07AA1', lider: '#59A14F', resp_proceso: '#9C755F',
   resp_actividad: '#EDC948', consulta: '#76B7B2', pendiente: '#BAB0AC' };
+
+/**
+ * Listas, parámetros y permisos iniciales de una empresa nueva (pedido 113). Salen de estos mismos catálogos;
+ * las listas propias de cada empresa (gerencias, CET / Servicio y cargos) empiezan vacías.
+ */
+export function semillaEmpresa() {
+  const PROPIAS = ['gerencias', 'servicios', 'cargos'];
+  const listas = LISTAS_INICIALES.map(([clave, nombre, vals]) => ({
+    clave, nombre, grupo: grupoDeLista({ clave }),
+    valores: PROPIAS.includes(clave) ? [] : vals.map(([codigo, valor, color, protegido, extra]) =>
+      ({ codigo: codigo ?? null, valor, color: color ?? null, protegido: !!protegido, extra: extra || {} })),
+  }));
+  const parametros = { ...PARAMETROS_INICIALES, version_app: 'LPS V1.00', firma_pdf: '' };
+  const permisos = Object.entries(PERMISOS_INICIALES).flatMap(([rol, acciones]) =>
+    Object.entries(acciones).map(([accion, permitido]) => ({ rol, accion, permitido })));
+  return { listas, parametros, permisos };
+}

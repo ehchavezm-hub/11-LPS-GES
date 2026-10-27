@@ -356,7 +356,7 @@ values (mi_area(), 'proyecto', (select id from proyectos where codigo = 'P-SEG')
 reset role;
 do $$ begin
   assert not exists (select 1 from notificaciones n join profiles p on p.id = n.usuario_id where p.email = 'otra@x.pe' and n.tipo = 'mencion'), 'mención cruzó de área';
-  assert not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.proname not in ('como', 'debe_fallar')
+  assert not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.proname not in ('como', 'debe_fallar', 'registro_abierto')
                       and has_function_privilege('anon', p.oid, 'execute')), 'anon puede ejecutar funciones security definer';
   assert not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prosecdef and p.proname not in ('como', 'debe_fallar')
                       and not coalesce(p.proconfig::text like '%search_path=public, pg_temp%', false)), 'función definer sin search_path fijo';
@@ -420,6 +420,32 @@ do $$ begin
   assert exists (select 1 from proyectos where codigo = 'L-1'), 'el líder eliminó un proyecto';
   assert exists (select 1 from lista_valores where codigo = 'CET-L1' and valor = 'Servicio de líder'), 'el líder no agregó el CET / Servicio';
 end $$;
+
+-- ---------- 019: empresas ----------
+insert into areas (nombre) values ('Empresa Dos');
+do $$ begin assert not registro_abierto() or (select count(*) from areas where activa) <= 1, 'registro abierto con varias empresas'; end $$;
+select inicializar_empresa((select id from areas where nombre = 'Empresa Dos'), '{
+  "listas":[{"clave":"gerencias","nombre":"Gerencias","grupo":"G","valores":[]},
+            {"clave":"estados_la","nombre":"Estados LA","valores":[{"codigo":"lista","valor":"Lista","protegido":true}]}],
+  "parametros":{"meta_pac":0.8},
+  "permisos":[{"rol":"lider","accion":"comentar","permitido":true}]}');
+do $$ begin
+  assert (select count(*) from listas l join areas a on a.id = l.area_id where a.nombre = 'Empresa Dos') = 2, 'listas de la empresa nueva';
+  assert (select count(*) from parametros p join areas a on a.id = p.area_id where a.nombre = 'Empresa Dos') = 1, 'parámetros de la empresa nueva';
+  assert not registro_abierto(), 'con varias empresas el registro público debe cerrarse';
+end $$;
+select debe_fallar($q$ select inicializar_empresa((select id from areas where nombre = 'Empresa Dos'), '{}') $q$, 'ya tiene');
+set role authenticated;
+select como('lider3@x.pe');
+do $$ begin assert (select count(*) from areas) = 1, 'un usuario normal ve otras empresas'; end $$;
+select debe_fallar($q$ update profiles set es_plataforma = true where id = auth.uid() $q$, 'plataforma');
+select debe_fallar($q$ select inicializar_empresa((select id from areas limit 1), '{}') $q$, 'permission denied');
+reset role;
+update profiles set es_plataforma = true where email = 'admin@x.pe';
+set role authenticated;
+select como('admin@x.pe');
+do $$ begin assert (select count(*) from areas) >= 2, 'el administrador de la plataforma no ve las empresas'; end $$;
+reset role;
 
 -- 017: las funciones de disparador no se pueden invocar como API
 do $$ begin
