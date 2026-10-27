@@ -40,7 +40,7 @@ export async function render(el) {
       <span class="flex"></span><span class="cronometro" data-crono>00:00</span>
       <button class="btn btn-sm" data-a="pantalla">⛶ Modo reunión</button>
       <button class="btn btn-sm" data-a="pdf">🖨 Acta PDF</button>
-      ${puede('gestionar_reuniones') ? '<button class="btn btn-sm btn-primario" data-a="guardar">💾 Guardar reunión</button>' : ''}</div>
+      ${esGestor() ? '<button class="btn btn-sm btn-primario" data-a="guardar">💾 Guardar reunión</button>' : ''}</div>
     <div class="reunion-pasos">${PASOS.map(([k, t], i) => `<button class="reunion-paso" data-paso="${i}">${t}</button>`).join('')}</div>
     <details class="tarjeta" style="margin-bottom:12px"><summary><b>Asistentes</b> <span class="nota" data-asis-n></span></summary>
       <div class="multi" style="margin-top:8px;border:none">${lideres().map(l => `<label class="chk"><input type="checkbox" data-asis="${l.id}" ${estado.asistentes.has(l.id) ? 'checked' : ''}> ${esc(l.nombre)}</label>`).join('')}</div></details>
@@ -167,7 +167,7 @@ const PINTORES = {
   acuerdos(c) {
     c.innerHTML = '<div class="aviso">Registre acciones de mejora a partir de las causas de no cumplimiento. Cada responsable puede actualizar el estado de sus acuerdos.</div><div data-g></div>';
     grillaAcuerdos = crearGrilla(c.querySelector('[data-g]'), {
-      id: 'acuerdos', tabla: 'acuerdos', titulo: 'Acuerdos', altura: '420px', puedeCrear: puede('gestionar_reuniones'),
+      id: 'acuerdos', tabla: 'acuerdos', titulo: 'Acuerdos', altura: '420px', puedeCrear: esGestor(),
       columnas: [
         { field: 'cnc_id', title: 'Causa (CNC)', tipo: 'lista', ancho: 230, opciones: () => opciones('cnc') },
         { field: 'accion', title: 'Acción de mejora', tipo: 'texto', ancho: 340 },
@@ -175,7 +175,7 @@ const PINTORES = {
         { field: 'fecha', title: 'Fecha', tipo: 'fecha', ancho: 105 },
         { field: 'estado', title: 'Estado', tipo: 'lista', ancho: 120, opciones: [{ value: 'pendiente', label: 'Pendiente' }, { value: 'en_proceso', label: 'En proceso' }, { value: 'cumplido', label: 'Cumplido' }, { value: 'cancelado', label: 'Cancelado' }] },
       ],
-      puedeEditarFila: a => puede('gestionar_reuniones') || a.responsable_id === store.usuario.id,
+      puedeEditarFila: a => esGestor() || a.responsable_id === store.usuario.id,
       nuevaFila: () => ({ area_id: store.area.id, reunion_id: estado.reunion?.id || null, estado: 'pendiente', accion: '' }),
       listaParaCrear: a => !!(a.accion && a.accion.trim()),
       camposCalc: ['created_at', 'updated_at', 'created_by'],

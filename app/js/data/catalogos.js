@@ -105,44 +105,36 @@ export const PARAMETROS_INICIALES = {
 };
 
 export const ACCIONES = [
-  ['gestionar_usuarios', 'Gestionar usuarios, roles y gerencias'],
-  ['gestionar_listas', 'Editar listas configurables'],
-  ['gestionar_parametros', 'Editar parámetros generales'],
-  ['crear_proyecto', 'Crear y editar proyectos del menú'],
-  ['proponer_proyecto', 'Proponer proyectos (requiere aprobación)'],
-  ['agregar_proyecto', 'Agregar proyectos al menú y editar los propios'],
-  ['agregar_cet', 'Agregar CET / Servicio'],
-  ['aprobar_proyecto', 'Aprobar o rechazar proyectos propuestos'],
-  ['editar_actividades_otros', 'Editar actividades de otros líderes'],
-  ['crear_columnas', 'Crear columnas personalizadas'],
-  ['reabrir_semana', 'Reabrir semanas cerradas'],
-  ['cerrar_semana_otros', 'Cerrar la semana de otros líderes'],
-  ['aceptar_solicitudes', 'Aceptar o rechazar solicitudes de servicio'],
-  ['registrar_solicitud', 'Registrar solicitudes de servicio'],
-  ['comentar', 'Comentar y mencionar'],
-  ['exportar', 'Exportar reportes (Excel / PDF)'],
-  ['ver_tablero', 'Ver el tablero'],
-  ['gestionar_plantillas_servicio', 'Gestionar plantillas de servicio'],
-  ['gestionar_reuniones', 'Gestionar reuniones y acuerdos'],
-  ['ver_auditoria', 'Ver el historial de cambios (auditoría)'],
-  ['importar_historico', 'Importar histórico y datos desde Excel'],
-  ['gestionar_solicitudes_cambio', 'Gestionar solicitudes de cambio del aplicativo'],
-  ['eliminar_usuarios', 'Eliminar usuarios'],
-  ['exportar_respaldo', 'Descargar el respaldo completo de la base de datos'],
+  ['ver_semana',          'Ver semanas del plan semanal'],
+  ['crear_semana',        'Crear compromisos en el plan semanal'],
+  ['editar_semana',       'Editar compromisos del plan semanal'],
+  ['cerrar_semana',       'Cerrar semanas (propias y de otros líderes)'],
+  ['ver_compromiso',      'Ver compromisos y detalle de actividades'],
+  ['crear_compromiso',    'Crear nuevos compromisos'],
+  ['editar_compromiso',   'Editar compromisos existentes'],
+  ['cerrar_compromiso',   'Cerrar compromisos al final de semana'],
+  ['ver_restriccion',     'Ver restricciones del Look Ahead'],
+  ['crear_restriccion',   'Registrar nuevas restricciones'],
+  ['editar_restriccion',  'Editar restricciones existentes'],
+  ['resolver_restriccion','Marcar restricciones como levantadas'],
+  ['ver_cartera',         'Ver la cartera de proyectos y servicios'],
+  ['crear_cartera',       'Crear proyectos y solicitudes en cartera'],
+  ['editar_cartera',      'Editar proyectos y solicitudes de cartera'],
+  ['exportar_pdf',        'Exportar reportes a PDF / Excel'],
+  ['ver_indicadores',     'Ver el tablero de indicadores y KPIs'],
+  ['importar_datos',      'Importar histórico y datos desde Excel'],
+  ['ver_solicitud',       'Ver solicitudes de servicio a la GT'],
+  ['crear_solicitud',     'Registrar solicitudes de servicio a la GT'],
 ];
 
-const PERMISOS_LIDER = ['proponer_proyecto', 'aceptar_solicitudes', 'registrar_solicitud', 'comentar', 'exportar', 'ver_tablero'];
 const conPermisos = lista => Object.fromEntries(ACCIONES.map(([a]) => [a, lista.includes(a)]));
 
-// El super administrador tiene todo siempre; la columna "admin" la edita solo él (por defecto, todo permitido)
+// Valores por defecto (migración 003). El admin siempre tiene todo; delegado/lider/consulta son editables.
 export const PERMISOS_INICIALES = {
-  admin: Object.fromEntries(ACCIONES.map(([a]) => [a, true])),
-  delegado: Object.fromEntries(ACCIONES.map(([a]) => [a, !['eliminar_usuarios', 'exportar_respaldo'].includes(a)])),
-  resp_equipo: conPermisos([...PERMISOS_LIDER, 'agregar_proyecto', 'agregar_cet', 'editar_actividades_otros', 'cerrar_semana_otros', 'gestionar_reuniones', 'gestionar_plantillas_servicio']),
-  lider: conPermisos([...PERMISOS_LIDER, 'agregar_proyecto', 'agregar_cet']),
-  resp_proceso: conPermisos([...PERMISOS_LIDER, 'agregar_proyecto', 'agregar_cet']),
-  resp_actividad: conPermisos(PERMISOS_LIDER.filter(a => !['proponer_proyecto', 'aceptar_solicitudes'].includes(a))),
-  consulta: conPermisos(['registrar_solicitud', 'exportar', 'ver_tablero']),
+  admin:    Object.fromEntries(ACCIONES.map(([a]) => [a, true])),
+  delegado: Object.fromEntries(ACCIONES.map(([a]) => [a, true])),
+  lider:    conPermisos(['ver_semana', 'crear_semana', 'editar_semana', 'ver_compromiso', 'crear_compromiso', 'editar_compromiso']),
+  consulta: conPermisos(['ver_semana', 'ver_compromiso', 'ver_indicadores']),
 };
 
 // El orden define cómo se muestran en listas y en la matriz de permisos.

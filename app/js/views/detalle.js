@@ -15,7 +15,7 @@ function resaltarMenciones(texto) {
 export async function panelColaboracion(entidad, id, { alCambiar } = {}) {
   const el = html(`<div class="colab"><div class="grid-2" style="gap:16px">
     <div><h3>Comentarios</h3><div class="lista-com"></div>
-      ${puede('comentar') ? `<div class="campo" style="margin-top:8px"><textarea rows="2" placeholder="Escriba un comentario. Use @ para mencionar (p. ej. @${esc((store.perfiles[1] || store.usuario).nombre)})"></textarea>
+      ${esStaff() ? `<div class="campo" style="margin-top:8px"><textarea rows="2" placeholder="Escriba un comentario. Use @ para mencionar (p. ej. @${esc((store.perfiles[1] || store.usuario).nombre)})"></textarea>
       <div style="display:flex;gap:6px;margin-top:6px"><button class="btn btn-sm btn-primario" data-a="comentar">Comentar</button></div></div>` : ''}</div>
     <div><h3>Enlaces a documentos</h3><div class="lista-enlaces"></div>
       ${esStaff() ? `<div class="form" style="margin-top:8px;grid-template-columns:1fr">
@@ -33,7 +33,7 @@ export async function panelColaboracion(entidad, id, { alCambiar } = {}) {
       <div>${resaltarMenciones(c.texto)}</div></div>`).join('') : '<p class="nota">Sin comentarios.</p>';
     el.querySelector('.lista-enlaces').innerHTML = enls.length ? enls.map(l => `<div style="display:flex;gap:6px;align-items:center">
       <a href="${esc(l.url)}" target="_blank" rel="noopener noreferrer">🔗 ${esc(l.titulo)}</a>
-      ${l.autor_id === store.usuario.id || puede('gestionar_listas') ? `<button class="btn-icono" data-borrar-enl="${l.id}" title="Quitar">✕</button>` : ''}</div>`).join('')
+      ${l.autor_id === store.usuario.id || esGestor() ? `<button class="btn-icono" data-borrar-enl="${l.id}" title="Quitar">✕</button>` : ''}</div>`).join('')
       : '<p class="nota">Sin enlaces.</p>';
     return coms.length + enls.length;
   }
@@ -72,7 +72,7 @@ export async function panelColaboracion(entidad, id, { alCambiar } = {}) {
 
 export async function abrirDetalle(entidad, fila, { titulo, alCambiar } = {}) {
   const cuerpo = html(`<div><p class="nota">${esc(titulo || fila.descripcion || fila.nombre_corto || '')}</p><div data-colab></div>
-    ${puede('ver_auditoria') ? '<details style="margin-top:14px"><summary><b>Historial de cambios</b></summary><div data-hist class="nota">Cargando…</div></details>' : ''}</div>`);
+    ${esGestor() ? '<details style="margin-top:14px"><summary><b>Historial de cambios</b></summary><div data-hist class="nota">Cargando…</div></details>' : ''}</div>`);
   modal({ titulo: `Detalle de ${NOMBRES[entidad] || entidad}`, cuerpo, ancho: 880 });
   cuerpo.querySelector('[data-colab]').append(await panelColaboracion(entidad, fila.id, { alCambiar }));
   const hist = cuerpo.querySelector('[data-hist]');

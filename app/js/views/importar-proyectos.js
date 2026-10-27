@@ -131,7 +131,7 @@ export async function importarProyectos(archivo) {
         <p class="nota">Títulos que se reconocen: ${CAMPOS.map(([, t, alias]) => `<b>${esc(t)}</b> (${esc(alias.slice(0, 3).join(', '))})`).join(' · ')}.
         La fila de títulos puede estar en cualquiera de las primeras 25 filas.</p>` });
   }
-  const puedeListas = puede('gestionar_listas');
+  const puedeListas = esGestor();
   const cuerpo = html('<div></div>');
   let hoja = hojas[0], a = analizar(hoja);
   const pintar = () => {

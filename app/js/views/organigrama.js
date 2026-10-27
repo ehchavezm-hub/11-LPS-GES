@@ -14,7 +14,7 @@ let estado = null;
 /** Dibuja el organigrama dentro de "cont". Devuelve una función para desmontarlo. */
 export async function montarOrganigrama(cont) {
   desmontarOrganigrama();
-  const editable = puede('gestionar_usuarios');
+  const editable = esAdmin();
   const raiz = html(`<div class="tarjeta org">
     <div class="barra" style="margin-bottom:10px"><h2 style="margin:0">Organigrama del equipo</h2><span class="flex"></span>
       ${editable ? `<button class="btn btn-sm btn-primario" data-o="unidad">＋ Unidad</button>

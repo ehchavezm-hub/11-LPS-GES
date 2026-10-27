@@ -18,7 +18,7 @@ export async function render(el, params) {
       <select class="sel" data-resp></select>
       <select class="sel" data-ver><option value="abiertas">Abiertas y en proceso</option><option value="todas">Todas</option><option value="cerradas">Cerradas / rechazadas</option></select>
       <span data-proy></span><span class="flex"></span>
-      ${puede('agregar_cet') || puede('gestionar_listas') ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
+      ${esGestor() || esGestor() ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
       <button class="btn btn-sm" data-a="solicitud">＋ Registrar solicitud de otra gerencia</button>
       <button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <div data-nuevas></div>
@@ -103,7 +103,7 @@ async function cargarSilencioso() { try { await leer(); pintarExtras(); } catch 
 async function pintar() { await grilla.setDatos(estado.items.filter(filtro)); pintarExtras(); }
 
 function puedeAceptar(c) {
-  return esGestor() || (puede('aceptar_solicitudes') && (!c.responsable_id || c.responsable_id === store.usuario.id));
+  return esGestor() || (puede('ver_solicitud') && (!c.responsable_id || c.responsable_id === store.usuario.id));
 }
 
 function pintarExtras() {
@@ -171,7 +171,7 @@ async function rechazar(c) {
 async function crearActividad(c, semana) {
   if (!c.id) return;
   const sem = semana || semanaInicioLA();
-  if (c.responsable_id !== store.usuario.id && !puede('editar_actividades_otros')) return toast('Solo el responsable puede crear actividades de esta solicitud.', 'warn');
+  if (c.responsable_id !== store.usuario.id && !esGestor()) return toast('Solo el responsable puede crear actividades de esta solicitud.', 'warn');
   try {
     await api.insert('actividades', {
       area_id: store.area.id, semana: sem, responsable_id: c.responsable_id || store.usuario.id, resp2: c.resp2, proyecto_id: c.proyecto_id,
@@ -221,7 +221,7 @@ async function renderSolicitante(el) {
   el.innerHTML = '';
   el.append(html(`<div>
     <div class="pagina-cab"><h1>Mis solicitudes de servicio</h1><span class="flex"></span>
-      ${puede('registrar_solicitud') ? '<button class="btn btn-primario" data-a="nueva">＋ Nueva solicitud</button>' : ''}</div>
+      ${puede('crear_solicitud') ? '<button class="btn btn-primario" data-a="nueva">＋ Nueva solicitud</button>' : ''}</div>
     <div class="aviso">Registre aquí sus pedidos al equipo de la Gerencia Técnica. Recibirá un aviso cuando se acepten o rechacen.</div>
     <div class="tarjeta">${mias.length ? `<table class="simple"><tr><th>Fecha</th><th>Proyecto</th><th>CET / Servicio</th><th>Descripción</th><th>F. requerida</th><th>Responsable</th><th>F. comprometida</th><th>Estado</th></tr>
       ${mias.map(c => `<tr><td>${fmtFecha(c.f_solicitud)}</td><td>${esc(proyecto(c.proyecto_id)?.nombre_corto || '')}</td><td>${esc(cetServicio(c.servicio_id))}</td>
