@@ -382,6 +382,12 @@ async function parametros(el) {
   const form = html('<div class="tarjeta"></div>');
   el.append(form);
   const campos = [
+    // Pedido 114: días laborables, fin de semana y horas por día al inicio
+    { name: 'dias_laborables', label: 'Días laborables', type: 'multiselect', value: (p.dias_laborables || []).map(String),
+      options: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((d, i) => ({ value: String(i + 1), label: d })) },
+    { name: 'trabajo_fin_semana', label: 'Trabajo en sábado y domingo', type: 'checkbox', value: p.trabajo_fin_semana,
+      texto: 'Mostrar sábado y domingo en Equipo y capacidad, Plan semanal y Look Ahead (suman capacidad los días con lugar de trabajo registrado)' },
+    { name: 'horas_dia', label: 'Horas disponibles por día (por defecto)', type: 'number', min: 1, max: 24, step: 0.5, value: p.horas_dia },
     { name: 'meta_pac', label: 'Meta de PAC (%)', type: 'number', min: 0, max: 100, value: Math.round(p.meta_pac * 100) },
     { name: 'umbral_ambar', label: 'Semáforo ámbar desde (%)', type: 'number', min: 0, max: 100, value: Math.round(p.umbral_ambar * 100) },
     { name: 'semanas_lookahead', label: 'Semanas del Look Ahead', type: 'number', min: 1, max: 8, value: p.semanas_lookahead },
@@ -391,11 +397,6 @@ async function parametros(el) {
     { name: 'la_semana', label: 'Semana que planifica el Look Ahead', type: 'select', value: configLookAhead().semana,
       options: [{ value: 'actual', label: 'La misma semana (p. ej. el lunes, para esa semana)' }, { value: 'siguiente', label: 'La semana siguiente (p. ej. el viernes, para la próxima)' }],
       help: 'Define la primera semana del Look Ahead y la semana que se compromete. Con «la misma semana», lo que se agrega al Plan hasta el último día de registro cuenta como programado' },
-    { name: 'horas_dia', label: 'Horas disponibles por día (por defecto)', type: 'number', min: 1, max: 24, step: 0.5, value: p.horas_dia },
-    { name: 'dias_laborables', label: 'Días laborables', type: 'multiselect', value: (p.dias_laborables || []).map(String),
-      options: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((d, i) => ({ value: String(i + 1), label: d })) },
-    { name: 'trabajo_fin_semana', label: 'Trabajo en sábado y domingo', type: 'checkbox', value: p.trabajo_fin_semana,
-      texto: 'Mostrar sábado y domingo en Equipo y capacidad, Plan semanal y Look Ahead (suman capacidad los días con lugar de trabajo registrado)' },
     { name: 'cierre_dia', label: 'Día de cierre semanal', type: 'select', value: String(p.cierre?.dia || 5), options: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((d, i) => ({ value: String(i + 1), label: d })) },
     { name: 'cierre_hora', label: 'Hora de cierre', type: 'time', value: p.cierre?.hora || '17:00' },
     { name: 'reunion_dias', label: 'Días de la reunión de cumplimiento del plan semanal', type: 'multiselect', value: diasReunion().map(String),
