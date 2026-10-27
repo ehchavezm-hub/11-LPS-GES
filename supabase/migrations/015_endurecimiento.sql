@@ -1,4 +1,4 @@
--- LPS-GT · 015_endurecimiento.sql
+-- LPS-GES · 015_endurecimiento.sql
 -- Endurecimiento para producción (auditoría de seguridad y rendimiento, solicitud 54):
 --   1. Referencias cruzadas entre áreas (BOLA): un registro solo puede apuntar a proyectos, personas,
 --      actividades, reuniones y valores de lista de su misma área, aunque se manipulen los IDs.

@@ -1,4 +1,4 @@
--- LPS-GT · 002_seguridad.sql
+-- LPS-GES · 002_seguridad.sql
 -- Funciones de permisos, reglas de negocio protegidas en la base de datos, auditoría,
 -- notificaciones y políticas de seguridad por fila (RLS).
 

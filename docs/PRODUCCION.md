@@ -1,10 +1,10 @@
-# LPS-GT · Preparación para producción (solicitud 54)
+# LPS-GES · Preparación para producción (solicitud 54)
 
 Auditoría, correcciones aplicadas y pasos para operar con **1000 usuarios concurrentes**. Todo lo que es código ya está en el repositorio. Lo que se configura en paneles (Supabase, Sentry, GitHub) está indicado como **▶ Acción tuya**.
 
-> **Cómo leer este documento frente al pedido original.** El pedido mencionaba tablas `projects`, `tasks`, `resource_assignments` y `wbs_nodes`, cálculos CPM/WBS, un backend en Python o Node y un frontend en TypeScript. LPS-GT no tiene esas piezas. Aplica Last Planner (planificación por compromisos, sin ruta crítica), es un aplicativo web estático (JavaScript sin compilación) y su servidor es Supabase (Postgres, autenticación, tiempo real y una Edge Function en TypeScript). Cada control se aplicó a su equivalente real:
+> **Cómo leer este documento frente al pedido original.** El pedido mencionaba tablas `projects`, `tasks`, `resource_assignments` y `wbs_nodes`, cálculos CPM/WBS, un backend en Python o Node y un frontend en TypeScript. LPS-GES no tiene esas piezas. Aplica Last Planner (planificación por compromisos, sin ruta crítica), es un aplicativo web estático (JavaScript sin compilación) y su servidor es Supabase (Postgres, autenticación, tiempo real y una Edge Function en TypeScript). Cada control se aplicó a su equivalente real:
 >
-> | Pedido | Equivalente en LPS-GT |
+> | Pedido | Equivalente en LPS-GES |
 > |---|---|
 > | projects | `proyectos`, `proyecto_lideres`, `hitos` |
 > | tasks | `actividades` (Plan semanal y Look Ahead), `restricciones`, `cartera`, `acuerdos` |
@@ -58,9 +58,9 @@ Se crea una segunda área con su propio superadministrador y se verifica:
 
 ## Etapa 2 · Concurrencia, conexiones y caché
 
-### Cómo se conecta LPS-GT (importante para dimensionar)
+### Cómo se conecta LPS-GES (importante para dimensionar)
 
-El navegador **no abre conexiones a PostgreSQL**. Habla con Supabase por HTTPS (API REST/PostgREST) y por un WebSocket de tiempo real. Las conexiones a Postgres las administra Supabase con su propio pool. El "modo Transaction" de Supavisor (puerto 6543) solo se usa con servidores que se conectan directo a Postgres, y LPS-GT no tiene ninguno: la Edge Function también usa la API HTTP. Por eso no hay sockets de base de datos que se puedan "fugar" desde el código.
+El navegador **no abre conexiones a PostgreSQL**. Habla con Supabase por HTTPS (API REST/PostgREST) y por un WebSocket de tiempo real. Las conexiones a Postgres las administra Supabase con su propio pool. El "modo Transaction" de Supavisor (puerto 6543) solo se usa con servidores que se conectan directo a Postgres, y LPS-GES no tiene ninguno: la Edge Function también usa la API HTTP. Por eso no hay sockets de base de datos que se puedan "fugar" desde el código.
 
 ### Correcciones aplicadas en el código
 

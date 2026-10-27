@@ -1,4 +1,4 @@
--- LPS-GT · 013 · Cargo de cada persona (lista editable "Cargos")
+-- LPS-GES · 013 · Cargo de cada persona (lista editable "Cargos")
 alter table public.profiles add column if not exists cargo_id uuid references public.lista_valores(id) on delete set null;
 
 do $$

@@ -1,4 +1,4 @@
--- LPS-GT · 017_disparadores_sin_api.sql
+-- LPS-GES · 017_disparadores_sin_api.sql
 -- Asesor de seguridad de Supabase (pedido 98): las funciones de disparador (tg_*) solo las usa la base;
 -- no deben poder invocarse como API (/rest/v1/rpc/tg_...). Se retira EXECUTE a anon y authenticated.
 -- Los disparadores siguen funcionando: Postgres no exige ese permiso a quien modifica la tabla.

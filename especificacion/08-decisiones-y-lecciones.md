@@ -36,7 +36,7 @@ Metas de rendimiento definidas: CPM 1 000 tareas < 100 ms; render 500 filas < 50
 - Eventos `input` inmediatos en filtros (no esperar a perder foco).
 
 **LPS (Issues 17–20, #97–#115)**
-- Se agregaron por iteraciones: campo Código, importación XLS, semanas personalizadas, estado Lista/Bloqueada, gremio, historial filtrable de restricciones y stand-up, textos guía LCI §7/§9. Conviene diseñarlo completo desde el inicio en LPS-GT (ver brechas en `05-flujo-lps.md`).
+- Se agregaron por iteraciones: campo Código, importación XLS, semanas personalizadas, estado Lista/Bloqueada, gremio, historial filtrable de restricciones y stand-up, textos guía LCI §7/§9. Conviene diseñarlo completo desde el inicio en LPS-GES (ver brechas en `05-flujo-lps.md`).
 
 **Datos y sincronización (Obs 87–94, #93–#94)**
 - Sanear campos UUID antes de enviar a Supabase (errores 400).

@@ -1,4 +1,4 @@
--- LPS-GT · 007 · Nuevos roles de planificación
+-- LPS-GES · 007 · Nuevos roles de planificación
 --   lider          → se muestra como "Líder de especialidad" (antes "Líder de proceso"; el código no cambia)
 --   resp_equipo    → Responsable del equipo
 --   resp_proceso   → Responsable de proceso

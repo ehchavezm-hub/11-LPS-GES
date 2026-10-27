@@ -1,4 +1,4 @@
-# Ventanas del aplicativo LPS-GT
+# Ventanas del aplicativo LPS-GES
 
 Inventario al 24/10/2026 (versión publicada en `main`).
 

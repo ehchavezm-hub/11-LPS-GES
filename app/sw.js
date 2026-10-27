@@ -1,4 +1,4 @@
-// Service worker de LPS-GT: instalación como aplicación (M-12) y consulta sin conexión (M-13, lectura).
+// Service worker de LPS-GES: instalación como aplicación (M-12) y consulta sin conexión (M-13, lectura).
 // La versión cambia en cada publicación para que los usuarios reciban la última versión.
 const VERSION = 'lpsgt-v1.0.0';
 const ARCHIVOS = [

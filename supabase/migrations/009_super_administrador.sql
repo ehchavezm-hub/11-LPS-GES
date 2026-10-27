@@ -1,4 +1,4 @@
--- LPS-GT · 009 · Rol Super administrador
+-- LPS-GES · 009 · Rol Super administrador
 -- superadmin: todos los permisos siempre; único que asigna superadmin / admin / delegado y que edita
 --             la columna "Administrador" de la matriz de permisos. El administrador principal pasa a superadmin.
 -- admin:      ya no tiene todo fijo: usa la columna "admin" de la matriz (por defecto, todo permitido).

@@ -1,4 +1,4 @@
--- LPS-GT · 003_datos_iniciales.sql
+-- LPS-GES · 003_datos_iniciales.sql
 -- Valores iniciales de listas, parámetros y matriz de permisos (todo editable luego desde el aplicativo).
 -- sembrar_area() también sirve para habilitar nuevas áreas en el futuro.
 -- No contiene datos de proyectos ni de personas: esos se cargan desde el aplicativo.
@@ -135,7 +135,7 @@ begin
     (p_area, 'alerta_dias',         '3',                    'Días de anticipación para alertas de restricciones'),
     (p_area, 'arrastre_alerta',     '2',                    'Semanas pendientes desde las que se alerta un arrastre'),
     (p_area, 'zona_horaria',        '"America/Lima"',       'Zona horaria del área'),
-    (p_area, 'version_app',         '"LPS_GT V1.00.01"',    'Texto del encabezado de los PDF'),
+    (p_area, 'version_app',         '"LPS_GES V1.00.01"',    'Texto del encabezado de los PDF'),
     (p_area, 'firma_pdf',           '"By EHCM"',            'Texto del pie de los PDF'),
     (p_area, 'reunion_minutos',     '{"cierre":10,"avance":10,"restricciones":10,"compromisos":20,"lookahead":10}', 'Minutos por paso del modo reunión'),
     (p_area, 'reconocimientos',     '{"mejor_pac":true,"mayor_mejora":true}', 'Reconocimientos mensuales del tablero');
@@ -253,7 +253,7 @@ do $$
 declare v_area uuid;
 begin
   if not exists (select 1 from public.areas) then
-    insert into public.areas (nombre, descripcion) values ('Gerencia Técnica', 'Área inicial de LPS-GT')
+    insert into public.areas (nombre, descripcion) values ('Gerencia Técnica', 'Área inicial de LPS-GES')
     returning id into v_area;
     perform public.sembrar_area(v_area);
   end if;

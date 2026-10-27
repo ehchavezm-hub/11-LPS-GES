@@ -4,7 +4,7 @@ Cada entidad lista sus campos con tipo, valor por defecto y notas. Las plantilla
 
 **Dónde vivía cada cosa en ECM Project:**
 - 🗄 **IndexedDB + Supabase** — entidades del cronograma (sincronizadas con la nube).
-- 💾 **solo localStorage** — todo el módulo LPS. **No se sincronizaba ni se exportaba en el JSON del proyecto.** Es la principal brecha a corregir en LPS-GT (ver propuesta en `07-base-de-datos.sql`).
+- 💾 **solo localStorage** — todo el módulo LPS. **No se sincronizaba ni se exportaba en el JSON del proyecto.** Es la principal brecha a corregir en LPS-GES (ver propuesta en `07-base-de-datos.sql`).
 
 Convenciones generales:
 - IDs: `crypto.randomUUID()` (entidades de cronograma); LPS usaba `Date.now().toString(36) + random` (débil, cambiar a UUID).
@@ -78,7 +78,7 @@ Plantilla: `plantillas/lps-meta-wwp.json`
 | `turno` | Día / Noche / Especial |
 | `lastPlanner` | Nombre del Last Planner™ |
 
-⚠ Era **uno por proyecto**, no por semana ni por frente. En LPS-GT conviene que sea por semana + frente.
+⚠ Era **uno por proyecto**, no por semana ni por frente. En LPS-GES conviene que sea por semana + frente.
 
 ### A5. Stand-Up diario — `ecm-lad-standup[projectId][fecha]`
 Plantilla: `plantillas/lps-standup.json`

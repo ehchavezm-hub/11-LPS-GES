@@ -1,9 +1,9 @@
-# LPS-GT
+# LPS-GES
 
 Aplicativo web para aplicar el **Last Planner System®** a la gestión de un área funcional (Gerencia Técnica):
 Look Ahead de 3 semanas, plan semanal con compromisos, cierre con PAC y causas de no cumplimiento (CNC),
 restricciones, cartera y solicitudes de otras gerencias, tablero de indicadores, reunión semanal guiada,
-capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GT_Alcance_v0.7.docx`](docs/LPS-GT_Alcance_v0.7.docx).
+capacidad del equipo y reportes PDF. Alcance aprobado: [`docs/LPS-GES_Alcance_v0.7.docx`](docs/LPS-GES_Alcance_v0.7.docx).
 
 **Aplicativo en producción:** <https://ehchavezm-hub.github.io/11-LPS_GT/>
 
@@ -73,7 +73,7 @@ y el viernes por la noche genera el respaldo completo (JSON comprimido) y lo sub
    - `SUPABASE_URL` — Project URL.
    - `SUPABASE_SERVICE_ROLE_KEY` — *service_role / secret key* (solo aquí, como secreto).
    - `RCLONE_CONF` — contenido de `rclone.conf`.
-4. Opcional: variable `GDRIVE_CARPETA` (por defecto `LPS-GT/respaldos`).
+4. Opcional: variable `GDRIVE_CARPETA` (por defecto `LPS-GES/respaldos`).
 5. Pruebe con **Actions → Respaldo y mantenimiento → Run workflow**.
 
 El administrador también puede descargar un respaldo (JSON o Excel) en cualquier momento desde Configuración → Respaldo.

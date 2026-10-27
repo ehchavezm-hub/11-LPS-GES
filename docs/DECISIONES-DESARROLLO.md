@@ -1,4 +1,4 @@
-# Decisiones de desarrollo — LPS-GT v1.00.01
+# Decisiones de desarrollo — LPS-GES v1.00.01
 
 Por indicación del Gerente Técnico ("si hay algo que aprobar lo apruebas"), los puntos que el documento de alcance v0.7
 dejaba abiertos se resolvieron como se indica. **Todos son configurables** desde el aplicativo (principio "nada fijo, todo editable"),

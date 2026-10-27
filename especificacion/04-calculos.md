@@ -17,7 +17,7 @@ completadas  = ítems marcados ✓
 - **PPC promedio** = media simple de las semanas con dato. **Promedio acumulado** = media móvil desde la primera semana de la ventana.
 - **No completadas** = planificadas − completadas.
 - **Semáforo:** ≥ 75 % verde `#388E3C` · 60–74 % naranja `#F57C00` · < 60 % rojo `#D32F2F` · sin dato gris `#CFD8DC`. Metas LCI: 75 % (meta), 90 % (óptimo).
-- ⚠ Incluía tareas CPM en el denominador automáticamente (no eran compromisos del Last Planner). LCI define el PPC solo sobre compromisos del Plan Semanal; revisar en LPS-GT.
+- ⚠ Incluía tareas CPM en el denominador automáticamente (no eran compromisos del Last Planner). LCI define el PPC solo sobre compromisos del Plan Semanal; revisar en LPS-GES.
 
 ## 3. Razones de varianza (Pareto)
 Conteo de cada causa en `reasons` de todas las semanas guardadas; % = conteo / total; orden descendente. Causas fuera del catálogo se suman a "Otras causas".
@@ -26,7 +26,7 @@ Conteo de cada causa en `reasons` de todas las semanas guardadas; % = conteo / t
 - Activa ⇔ `status ≠ cleared`. Conteo por actividad: `taskId == id` **o** `activityNumber == code`.
 - Pendientes / levantadas = conteos por estado.
 - Una tarea CPM se considera "lista" si no tiene restricciones activas y no es crítica (no se mostraba explícitamente).
-- ⚠ No se calculaban: días de atraso (hoy vs F. requerida), cumplimiento de fecha prometida, % de restricciones liberadas a tiempo. Son métricas LCI útiles para LPS-GT.
+- ⚠ No se calculaban: días de atraso (hoy vs F. requerida), cumplimiento de fecha prometida, % de restricciones liberadas a tiempo. Son métricas LCI útiles para LPS-GES.
 
 ## 5. Asignación de tareas CPM a semanas
 Una tarea (no resumen, no eliminada) pertenece a una semana si `inicio ≤ fin_semana` y `fin ≥ inicio_semana`, con `inicio = idxToDate(ES)` y `fin = idxToDate(max(ES, EF−1))`. Orden por ES.

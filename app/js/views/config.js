@@ -84,7 +84,7 @@ async function usuarios(el) {
     if (a === 'nuevo') await nuevoUsuario();
     if (a === 'invitar') {
       const url = location.origin + location.pathname;
-      modal({ titulo: 'Invitar usuarios', ancho: 560, cuerpo: `<p>Envíe este enlace a las personas que deben usar LPS-GT. Al registrarse quedan <b>pendientes</b> y usted les asigna el rol aquí.</p>
+      modal({ titulo: 'Invitar usuarios', ancho: 560, cuerpo: `<p>Envíe este enlace a las personas que deben usar LPS-GES. Al registrarse quedan <b>pendientes</b> y usted les asigna el rol aquí.</p>
         <p><input class="inp" style="width:100%" readonly value="${esc(url)}"></p>
         <p class="nota">También puede crear la cuenta usted mismo con "＋ Nuevo usuario" y entregarle una contraseña temporal.</p>`,
         botones: [{ texto: 'Copiar enlace', clase: 'btn-primario', accion: async () => { await navigator.clipboard?.writeText(url).catch(() => {}); ok('Enlace copiado.'); } }] });
@@ -128,7 +128,7 @@ async function eliminarUsuario(p) {
 }
 
 function mostrarCredenciales(titulo, email, clave) {
-  const texto = `LPS-GT\nEnlace: ${location.origin + location.pathname}\nUsuario: ${email}\nContraseña temporal: ${clave}\n(Se le pedirá cambiarla al ingresar)`;
+  const texto = `LPS-GES\nEnlace: ${location.origin + location.pathname}\nUsuario: ${email}\nContraseña temporal: ${clave}\n(Se le pedirá cambiarla al ingresar)`;
   modal({
     titulo, ancho: 520,
     cuerpo: `<p>Entregue estos datos a la persona por un medio privado. Al ingresar se le pedirá definir su propia contraseña.</p>

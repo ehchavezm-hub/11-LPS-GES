@@ -1,7 +1,7 @@
 -- 07-base-de-datos.sql — REFERENCIAL
 -- Parte 1: esquema Supabase de ECM Project copiado sin cambios (sin datos; seed.sql excluido).
 -- Parte 2: PROPUESTA de tablas para el módulo LPS, que en ECM Project solo vivía en localStorage.
--- Nota: las políticas RLS originales son abiertas (USING true) para anon; endurecer en LPS-GT.
+-- Nota: las políticas RLS originales son abiertas (USING true) para anon; endurecer en LPS-GES.
 
 -- ============================================================
 -- PARTE 1 — Esquema original (sql/schema.sql de 10-cronograma)

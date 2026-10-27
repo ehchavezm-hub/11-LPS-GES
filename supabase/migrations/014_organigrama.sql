@@ -1,4 +1,4 @@
--- LPS-GT · 014 · Organigrama del equipo (Configuración → Usuarios y roles)
+-- LPS-GES · 014 · Organigrama del equipo (Configuración → Usuarios y roles)
 -- Nodos de tipo "unidad" (área, especialidad) o "persona" (vinculada a un usuario), con su jefe/padre y posición en el lienzo.
 create table if not exists public.organigrama_nodos (
   id          uuid primary key default gen_random_uuid(),

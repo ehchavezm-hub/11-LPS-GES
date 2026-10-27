@@ -1,4 +1,4 @@
--- LPS-GT · 005 · Alta de usuarios y restablecimiento de contraseña por el administrador
+-- LPS-GES · 005 · Alta de usuarios y restablecimiento de contraseña por el administrador
 -- La creación y el cambio de contraseña los hace la Edge Function "admin-usuarios"
 -- (supabase/functions/admin-usuarios), que guarda la clave secreta en el servidor.
 

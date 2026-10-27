@@ -1,4 +1,4 @@
-# LPS-GT · Matriz de diagnóstico y compatibilidad
+# LPS-GES · Matriz de diagnóstico y compatibilidad
 
 Revisión completa del aplicativo al **25/10/2026** (pedido 98). Reemplaza la matriz del 24/10 (pedido 54), cuyas correcciones siguen vigentes (ver la última sección).
 

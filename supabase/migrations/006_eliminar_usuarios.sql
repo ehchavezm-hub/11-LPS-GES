@@ -1,4 +1,4 @@
--- LPS-GT · 006 · Eliminación de usuarios por el administrador
+-- LPS-GES · 006 · Eliminación de usuarios por el administrador
 -- Sin historial: se borra la cuenta y el perfil.
 -- Con historial (actividades, cierres, comentarios…): la cuenta se bloquea para siempre, el correo
 -- queda libre para volver a crear a la persona y el perfil se conserva solo como nombre en el histórico.

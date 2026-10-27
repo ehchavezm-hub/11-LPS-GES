@@ -1,4 +1,4 @@
--- LPS-GT · 001_esquema.sql
+-- LPS-GES · 001_esquema.sql
 -- Esquema completo. Ejecutar en Supabase > SQL Editor (una sola vez, en orden: 001, 002, 003).
 -- Principios: todo editable (listas y parámetros en tablas), desactivar en vez de borrar,
 -- preparado para varias áreas (area_id en todas las tablas de negocio).

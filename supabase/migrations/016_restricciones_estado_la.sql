@@ -1,4 +1,4 @@
--- LPS-GT · 016_restricciones_estado_la.sql
+-- LPS-GES · 016_restricciones_estado_la.sql
 -- Matriz de compatibilidad (solicitud 98): el Estado LA de una actividad sigue a sus restricciones (RN-07)
 -- sin importar desde qué pantalla se registren, levanten o eliminen:
 --   · con alguna restricción pendiente → "Con restricción" (si estaba Pendiente o Lista);
