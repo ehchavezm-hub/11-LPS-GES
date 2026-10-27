@@ -20,15 +20,22 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
   caja.rows = 1;
   caja.style.cssText = 'display:block;width:100%;box-sizing:border-box;padding:4px;border:0;outline:none;resize:none;' +
     'white-space:pre-wrap;overflow-wrap:anywhere;overflow:hidden;font:inherit;line-height:1.35;background:#fff;align-self:stretch;';
-  // Alto = todo el texto ajustado al ancho de la columna (nunca menos que la celda): se ve completo mientras se edita
   const crecer = () => {
     caja.style.height = 'auto';
     const celda = cell.getElement();
-    caja.style.height = Math.max(caja.scrollHeight, celda ? celda.clientHeight - 2 : 0) + 'px';
-    try { cell.checkHeight(); } catch { /* la fila se ajusta al guardar */ }
+    const h = Math.max(caja.scrollHeight, celda ? celda.clientHeight - 2 : 0);
+    caja.style.height = h + 'px';
+    // Forzar que la fila DOM crezca mientras se edita (checkHeight falla en grillas agrupadas)
+    const fila = celda?.closest('.tabulator-row');
+    if (fila) fila.style.minHeight = h + 'px';
+    try { cell.checkHeight(); } catch { /* no disponible */ }
+  };
+  const limpiarFila = () => {
+    const fila = cell.getElement()?.closest('.tabulator-row');
+    if (fila) fila.style.minHeight = '';
   };
   let listo = false;
-  const guardar = () => { if (listo) return; listo = true; success(caja.value); };
+  const guardar = () => { if (listo) return; listo = true; limpiarFila(); success(caja.value); };
   caja.addEventListener('input', crecer);
   caja.addEventListener('blur', guardar);
   caja.addEventListener('keydown', e => {
@@ -40,7 +47,7 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
     } else if (e.key === 'Enter') {
       e.preventDefault(); guardar();
     } else if (e.key === 'Escape') {
-      listo = true; cancel();
+      listo = true; limpiarFila(); cancel();
     } else if (e.key !== 'Tab') {
       e.stopPropagation();   // flechas, Inicio, Fin… se mueven dentro del texto (Tab sigue pasando a la celda siguiente)
     }
