@@ -5,7 +5,7 @@ import { leerDemo as leerDatosDemo } from '../services/traer-demo.js';
 const hayDatosDemo = () => !!leerDatosDemo();
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError, modoDemo } from '../data/api.js';
-import { store, on, cargarCatalogo, esAdmin, esSuperadmin, puede, opciones, opcionesProyectos, nombre, valoresLista, configLookAhead, diasReunion } from '../core/store.js';
+import { store, on, cargarCatalogo, esAdmin, esSuperadmin, esGestor, puede, opciones, opcionesProyectos, nombre, valoresLista, configLookAhead, diasReunion } from '../core/store.js';
 import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista, LISTAS_RETIRADAS } from '../data/catalogos.js';
 import { esc, html, fmtFechaHora, fmtFecha, normalizar } from '../core/util.js';
 import { ir } from '../core/router.js';
@@ -84,7 +84,7 @@ async function usuarios(el) {
     if (a === 'nuevo') await nuevoUsuario();
     if (a === 'invitar') {
       const url = location.origin + location.pathname;
-      modal({ titulo: 'Invitar usuarios', ancho: 560, cuerpo: `<p>Envíe este enlace a las personas que deben usar LPS-GT. Al registrarse quedan <b>pendientes</b> y usted les asigna el rol aquí.</p>
+      modal({ titulo: 'Invitar usuarios', ancho: 560, cuerpo: `<p>Envíe este enlace a las personas que deben usar LPS-GES. Al registrarse quedan <b>pendientes</b> y usted les asigna el rol aquí.</p>
         <p><input class="inp" style="width:100%" readonly value="${esc(url)}"></p>
         <p class="nota">También puede crear la cuenta usted mismo con "＋ Nuevo usuario" y entregarle una contraseña temporal.</p>`,
         botones: [{ texto: 'Copiar enlace', clase: 'btn-primario', accion: async () => { await navigator.clipboard?.writeText(url).catch(() => {}); ok('Enlace copiado.'); } }] });
@@ -109,7 +109,7 @@ function puedeRestablecer(p) {
 
 // Administradores con permiso (no el delegado); nunca a sí mismo ni al principal; a un administrador solo el super administrador
 function puedeEliminar(p) {
-  return esAdmin() && esAdmin() && p.id !== store.usuario.id && !p.es_admin_principal &&
+  return esAdmin() && p.id !== store.usuario.id && !p.es_admin_principal &&
     (esSuperadmin() || !['superadmin', 'admin'].includes(p.rol));
 }
 
@@ -128,7 +128,7 @@ async function eliminarUsuario(p) {
 }
 
 function mostrarCredenciales(titulo, email, clave) {
-  const texto = `LPS-GT\nEnlace: ${location.origin + location.pathname}\nUsuario: ${email}\nContraseña temporal: ${clave}\n(Se le pedirá cambiarla al ingresar)`;
+  const texto = `LPS-GES\nEnlace: ${location.origin + location.pathname}\nUsuario: ${email}\nContraseña temporal: ${clave}\n(Se le pedirá cambiarla al ingresar)`;
   modal({
     titulo, ancho: 520,
     cuerpo: `<p>Entregue estos datos a la persona por un medio privado. Al ingresar se le pedirá definir su propia contraseña.</p>
@@ -393,7 +393,7 @@ async function parametros(el) {
 // ---------- Permisos ----------
 async function permisos(el) {
   const editable = esAdmin();
-  const roles = ['admin', 'delegado', ...PLANIFICADORES, 'consulta'];
+  const roles = ['admin', 'delegado', 'lider', 'consulta'];
   // Valor efectivo (igual que public.puede): admin sin fila = permitido; rol de planificación sin fila = como el líder
   const valor = (r, a) => store.permisos[r]?.[a] ?? (r === 'admin' ? true : PLANIFICADORES.includes(r) ? !!store.permisos.lider?.[a] : false);
   const celdaEditable = r => editable && (r !== 'admin' || esSuperadmin());

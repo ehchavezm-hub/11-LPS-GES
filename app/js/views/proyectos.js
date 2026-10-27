@@ -133,7 +133,7 @@ function configGrilla(estado, puedeCrear) {
         : { label: '⛔ Desactivar proyecto (Cerrado)', action: () => cambiarEstado(p, 'cerrado') }] : []),
       { label: '👥 Asignar líderes…', action: () => p.id && asignarLideres(p), disabled: !esGestor() },
       { label: '🏗 Seleccionar en el menú', action: () => p.id && seleccionarProyecto(p.id) },
-      ...(p.id && (esGestor() || esGestor()) ? [{ label: '＋ Agregar CET / Servicio a este proyecto…', action: () => nuevoCETServicio({ proyectoId: p.id }) }] : []),
+      ...(p.id && esGestor() ? [{ label: '＋ Agregar CET / Servicio a este proyecto…', action: () => nuevoCETServicio({ proyectoId: p.id }) }] : []),
     ],
   };
 }
@@ -170,7 +170,7 @@ async function usosDeProyecto(id) {
 // Proyecto con historial: lo recomendado es desactivarlo. Un administrador puede además eliminarlo con todo su
 // historial (p. ej. proyectos de prueba), confirmando con el código del proyecto.
 function proyectoConHistorial(p, usos) {
-  const puedeBorrarTodo = esAdmin() && esAdmin();
+  const puedeBorrarTodo = esAdmin();
   return new Promise(resolver => {
     let resultado = false, siguePregunta = false;   // al pasar a la confirmación por código, cerrar este aviso no responde todavía
     const botones = [{ texto: 'Cancelar' }];

@@ -33,7 +33,7 @@ export async function render(el, { query }) {
       <button class="btn btn-sm btn-azul" data-a="comprometer" title="Pasar al Plan semanal las filas seleccionadas o las Listas de la ${esc(etiquetaSemana(estado.semanas[0]))}">✔ Comprometer ${esc(etiquetaSemana(estado.semanas[0]).split('·')[0].trim())}</button>
       <button class="btn btn-sm" data-a="plantilla" title="Generar actividades desde una plantilla de servicio (M-05)">🧩 Aplicar plantilla de servicio</button>
       <button class="btn btn-sm" data-a="cartera" title="Crear actividades desde la cartera">🗂 Desde la cartera</button>
-      ${esGestor() || esGestor() ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
+      ${esGestor() ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
     </div>
     <div data-grilla></div></div></div>`);
   el.append(pag);

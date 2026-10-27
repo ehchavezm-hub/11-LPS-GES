@@ -222,7 +222,7 @@ function pintarCabecera() {
     <button class="btn btn-sm" data-a="recurrentes" title="Agregar las actividades recurrentes de su plantilla">🔁 Recurrentes</button>
     <button class="btn btn-sm" data-a="arrastrar" title="Copiar las no completadas de la semana anterior">↪ Arrastrar no completadas</button>
     <button class="btn btn-sm" data-a="completar" title="Marcar las seleccionadas o todas como completadas">✔ Marcar estados…</button>
-    ${esGestor() || esGestor() ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
+    ${esGestor() ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
     <span class="flex"></span>
     ${puedeOperar && !cerradaResp ? '<button class="btn btn-azul" data-a="cerrar">🔒 Cerrar semana</button>' : ''}
     ${resp && cerradaResp && esAdmin() ? '<button class="btn" data-a="reabrir">🔓 Reabrir semana</button>' : ''}`;

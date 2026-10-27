@@ -18,7 +18,7 @@ export async function render(el, params) {
       <select class="sel" data-resp></select>
       <select class="sel" data-ver><option value="abiertas">Abiertas y en proceso</option><option value="todas">Todas</option><option value="cerradas">Cerradas / rechazadas</option></select>
       <span data-proy></span><span class="flex"></span>
-      ${esGestor() || esGestor() ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
+      ${esGestor() ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
       <button class="btn btn-sm" data-a="solicitud">＋ Registrar solicitud de otra gerencia</button>
       <button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <div data-nuevas></div>
