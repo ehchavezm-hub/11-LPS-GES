@@ -25,14 +25,15 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
     const celda = cell.getElement();
     const h = Math.max(caja.scrollHeight, celda ? celda.clientHeight - 2 : 0);
     caja.style.height = h + 'px';
-    // Forzar que la fila DOM crezca mientras se edita (checkHeight falla en grillas agrupadas)
+    // Forzar que la fila DOM crezca mientras se edita.
+    // Tabulator pone height inline en la fila; min-height no puede superarlo, hay que pisar height directamente.
     const fila = celda?.closest('.tabulator-row');
-    if (fila) fila.style.minHeight = h + 'px';
+    if (fila) { fila.style.height = h + 'px'; fila.style.minHeight = h + 'px'; }
     try { cell.checkHeight(); } catch { /* no disponible */ }
   };
   const limpiarFila = () => {
     const fila = cell.getElement()?.closest('.tabulator-row');
-    if (fila) fila.style.minHeight = '';
+    if (fila) { fila.style.height = ''; fila.style.minHeight = ''; }
   };
   let listo = false;
   const guardar = () => { if (listo) return; listo = true; limpiarFila(); success(caja.value); };
