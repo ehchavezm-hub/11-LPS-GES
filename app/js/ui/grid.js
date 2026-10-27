@@ -32,8 +32,8 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
     if (fila) {
       fila.style.height = h + 'px'; fila.style.overflow = 'visible';
       // En tablas agrupadas (Look Ahead, Plan Semanal con agrupación) el contenedor de grupo
-      // también tiene overflow recortado — hay que quitarlo para que la fila crezca visualmente.
-      const grupo = fila.closest('.tabulator-row-group');
+      // (.tabulator-group) también tiene overflow recortado — hay que quitarlo para que la fila crezca.
+      const grupo = fila.closest('.tabulator-group');
       if (grupo) { grupo.style.overflow = 'visible'; }
     }
     try { cell.checkHeight(); } catch { /* no disponible */ }
@@ -44,7 +44,7 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
     const fila = celda?.closest('.tabulator-row');
     if (fila) {
       fila.style.height = ''; fila.style.overflow = '';
-      const grupo = fila.closest('.tabulator-row-group');
+      const grupo = fila.closest('.tabulator-group');
       if (grupo) { grupo.style.overflow = ''; }
     }
   };
