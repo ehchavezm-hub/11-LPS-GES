@@ -4,19 +4,19 @@ import { store, on, esGestor, esStaff, puede, seleccionarProyecto, misProyectos,
 import { ROLES } from '../data/catalogos.js';
 import { esc, html, normalizar, agrupar, fmtFechaHora } from '../core/util.js';
 import { ir } from '../core/router.js';
-import { pedirDatos, ok, error } from './ui.js';
+import { pedirDatos, ok, error, arrastrable } from './ui.js';
 
 export const NAV = [
   { grupo: 'Planificación' },
   { ruta: '/plan', ico: '📅', texto: 'Plan semanal', si: esStaff },
   { ruta: '/lookahead', ico: '🔭', texto: 'Look Ahead', si: esStaff },
   { ruta: '/restricciones', ico: '🚧', texto: 'Restricciones', si: esStaff },
-  { ruta: '/cartera', ico: '🗂', texto: 'Cartera y solicitudes', si: () => esStaff() || puede('registrar_solicitud') },
+  { ruta: '/cartera', ico: '🗂', texto: 'Cartera y solicitudes', si: () => esStaff() || puede('crear_solicitud') },
   { grupo: 'Seguimiento' },
-  { ruta: '/tablero', ico: '📊', texto: 'Tablero', si: () => puede('ver_tablero') },
+  { ruta: '/tablero', ico: '📊', texto: 'Tablero', si: () => puede('ver_indicadores') },
   { ruta: '/reunion', ico: '👥', texto: 'Reunión semanal', si: esStaff },
   { ruta: '/equipo', ico: '🧭', texto: 'Equipo y capacidad', si: esStaff },
-  { ruta: '/proyectos', ico: '🏗', texto: 'Proyectos', si: () => true },
+  { ruta: '/reportes', ico: '🖨', texto: 'Reportes', si: () => esStaff() || puede('ver_indicadores') },
   { grupo: 'Más' },
   { ruta: '/config/usuarios', ico: '⚙', texto: 'Configuración', si: esGestor, prefijo: '/config' },
   { ruta: '/plantillas', ico: '🧩', texto: 'Plantillas', si: esStaff },
@@ -33,20 +33,22 @@ export function montarLayout(raiz, { alSalir }) {
   raiz.innerHTML = '';
   const app = html(`<div id="app">
     <header class="cabecera">
-      <button class="btn-icono btn-menu" data-a="menu" aria-label="Menú">☰</button>
+      <button class="btn-icono btn-menu" data-a="menu" aria-label="Contraer o expandir el menú" title="Contraer / expandir el menú lateral">☰</button>
       <a class="logo" href="#/"><span>LPS<b>-GT</b></span></a>
       <span class="cab-area">${esc(store.area?.nombre || '')}</span>
       ${modoDemo ? '<span class="demo-chip" title="Datos ficticios guardados solo en este navegador">MODO DEMOSTRACIÓN</span>' : ''}
       <span class="flex"></span>
+      <span class="tam-letra" title="Tamaño de letra y de las filas"><button data-a="letra-normal" aria-label="Letra normal">A</button><button data-a="letra-grande" aria-label="Letra grande">A+</button></span>
+      <span class="btn-actualizar"><button class="btn-texto-cab" data-a="actualizar" title="Actualizar la página">Actualizar</button><button class="btn-icono btn-flecha" data-a="actualizar-menu" title="Más opciones de actualización" aria-label="Opciones de actualización">▾</button></span>
       <button class="btn-icono" data-a="ayuda" title="Ayuda y recorrido guiado" aria-label="Ayuda">❔</button>
       <button class="btn-icono" data-a="notif" title="Notificaciones" aria-label="Notificaciones">🔔<span class="contador oculto"></span></button>
       <button class="usuario-btn" data-a="usuario"><span class="avatar">${esc(iniciales)}</span><span class="nom">${esc(u.nombre)}</span></button>
     </header>
-    <aside class="lateral">
+    <aside class="lateral"><div class="lateral-tirador" title="Arrastre para cambiar el ancho del menú (doble clic: ancho normal)"></div>
       <nav class="nav" aria-label="Navegación principal"></nav>
       <section class="menu-proy" aria-label="Menú de proyectos">
         <div class="menu-proy-cab"><h3>Proyectos</h3>
-          ${puede('crear_proyecto') || puede('proponer_proyecto') ? '<button class="btn btn-sm" data-a="nuevo-proy" title="Registrar o proponer un proyecto">＋</button>' : ''}</div>
+          ${esGestor() || puede('crear_cartera') ? `<button class="btn btn-sm btn-primario btn-agregar-proy" data-a="nuevo-proy" title="Agregar un proyecto nuevo (lo verá todo el equipo)">＋ ${esGestor() ? 'Agregar' : 'Proponer'}</button>` : ''}</div>
         <div class="pestanas" role="tablist">
           ${esStaff() ? '<button data-p="mis">Mis</button>' : ''}<button data-p="todos">Todos</button><button data-p="fav">★ Favoritos</button>
         </div>
@@ -62,6 +64,8 @@ export function montarLayout(raiz, { alSalir }) {
 
   pintarNav();
   pintarProyectos();
+  aplicarPreferencias({});
+  tiradorLateral(app);
   document.addEventListener('ruta', pintarNav);
   on('catalogo', () => { pintarProyectos(); });
   on('proyecto', () => pintarProyectos());
@@ -95,12 +99,29 @@ export function montarLayout(raiz, { alSalir }) {
 
   app.querySelector('.cabecera').addEventListener('click', e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
-    if (a === 'menu') document.body.classList.toggle('menu-abierto');
+    if (a === 'menu') {
+      // En celular abre/cierra el menú flotante; en pantallas grandes lo contrae a solo íconos
+      if (matchMedia('(max-width: 900px)').matches) document.body.classList.toggle('menu-abierto');
+      else aplicarPreferencias({ contraido: !preferencias.contraido });
+    }
+    if (a === 'letra-normal' || a === 'letra-grande') aplicarPreferencias({ letraGrande: a === 'letra-grande' });
     if (a === 'notif') panelNotificaciones();
     if (a === 'usuario') menuUsuario(alSalir);
+    if (a === 'actualizar') location.reload();
+    if (a === 'actualizar-menu') menuActualizar();
     if (a === 'ayuda') import('../views/ayuda.js').then(m => m.iniciarRecorrido(true));
   });
   app.querySelector('[data-a="nuevo-proy"]')?.addEventListener('click', () => import('../views/proyectos.js').then(m => m.formularioProyecto()));
+
+  // Confirmación tras "Vaciar caché y volver a cargar"
+  try {
+    const previa = sessionStorage.getItem('lpsgt-recarga-forzada');
+    if (previa !== null) {
+      sessionStorage.removeItem('lpsgt-recarga-forzada');
+      const actual = versionApp();
+      ok(previa === actual ? `Caché vaciada. Ya tenía la última versión publicada (${actual}).` : `Aplicativo actualizado a la versión ${actual}.`);
+    }
+  } catch { /* opcional */ }
 
   // Notificaciones y catálogo en tiempo real
   cargarNotificaciones();
@@ -117,13 +138,49 @@ function debounceCatalogo() {
   return () => { clearTimeout(t); t = setTimeout(() => cargarCatalogo().catch(() => {}), 800); };
 }
 
+// ---------- Preferencias de vista (por computadora): letra grande, ancho y menú contraído ----------
+const preferencias = (() => {
+  try { return { ancho: 260, contraido: false, letraGrande: false, ...JSON.parse(localStorage.getItem('lpsgt-vista') || '{}') }; }
+  catch { return { ancho: 260, contraido: false, letraGrande: false }; }
+})();
+
+function aplicarPreferencias(cambios) {
+  Object.assign(preferencias, cambios);
+  try { localStorage.setItem('lpsgt-vista', JSON.stringify(preferencias)); } catch { /* sin almacenamiento */ }
+  const app = document.getElementById('app');
+  if (app) app.style.setProperty('--lateral', preferencias.contraido ? '60px' : `${preferencias.ancho}px`);
+  document.body.classList.toggle('lateral-contraido', !!preferencias.contraido);
+  document.documentElement.classList.toggle('letra-grande', !!preferencias.letraGrande);
+  document.querySelectorAll('.tam-letra button').forEach(b => b.classList.toggle('activo', (b.dataset.a === 'letra-grande') === !!preferencias.letraGrande));
+  // Las grillas recalculan anchos y altos de fila
+  clearTimeout(aplicarPreferencias.t);
+  aplicarPreferencias.t = setTimeout(() => (window.Tabulator?.findTable?.('.tabulator') || []).forEach(t => t.redraw(true)), 80);
+}
+
+function tiradorLateral(app) {
+  const tirador = app.querySelector('.lateral-tirador');
+  tirador.addEventListener('dblclick', () => aplicarPreferencias({ ancho: 260, contraido: false }));
+  tirador.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const x0 = e.clientX, a0 = preferencias.contraido ? 60 : preferencias.ancho;
+    document.body.classList.add('arrastrando-lateral');
+    const mover = ev => {
+      const ancho = Math.round(Math.min(460, Math.max(60, a0 + ev.clientX - x0)));
+      // Muy angosto: queda contraído (solo íconos)
+      aplicarPreferencias(ancho < 150 ? { contraido: true } : { contraido: false, ancho });
+    };
+    const soltar = () => { document.body.classList.remove('arrastrando-lateral'); removeEventListener('mousemove', mover); removeEventListener('mouseup', soltar); };
+    addEventListener('mousemove', mover); addEventListener('mouseup', soltar);
+  });
+}
+
 function pintarNav() {
   const nav = document.querySelector('.nav');
   if (!nav) return;
   const actual = location.hash.replace(/^#/, '').split('?')[0];
   nav.innerHTML = NAV.filter(n => n.grupo || n.si()).map(n => n.grupo
     ? `<div class="nav-grupo">${esc(n.grupo)}</div>`
-    : `<a href="#${n.ruta}" class="${actual === n.ruta || actual.startsWith((n.prefijo || n.ruta) + '/') ? 'activo' : ''}"><span class="ico">${n.ico}</span>${esc(n.texto)}</a>`).join('');
+    : `<a href="#${n.ruta}" title="${esc(n.texto)}" class="${actual === n.ruta || actual.startsWith((n.prefijo || n.ruta) + '/') ? 'activo' : ''}"><span class="ico">${n.ico}</span><span class="txt">${esc(n.texto)}</span></a>`).join('');
   nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => document.body.classList.remove('menu-abierto')));
 }
 
@@ -155,17 +212,64 @@ async function cargarNotificaciones() {
   if (c) { c.textContent = n > 99 ? '99+' : n; c.classList.toggle('oculto', !n); }
 }
 
-function cerrarFlotantes() { document.querySelectorAll('.panel-notif,.menu-usuario').forEach(x => x.remove()); }
+// Botón actualizar: recarga normal o forzada (vacía la caché del aplicativo y del service worker).
+// No borra la sesión ni los datos: solo los archivos guardados del aplicativo.
+function menuActualizar() {
+  if (document.querySelector('.menu-actualizar')) return cerrarFlotantes();
+  cerrarFlotantes();
+  const m = html(`<div class="menu-usuario menu-actualizar">
+    <button data-op="normal">⟳ Actualizar página</button>
+    <button data-op="forzado">🧹 Vaciar caché y volver a cargar de manera forzada</button></div>`);
+  const r = document.querySelector('[data-a="actualizar-menu"]').getBoundingClientRect();
+  m.style.right = Math.max(8, innerWidth - r.right) + 'px';
+  document.body.append(m);
+  m.addEventListener('click', async e => {
+    const op = e.target.closest('[data-op]')?.dataset.op;
+    if (op === 'normal') location.reload();
+    if (op === 'forzado') await recargaForzada();
+  });
+  setTimeout(() => document.addEventListener('click', function f(e) {
+    if (!e.target.closest('.menu-actualizar,[data-a="actualizar-menu"]')) { cerrarFlotantes(); document.removeEventListener('click', f); }
+  }), 0);
+}
+
+// Versión publicada (la escribe el flujo de publicación en config.js: commit y fecha)
+export function versionApp() { return window.LPSGT_VERSION || 'local'; }
+
+export async function recargaForzada() {
+  cerrarFlotantes();
+  const aviso = html('<div class="recarga-forzada"><div><span class="spinner"></span> Vaciando caché y descargando la última versión…</div></div>');
+  document.body.append(aviso);
+  try {
+    // 1. Quitar el service worker y sus cachés
+    const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
+    await Promise.all(regs.map(r => r.unregister()));
+    if (window.caches) await Promise.all((await caches.keys()).map(k => caches.delete(k)));
+    // 2. Volver a descargar del servidor cada archivo del aplicativo, reemplazando la copia de la caché del navegador
+    const base = new URL('./', location.href).href;
+    const archivos = new Set([base, base + 'index.html', base + 'config.js', base + 'sw.js']);
+    for (const r of performance.getEntriesByType('resource')) {
+      const u = new URL(r.name);
+      if (u.href.startsWith(base) && !u.pathname.includes('/rest/v1/')) archivos.add(u.origin + u.pathname);
+    }
+    await Promise.all([...archivos].map(u => fetch(u, { cache: 'reload' }).catch(() => null)));
+  } catch { /* si algo falla, igual se recarga */ }
+  try { sessionStorage.setItem('lpsgt-recarga-forzada', versionApp()); } catch { /* opcional */ }
+  location.reload();
+}
+
+function cerrarFlotantes() { document.querySelectorAll('.panel-notif,.menu-usuario,.menu-actualizar').forEach(x => x.remove()); }
 
 function panelNotificaciones() {
   if (document.querySelector('.panel-notif')) return cerrarFlotantes();
   cerrarFlotantes();
   const p = html(`<div class="panel-notif" role="dialog" aria-label="Notificaciones">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--borde)">
+    <div class="notif-cab" style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--borde)">
       <b>Notificaciones</b><button class="btn btn-sm" data-a="todas">Marcar todas como leídas</button></div>
     ${store.notificaciones.length ? store.notificaciones.map(n => `<div class="item${n.leida ? '' : ' no-leida'}" data-id="${n.id}" data-ruta="${esc(n.ruta || '')}">
       ${esc(n.texto)}<small>${fmtFechaHora(n.created_at)}</small></div>`).join('') : '<p class="nota" style="padding:14px">Sin notificaciones.</p>'}</div>`);
   document.body.append(p);
+  arrastrable(p, p.querySelector('.notif-cab'));
   p.addEventListener('click', async e => {
     if (e.target.closest('[data-a="todas"]')) {
       await Promise.all(store.notificaciones.filter(n => !n.leida).map(n => api.update('notificaciones', n.id, { leida: true }).catch(() => {})));
@@ -192,7 +296,8 @@ function menuUsuario(alSalir) {
     <button data-a="perfil">Mi perfil</button>
     ${modoDemo ? '<button data-a="cambiar">Cambiar de usuario de demostración</button><button data-a="reiniciar">Reiniciar datos de demostración</button>'
       : '<button data-a="clave">Cambiar contraseña</button>'}
-    <button data-a="salir">Cerrar sesión</button></div>`);
+    <button data-a="salir">Cerrar sesión</button>
+    <div class="nota" style="padding:6px 10px 2px;border-top:1px solid var(--borde);margin-top:4px">Versión ${esc(versionApp())}</div></div>`);
   document.body.append(m);
   m.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a;

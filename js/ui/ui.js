@@ -37,8 +37,45 @@ export function modal({ titulo, cuerpo, botones = [], ancho = 560, alCerrar }) {
   }
   if (!botones.length) pie.remove();
   document.body.append(fondo);
+  arrastrable(fondo.querySelector('.modal'), fondo.querySelector('.modal-cab'));
   setTimeout(() => fondo.querySelector('input,select,textarea,button.btn-primario')?.focus(), 30);
   return { cerrar, el: fondo, cuerpo: cuerpoEl };
+}
+
+/** Permite mover una ventana arrastrando su barra de título (mouse o dedo); no sale de la pantalla. */
+export function arrastrable(ventana, barra) {
+  if (!ventana || !barra) return;
+  barra.classList.add('arrastrable');
+  barra.title = 'Arrastre para mover la ventana';
+  let x0, y0, dx = 0, dy = 0, bx = 0, by = 0;
+  const mover = e => {
+    const p = e.touches ? e.touches[0] : e;
+    const r = ventana.getBoundingClientRect();
+    // límites: al menos 60 px de la barra quedan visibles
+    const nx = bx + p.clientX - x0, ny = by + p.clientY - y0;
+    const maxX = innerWidth - 60 - (r.left - dx), minX = 60 - (r.right - dx);
+    const maxY = innerHeight - 40 - (r.top - dy), minY = -(r.top - dy);
+    dx = Math.min(maxX, Math.max(minX, nx)); dy = Math.min(maxY, Math.max(minY, ny));
+    ventana.style.transform = `translate(${dx}px, ${dy}px)`;
+    e.preventDefault();
+  };
+  const soltar = () => {
+    document.removeEventListener('mousemove', mover); document.removeEventListener('mouseup', soltar);
+    document.removeEventListener('touchmove', mover); document.removeEventListener('touchend', soltar);
+    barra.classList.remove('moviendo');
+  };
+  const iniciar = e => {
+    if (e.target.closest('button,input,select,a')) return;   // la X y otros controles siguen funcionando
+    const p = e.touches ? e.touches[0] : e;
+    if (!e.touches && e.button !== 0) return;
+    x0 = p.clientX; y0 = p.clientY; bx = dx; by = dy;
+    barra.classList.add('moviendo');
+    document.addEventListener('mousemove', mover); document.addEventListener('mouseup', soltar);
+    document.addEventListener('touchmove', mover, { passive: false }); document.addEventListener('touchend', soltar);
+    e.preventDefault();
+  };
+  barra.addEventListener('mousedown', iniciar);
+  barra.addEventListener('touchstart', iniciar, { passive: false });
 }
 
 export function confirmar(mensaje, { titulo = 'Confirmar', texto = 'Aceptar', peligro = false } = {}) {
@@ -52,11 +89,12 @@ export function confirmar(mensaje, { titulo = 'Confirmar', texto = 'Aceptar', pe
 }
 
 // ---------- Formularios ----------
-/** campos: [{ name, label, type, options, required, value, help, placeholder, full, min, max, step }] */
+/** campos: [{ name, label, type, options, required, value, help, placeholder, full, min, max, step, unaColumna }] */
 export function crearFormulario(campos, valores = {}) {
   const f = html('<form class="form" novalidate></form>');
   for (const c of campos) {
     if (c.type === 'separador') { f.append(html(`<h3 class="form-sep">${esc(c.label)}</h3>`)); continue; }
+    if (c.type === 'vacio') { f.append(html('<div class="campo campo-vacio" aria-hidden="true"></div>')); continue; }   // celda libre (alinea el campo siguiente)
     const v = valores[c.name] ?? c.value ?? '';
     const id = 'f-' + c.name + '-' + Math.random().toString(36).slice(2, 6);
     const req = c.required ? ' required' : '';
@@ -70,8 +108,8 @@ export function crearFormulario(campos, valores = {}) {
       }
       case 'multiselect': {
         const sel = new Set(v || []);
-        control = `<div class="multi" id="${id}" data-name="${c.name}">${(c.options || []).map(o =>
-          `<label class="chk"><input type="checkbox" value="${esc(o.value)}"${sel.has(o.value) ? ' checked' : ''}> ${esc(o.label)}</label>`).join('')}</div>`; break;
+        control = `<div class="multi${c.unaColumna ? ' una-columna' : ''}" id="${id}" data-name="${c.name}">${(c.options || []).map(o =>
+          `<label class="chk"><input type="checkbox" value="${esc(o.value)}"${sel.has(o.value) ? ' checked' : ''}> <span>${esc(o.label)}</span>${o.nota ? `<span class="nota">${esc(o.nota)}</span>` : ''}</label>`).join('')}</div>`; break;
       }
       case 'checkbox':
         control = `<label class="chk"><input type="checkbox" id="${id}" name="${c.name}"${v ? ' checked' : ''}> ${esc(c.texto || '')}</label>`; break;
@@ -87,7 +125,7 @@ export function crearFormulario(campos, valores = {}) {
   f.leer = () => {
     const out = {};
     for (const c of campos) {
-      if (c.type === 'separador') continue;
+      if (c.type === 'separador' || c.type === 'vacio') continue;
       if (c.type === 'multiselect') {
         out[c.name] = [...f.querySelectorAll(`[data-name="${c.name}"] input:checked`)].map(i => i.value);
         continue;
@@ -102,7 +140,7 @@ export function crearFormulario(campos, valores = {}) {
   };
   f.validar = () => {
     for (const c of campos) {
-      if (!c.required || c.type === 'separador') continue;
+      if (!c.required || c.type === 'separador' || c.type === 'vacio') continue;
       const el = f.elements[c.name];
       if (el && !String(el.value).trim()) { el.focus(); el.classList.add('invalido'); return `Complete el campo "${c.label}".`; }
     }

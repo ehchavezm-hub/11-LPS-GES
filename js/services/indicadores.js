@@ -59,12 +59,16 @@ export function capacidadSemana(usuarioId, semana, ubicaciones = []) {
   const dias = (param('dias_laborables') || [1, 2, 3, 4, 5]).map(Number);
   const h = horasDia(usuarioId);
   let total = 0;
-  for (const d of dias) {
+  for (let d = 1; d <= 7; d++) {
     const f = sumarDias(semana, d - 1);
     const u = ubicaciones.find(x => x.usuario_id === usuarioId && x.fecha === f);
     const v = u && store.valores.get(u.ubicacion_id);
-    if (v && v.extra?.cuenta_capacidad === false) continue;
-    total += h;
+    if (dias.includes(d)) {
+      if (v && v.extra?.cuenta_capacidad === false) continue;   // vacaciones, feriado…
+      total += h;
+    } else if (param('trabajo_fin_semana') && v && v.extra?.cuenta_capacidad !== false) {
+      total += h;   // día no laborable con lugar de trabajo registrado (p. ej. sábado en obra)
+    }
   }
   return total;
 }

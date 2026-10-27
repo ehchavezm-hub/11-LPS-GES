@@ -1,6 +1,7 @@
 // Adaptador de demostración: misma interfaz que Supabase, datos ficticios en localStorage.
 // Replica las reglas de negocio de la base de datos (cierre de semana, bloqueo, valores protegidos,
 // notificaciones) para que el aplicativo se comporte igual. No aplica seguridad real.
+import { LISTAS_INICIALES } from './catalogos.js';
 import { uuid, lunes, hoy } from '../core/util.js';
 import { crearDatosDemo } from './demo-seed.js';
 
@@ -32,7 +33,25 @@ const SIN_ID = new Set(['proyecto_lideres', 'proyecto_favoritos']);
 function cargar() {
   try {
     const s = localStorage.getItem(CLAVE);
-    if (s) return JSON.parse(s);
+    if (s) {
+      const db = JSON.parse(s);
+      // Datos de demo creados antes de la versión con Super administrador (equivale a la migración 009)
+      for (const p of db.profiles || []) if (p.es_admin_principal && p.rol === 'admin') p.rol = 'superadmin';
+      // "Servicios / Entregables" pasó a llamarse "CET / Servicio" (migración 010)
+      for (const l of db.listas || []) if (l.clave === 'servicios' && l.nombre === 'Servicios / Entregables') l.nombre = 'CET / Servicio';
+      // Proyectos pegados sin estado (antes una celda vacía lo borraba): quedan activos
+      for (const p of db.proyectos || []) if (!p.estado) p.estado = 'activo';
+      // Lista "Cargos" (migración 013) en datos de demo creados antes
+      if (db.listas && !db.listas.some(l => l.clave === 'cargos')) {
+        const def = LISTAS_INICIALES.find(l => l[0] === 'cargos');
+        const ahora = new Date().toISOString(), lid = crypto.randomUUID();
+        db.listas.push({ id: lid, area_id: db.listas[0]?.area_id, clave: 'cargos', nombre: def[1], sistema: true, created_at: ahora, updated_at: ahora });
+        def[2].forEach(([codigo, valor], i) => db.lista_valores.push({ id: crypto.randomUUID(), lista_id: lid, codigo, valor, orden: (i + 1) * 10,
+          color: null, activo: true, protegido: false, extra: {}, created_at: ahora, updated_at: ahora }));
+        localStorage.setItem(CLAVE, JSON.stringify(db));
+      }
+      return db;
+    }
   } catch { /* datos corruptos: se regeneran */ }
   const db = crearDatosDemo();
   localStorage.setItem(CLAVE, JSON.stringify(db));
@@ -62,6 +81,33 @@ export function crearAdaptadorDemo() {
   function usuarioId() { return localStorage.getItem(CLAVE_SESION); }
   function perfil(id = usuarioId()) { return tabla('profiles').find(p => p.id === id); }
 
+  // Emula public.eliminar_usuario(): borra si no tiene historial; si tiene, conserva el perfil como eliminado
+  const esSuper = p => p?.rol === 'superadmin' || !!p?.es_admin_principal;
+  const GESTORES = ['superadmin', 'admin', 'delegado'];
+  const SIN_HISTORIAL = new Set(['profiles', 'notificaciones', 'proyecto_favoritos', 'vistas', 'proyecto_lideres', 'auditoria']);
+  async function eliminarUsuarioDemo(id) {
+    db = cargar();
+    const yo = perfil();
+    const obj = perfil(id);
+    if (!yo || !['superadmin', 'admin'].includes(yo.rol)) throw new Error('Solo el administrador puede eliminar usuarios.');
+    if (!obj) throw new Error('Usuario no encontrado.');
+    if (obj.id === yo.id) throw new Error('No puede eliminarse a sí mismo.');
+    if (obj.es_admin_principal) throw new Error('El administrador principal no se puede eliminar.');
+    if (['superadmin', 'admin'].includes(obj.rol) && !esSuper(yo)) throw new Error('Solo el super administrador elimina a un administrador.');
+    const conHistorial = Object.entries(db).some(([t, filas]) => !SIN_HISTORIAL.has(t) && Array.isArray(filas) &&
+      filas.some(f => f && typeof f === 'object' && Object.entries(f).some(([k, v]) => k !== 'id' && v === id)));
+    if (!conHistorial) {
+      for (const t of ['notificaciones', 'proyecto_favoritos', 'vistas', 'proyecto_lideres']) db[t] = tabla(t).filter(f => f.usuario_id !== id);
+      guardar();
+      await api.remove('profiles', id);
+      return 'eliminado';
+    }
+    db.proyecto_lideres = tabla('proyecto_lideres').filter(f => f.usuario_id !== id);
+    guardar();
+    await api.update('profiles', id, { eliminado: true, activo: false, email: null, rol: GESTORES.includes(obj.rol) ? 'lider' : obj.rol });
+    return 'desactivado';
+  }
+
   function emitir(ev, local = true) {
     if (local) for (const cb of oyentes) cb(clon(ev));
     canal?.postMessage(ev);
@@ -84,7 +130,7 @@ export function crearAdaptadorDemo() {
       emitir({ tabla: 'notificaciones', tipo: 'INSERT', fila: n });
     }
   }
-  const gestores = area => tabla('profiles').filter(p => p.area_id === area && ['admin', 'delegado'].includes(p.rol) && p.activo).map(p => p.id);
+  const gestores = area => tabla('profiles').filter(p => p.area_id === area && GESTORES.includes(p.rol) && p.activo).map(p => p.id);
 
   function auditar(t, accion, fila, cambios) {
     if (!['actividades', 'restricciones', 'proyectos', 'cartera', 'cierres', 'profiles', 'permisos', 'parametros', 'lista_valores', 'acuerdos'].includes(t)) return;
@@ -109,7 +155,7 @@ export function crearAdaptadorDemo() {
     if (t === 'cierres' && nueva) {
       if (op === 'UPDATE' && vieja.cerrada && !nueva.cerrada) {
         const yo = perfil();
-        if (!['admin', 'delegado'].includes(yo?.rol)) throw new Error('Solo el administrador o el delegado pueden reabrir una semana.');
+        if (!GESTORES.includes(yo?.rol)) throw new Error('Solo el administrador o el delegado pueden reabrir una semana.');
         nueva.reabierto_at = new Date().toISOString();
         nueva.reabierto_por = usuarioId();
       } else if (nueva.cerrada && !nueva.automatico) {
@@ -127,11 +173,11 @@ export function crearAdaptadorDemo() {
     if (t === 'profiles' && op === 'UPDATE') {
       const yo = perfil();
       if (nueva.es_admin_principal !== vieja.es_admin_principal) throw new Error('El administrador principal solo se cambia desde la base de datos.');
-      if (nueva.rol !== vieja.rol && (['admin', 'delegado'].includes(nueva.rol) || ['admin', 'delegado'].includes(vieja.rol)) && !yo?.es_admin_principal) {
-        throw new Error('Solo el administrador principal asigna o retira los roles de administrador y delegado.');
+      if (vieja.es_admin_principal && (nueva.rol !== vieja.rol || !nueva.activo)) {
+        throw new Error('El administrador principal no puede perder su rol ni desactivarse.');
       }
-      if (vieja.es_admin_principal && (nueva.rol !== vieja.rol || nueva.activo !== vieja.activo) && !yo?.es_admin_principal) {
-        throw new Error('Solo el administrador principal puede modificar su propio rol o estado.');
+      if (nueva.rol !== vieja.rol && (GESTORES.includes(nueva.rol) || GESTORES.includes(vieja.rol)) && !esSuper(yo)) {
+        throw new Error('Solo el super administrador asigna o retira los roles de super administrador, administrador y delegado.');
       }
       if (nueva.rol === 'delegado' && vieja.rol !== 'delegado') {
         tabla('delegado_historial').push({ id: uuid(), area_id: nueva.area_id, usuario_id: nueva.id, otorgado_por: usuarioId(), desde: new Date().toISOString(), hasta: null });
@@ -261,10 +307,61 @@ export function crearAdaptadorDemo() {
       guardar();
       for (const v of quitar) emitir({ tabla: t, tipo: 'DELETE', fila: null, anterior: clon(v) });
     },
-    async rpc(nombre) {
+    async rpc(nombre, args = {}) {
+      if (nombre === 'eliminar_usuario') return eliminarUsuarioDemo(args.p_usuario);
+      if (nombre === 'eliminar_proyecto_completo') {
+        // Emula public.eliminar_proyecto_completo(): borra el proyecto con todo su historial
+        db = cargar();
+        const id = args.p_proyecto;
+        const yo = perfil();
+        if (!['superadmin', 'admin'].includes(yo?.rol)) throw new Error('Solo un administrador puede eliminar un proyecto con su historial.');
+        const acts = new Set(tabla('actividades').filter(a => a.proyecto_id === id).map(a => a.id));
+        const rests = new Set(tabla('restricciones').filter(r => r.proyecto_id === id || acts.has(r.actividad_id)).map(r => r.id));
+        const cart = new Set(tabla('cartera').filter(c => c.proyecto_id === id).map(c => c.id));
+        const r = { actividades: acts.size, restricciones: rests.size, cartera: cart.size };
+        const ent = x => (x.entidad === 'actividad' && acts.has(x.entidad_id)) || (x.entidad === 'restriccion' && rests.has(x.entidad_id)) ||
+          (x.entidad === 'cartera' && cart.has(x.entidad_id)) || (x.entidad === 'proyecto' && x.entidad_id === id);
+        db.comentarios = tabla('comentarios').filter(x => !ent(x));
+        db.enlaces = tabla('enlaces').filter(x => !ent(x));
+        db.restricciones = tabla('restricciones').filter(x => !rests.has(x.id));
+        db.actividades = tabla('actividades').filter(x => !acts.has(x.id));
+        db.cartera = tabla('cartera').filter(x => !cart.has(x.id));
+        db.plantilla_items = tabla('plantilla_items').filter(x => x.proyecto_id !== id);
+        for (const t of ['hitos', 'proyecto_lideres', 'proyecto_favoritos']) db[t] = tabla(t).filter(x => x.proyecto_id !== id);
+        for (const v of tabla('lista_valores')) if (v.extra?.proyecto_id === id) delete v.extra.proyecto_id;
+        guardar();
+        await api.remove('proyectos', id);
+        for (const t of ['actividades', 'restricciones', 'cartera']) emitir({ tabla: t, tipo: 'DELETE', fila: null, anterior: { id: null } });
+        return r;
+      }
       if (nombre === 'exportar_respaldo') return { generado: new Date().toISOString(), version: 1, modo: 'demo', ...clon(db) };
       if (nombre === 'cerrar_semanas_vencidas') return 0;
       throw new Error(`Función no disponible en modo demo: ${nombre}`);
+    },
+    // Emula la Edge Function "admin-usuarios" (en demo la contraseña no se usa)
+    async adminUsuarios(accion, d = {}) {
+      db = cargar();
+      const yo = perfil();
+      if (!yo || !GESTORES.includes(yo.rol)) throw new Error('No tiene permiso para gestionar usuarios.');
+      if (String(d.clave || '').length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
+      if (accion === 'crear') {
+        const email = String(d.email || '').trim().toLowerCase();
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Correo no válido.');
+        if (tabla('profiles').some(p => p.email === email)) throw new Error('Ya existe un usuario con ese correo.');
+        if (GESTORES.includes(d.rol) && !esSuper(yo)) throw new Error('Solo el super administrador asigna los roles de super administrador, administrador y delegado.');
+        const [p] = await api.insert('profiles', { area_id: yo.area_id, email, nombre: String(d.nombre || '').trim(), rol: d.rol || 'lider',
+          codigo: d.codigo || null, cargo_id: d.cargo_id || null, gerencia_ids: d.gerencia_ids || [], horas_dia: d.horas_dia === '' || d.horas_dia == null ? null : Number(d.horas_dia),
+          activo: true, es_admin_principal: false, debe_cambiar_clave: true, tour_visto: false });
+        return { id: p.id };
+      }
+      if (accion === 'clave') {
+        const obj = perfil(d.usuario_id);
+        if (!obj) throw new Error('Usuario no encontrado.');
+        if (obj.id !== yo.id && (obj.es_admin_principal || (GESTORES.includes(obj.rol) && !esSuper(yo)))) throw new Error('No puede restablecer la contraseña de ese usuario.');
+        await api.update('profiles', obj.id, { debe_cambiar_clave: obj.id !== yo.id });
+        return { ok: true };
+      }
+      throw new Error('Acción no válida.');
     },
     subscribe(tablas, cb) {
       const f = ev => { if (tablas.includes(ev.tabla)) cb(ev); };
@@ -290,7 +387,7 @@ export function crearAdaptadorDemo() {
       },
       async registrar() { throw new Error('En modo demostración elija uno de los usuarios de ejemplo.'); },
       async recuperar() { throw new Error('No disponible en modo demostración.'); },
-      async cambiarClave() { throw new Error('No disponible en modo demostración.'); },
+      async cambiarClave() { const p = perfil(); if (p) await api.update('profiles', p.id, { debe_cambiar_clave: false }); },
       async salir() { localStorage.removeItem(CLAVE_SESION); },
       alCambiar() { /* sin eventos externos en demo */ },
     },

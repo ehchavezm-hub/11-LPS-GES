@@ -1,10 +1,10 @@
 // Cartera de servicios por líder (6.5) y formulario de solicitudes de otras gerencias (M-01).
 import { api, mensajeError } from '../data/api.js';
-import { store, on, esGestor, esStaff, puede, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado, lideres, colorValor } from '../core/store.js';
+import { store, on, esGestor, esStaff, puede, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado, lideres, colorValor, opcionesServicio, semanaInicioLA, semanasLookAhead } from '../core/store.js';
 import { esc, html, hoy, fmtFecha, lunes, sumarSemanas, etiquetaSemana } from '../core/util.js';
 import { crearGrilla } from '../ui/grid.js';
 import { kpi, badge, pedirDatos, ok, error, vacio, toast } from '../ui/ui.js';
-import { columnasPersonalizadas } from '../services/columnas.js';
+import { columnasPersonalizadas, columnasActividad, derivarProyectoServicio } from '../services/columnas.js';
 import { abrirDetalle } from './detalle.js';
 import { imprimirPDF, tablaPDF } from '../services/pdf.js';
 
@@ -18,6 +18,7 @@ export async function render(el, params) {
       <select class="sel" data-resp></select>
       <select class="sel" data-ver><option value="abiertas">Abiertas y en proceso</option><option value="todas">Todas</option><option value="cerradas">Cerradas / rechazadas</option></select>
       <span data-proy></span><span class="flex"></span>
+      ${esGestor() || esGestor() ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
       <button class="btn btn-sm" data-a="solicitud">＋ Registrar solicitud de otra gerencia</button>
       <button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <div data-nuevas></div>
@@ -30,38 +31,21 @@ export async function render(el, params) {
   selR.onchange = () => { estado.resp = selR.value; pintar(); };
   pag.querySelector('[data-ver]').onchange = e => { estado.ver = e.target.value; pintar(); };
   pag.querySelector('[data-a="solicitud"]').onclick = () => nuevaSolicitud(true);
+  pag.querySelector('[data-a="cet"]')?.addEventListener('click', async () => {
+    const id = await (await import('./proyectos.js')).nuevoCETServicio({ proyectoId: store.proyectoSel || null });
+    if (id) grilla.refrescar();
+  });
   pag.querySelector('[data-a="pdf"]').onclick = pdf;
 
   grilla = crearGrilla(pag.querySelector('[data-grilla]'), {
     id: 'cartera', tabla: 'cartera', titulo: 'Cartera',
-    columnas: [
-      { field: 'f_solicitud', title: 'F. solicitud', tipo: 'fecha', ancho: 100 },
-      { field: 'solicitante', title: 'Solicitante', tipo: 'texto', ancho: 140, formato: (v, c) => esc(v || nombre(c.solicitante_id)) },
-      { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 95, opciones: () => opciones('gerencias').map(o => ({ ...o, label: o.value ? (store.valores.get(o.value)?.codigo || o.label) : o.label })) },
-      { field: 'proyecto_id', title: 'Proyecto / Proceso', tipo: 'lista', ancho: 180, opciones: opcionesProyectos },
-      { field: 'servicio_id', title: 'Servicio', tipo: 'lista', ancho: 170, opciones: () => opciones('servicios') },
-      { field: 'descripcion', title: 'Descripción', tipo: 'texto', ancho: 280 },
-      { field: 'responsable_id', title: 'Responsable', tipo: 'lista', ancho: 130, opciones: opcionesLideres },
-      { field: 'resp2', title: 'Resp. 2', tipo: 'texto', ancho: 100 },
-      { field: 'f_requerida', title: 'F. requerida', tipo: 'fecha', ancho: 100 },
-      { field: 'f_comprometida', title: 'F. comprometida', tipo: 'fecha', ancho: 110 },
-      { field: 'tipo_id', title: 'Tipo', tipo: 'lista', ancho: 100, opciones: () => opciones('tipos_cartera') },
-      { field: 'criticidad_id', title: 'Criticidad', tipo: 'lista', ancho: 95, colorear: true, opciones: () => opciones('criticidad').map(o => ({ ...o, color: colorValor(o.value) })) },
-      { field: 'estado', title: 'Estado', tipo: 'lista', ancho: 120, colorear: true,
-        opciones: () => opcionesEstado('estados_cartera').map(o => ({ ...o, color: colorEstado('estados_cartera', o.value) })) },
-      { field: '_dias', title: 'Antigüedad', tipo: 'numero', ancho: 85, calc: true, filtro: false, ayuda: 'Días desde la solicitud',
-        formato: (v, c) => c.f_solicitud && !['cerrada', 'rechazada'].includes(c.estado) ? `${Math.round((new Date(hoy()) - new Date(c.f_solicitud)) / 86400000)} d` : '' },
-      { field: 'origen', title: 'Origen', tipo: 'texto', ancho: 90, calc: true, formato: v => v === 'solicitud' ? badge('Solicitud', '#F28E2B') : 'Interna' },
-      { field: '_colab', title: '💬', tipo: 'texto', ancho: 46, calc: true, filtro: false,
-        formato: (v, c) => c.id ? '<button class="mini-btn">＋</button>' : '', click: (c, e) => { if (c.id && e.target.closest('button')) abrirDetalle('cartera', c); } },
-      ...columnasPersonalizadas('cartera'),
-    ],
+    columnas: columnasCartera(),
     agrupar: [{ field: 'responsable_id', label: 'Responsable' }, { field: 'gerencia_id', label: 'Gerencia' }, { field: 'estado', label: 'Estado' }, { field: 'criticidad_id', label: 'Criticidad' }],
     puedeEditarFila: c => !c.id || esGestor() || c.responsable_id === store.usuario.id || c.created_by === store.usuario.id,
     nuevaFila: () => ({ area_id: store.area.id, f_solicitud: hoy(), responsable_id: estado.resp !== 'todos' ? estado.resp : store.usuario.id,
       proyecto_id: store.proyectoSel || null, gerencia_id: proyecto(store.proyectoSel)?.gerencia_id || null, estado: 'abierta', origen: 'interna', descripcion: '', extra: {} }),
     listaParaCrear: c => !!(c.descripcion && c.descripcion.trim()),
-    derivar: (c, cam) => 'proyecto_id' in cam && cam.proyecto_id ? { gerencia_id: proyecto(cam.proyecto_id)?.gerencia_id || c.gerencia_id } : {},
+    derivar: derivarProyectoServicio,   // proyecto → gerencia y CET / Servicio; CET ↔ Servicio
     camposCalc: ['created_at', 'updated_at', 'created_by', 'solicitante_id'],
     alGuardar: () => cargarSilencioso(),
     menuFila: c => [{ label: '🔭 Crear actividad en el Look Ahead', action: () => crearActividad(c) }],
@@ -78,6 +62,33 @@ export async function render(el, params) {
 
 export function destruir() { desuscribir.forEach(f => f && f()); desuscribir = []; grilla?.destruir(); }
 
+/** Columnas de la cartera (pantalla, su PDF y el reporte "Cartera de servicios" usan las mismas). */
+export function columnasCartera() {
+  const la = new Map(columnasActividad({ modo: 'lookahead' }).map(c => [c.field, c]));
+  return [
+    { field: 'f_solicitud', title: 'F. solicitud', tipo: 'fecha', ancho: 100 },
+    { field: 'solicitante', title: 'Solicitante', tipo: 'texto', ancho: 140, formato: (v, c) => esc(v || nombre(c.solicitante_id)) },
+    { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 95, opciones: () => opciones('gerencias').map(o => ({ ...o, label: o.value ? (store.valores.get(o.value)?.codigo || o.label) : o.label })) },
+    { field: 'proyecto_id', title: 'Proyecto / Proceso', tipo: 'lista', ancho: 180, opciones: opcionesProyectos },
+    la.get('_cet'), la.get('servicio_id'),   // CET y Servicio enlazados, igual que en el Plan y el Look Ahead
+    { field: 'descripcion', title: 'Descripción', tipo: 'textoLargo', ancho: 280 },
+    { field: 'responsable_id', title: 'Responsable', tipo: 'lista', ancho: 130, opciones: opcionesLideres },
+    { field: 'resp2', title: 'Resp. 2', tipo: 'texto', ancho: 100 },
+    { field: 'f_requerida', title: 'F. requerida', tipo: 'fecha', ancho: 100 },
+    { field: 'f_comprometida', title: 'F. comprometida', tipo: 'fecha', ancho: 110 },
+    { field: 'tipo_id', title: 'Tipo', tipo: 'lista', ancho: 100, opciones: () => opciones('tipos_cartera') },
+    { field: 'criticidad_id', title: 'Criticidad', tipo: 'lista', ancho: 95, colorear: true, opciones: () => opciones('criticidad').map(o => ({ ...o, color: colorValor(o.value) })) },
+    { field: 'estado', title: 'Estado', tipo: 'lista', ancho: 120, colorear: true,
+      opciones: () => opcionesEstado('estados_cartera').map(o => ({ ...o, color: colorEstado('estados_cartera', o.value) })) },
+    { field: '_dias', title: 'Antigüedad', tipo: 'numero', ancho: 85, calc: true, filtro: false, ayuda: 'Días desde la solicitud',
+      formato: (v, c) => c.f_solicitud && !['cerrada', 'rechazada'].includes(c.estado) ? `${Math.round((new Date(hoy()) - new Date(c.f_solicitud)) / 86400000)} d` : '' },
+    { field: 'origen', title: 'Origen', tipo: 'texto', ancho: 90, calc: true, formato: v => v === 'solicitud' ? badge('Solicitud', '#F28E2B') : 'Interna' },
+    { field: '_colab', title: '💬', tipo: 'texto', ancho: 46, calc: true, filtro: false,
+      formato: (v, c) => c.id ? '<button class="mini-btn">＋</button>' : '', click: (c, e) => { if (c.id && e.target.closest('button')) abrirDetalle('cartera', c); } },
+    ...columnasPersonalizadas('cartera'),
+  ];
+}
+
 function filtro(c) {
   if (c.estado === 'nueva') return false;
   if (estado.resp !== 'todos' && c.responsable_id !== estado.resp) return false;
@@ -92,7 +103,7 @@ async function cargarSilencioso() { try { await leer(); pintarExtras(); } catch 
 async function pintar() { await grilla.setDatos(estado.items.filter(filtro)); pintarExtras(); }
 
 function puedeAceptar(c) {
-  return esGestor() || (puede('aceptar_solicitudes') && (!c.responsable_id || c.responsable_id === store.usuario.id));
+  return esGestor() || (puede('ver_solicitud') && (!c.responsable_id || c.responsable_id === store.usuario.id));
 }
 
 function pintarExtras() {
@@ -102,9 +113,9 @@ function pintarExtras() {
   const nuevas = estado.items.filter(c => c.estado === 'nueva');
   pag.querySelector('[data-nuevas]').innerHTML = nuevas.length ? `<div class="tarjeta" style="margin-bottom:12px;border-left:4px solid var(--arena)">
     <h2>Solicitudes nuevas por atender (${nuevas.length})</h2>
-    <table class="simple"><tr><th>Fecha</th><th>Solicitante</th><th>Proyecto</th><th>Servicio</th><th>Descripción</th><th>Dirigida a</th><th>F. requerida</th><th></th></tr>
+    <table class="simple"><tr><th>Fecha</th><th>Solicitante</th><th>Proyecto</th><th>CET / Servicio</th><th>Descripción</th><th>Dirigida a</th><th>F. requerida</th><th></th></tr>
     ${nuevas.map(c => `<tr data-sol="${c.id}"><td>${fmtFecha(c.f_solicitud)}</td><td>${esc(c.solicitante || nombre(c.solicitante_id))}</td>
-      <td>${esc(proyecto(c.proyecto_id)?.nombre_corto || '')}</td><td>${esc(etiqueta(c.servicio_id))}</td><td>${esc(c.descripcion)}</td>
+      <td>${esc(proyecto(c.proyecto_id)?.nombre_corto || '')}</td><td>${esc(cetServicio(c.servicio_id))}</td><td>${esc(c.descripcion)}</td>
       <td>${esc(nombre(c.responsable_id) || '—')}</td><td>${fmtFecha(c.f_requerida)}</td>
       <td style="white-space:nowrap">${puedeAceptar(c) ? `<button class="btn btn-sm btn-primario" data-aceptar="${c.id}">Aceptar</button>
         <button class="btn btn-sm" data-rechazar="${c.id}">Rechazar</button>` : '<span class="nota">Por atender</span>'}</td></tr>`).join('')}</table></div>` : '';
@@ -124,6 +135,8 @@ function pintarExtras() {
   ].join('');
 }
 const normal = s => String(s || '').toLowerCase();
+/** "CET · Servicio" (como en la lista CET / Servicio). */
+const cetServicio = id => { const v = store.valores.get(id); return v ? (v.codigo ? `${v.codigo} · ${v.valor}` : v.valor) : ''; };
 
 async function aceptar(c) {
   await pedirDatos({
@@ -135,7 +148,7 @@ async function aceptar(c) {
       { name: 'criticidad_id', label: 'Criticidad', type: 'select', options: opciones('criticidad'), value: c.criticidad_id },
       { name: 'tipo_id', label: 'Tipo', type: 'select', options: opciones('tipos_cartera'), value: c.tipo_id },
       { name: 'semana_la', label: 'Crear actividad en el Look Ahead', type: 'select',
-        options: [{ value: '', label: 'No por ahora' }, ...[1, 2, 3].map(i => ({ value: sumarSemanas(lunes(), i), label: etiquetaSemana(sumarSemanas(lunes(), i)) }))] },
+        options: [{ value: '', label: 'No por ahora' }, ...semanasLookAhead().map(s => ({ value: s, label: etiquetaSemana(s) }))] },
     ],
     alGuardar: async d => {
       if (!esGestor() && d.responsable_id !== store.usuario.id) throw new Error('Solo puede aceptar solicitudes asignándolas a usted.');
@@ -157,8 +170,8 @@ async function rechazar(c) {
 
 async function crearActividad(c, semana) {
   if (!c.id) return;
-  const sem = semana || sumarSemanas(lunes(), 1);
-  if (c.responsable_id !== store.usuario.id && !puede('editar_actividades_otros')) return toast('Solo el responsable puede crear actividades de esta solicitud.', 'warn');
+  const sem = semana || semanaInicioLA();
+  if (c.responsable_id !== store.usuario.id && !esGestor()) return toast('Solo el responsable puede crear actividades de esta solicitud.', 'warn');
   try {
     await api.insert('actividades', {
       area_id: store.area.id, semana: sem, responsable_id: c.responsable_id || store.usuario.id, resp2: c.resp2, proyecto_id: c.proyecto_id,
@@ -179,7 +192,7 @@ async function nuevaSolicitud(enNombreDeOtro = false) {
     campos: [
       ...(enNombreDeOtro ? [{ name: 'solicitante', label: 'Solicitante (nombre y área)', required: true }] : []),
       { name: 'proyecto_id', label: 'Proyecto', type: 'select', required: true, options: [{ value: '', label: '—' }, ...proys.map(p => ({ value: p.id, label: `${p.codigo} · ${p.nombre_corto}` }))] },
-      { name: 'servicio_id', label: 'Servicio requerido', type: 'select', options: opciones('servicios') },
+      { name: 'servicio_id', label: 'CET / Servicio requerido', type: 'select', options: opcionesServicio() },
       { name: 'descripcion', label: 'Descripción del pedido', type: 'textarea', required: true, full: true },
       { name: 'f_requerida', label: 'Fecha requerida', type: 'date', required: true },
       { name: 'criticidad_id', label: 'Prioridad', type: 'select', options: opciones('criticidad') },
@@ -208,10 +221,10 @@ async function renderSolicitante(el) {
   el.innerHTML = '';
   el.append(html(`<div>
     <div class="pagina-cab"><h1>Mis solicitudes de servicio</h1><span class="flex"></span>
-      ${puede('registrar_solicitud') ? '<button class="btn btn-primario" data-a="nueva">＋ Nueva solicitud</button>' : ''}</div>
+      ${puede('crear_solicitud') ? '<button class="btn btn-primario" data-a="nueva">＋ Nueva solicitud</button>' : ''}</div>
     <div class="aviso">Registre aquí sus pedidos al equipo de la Gerencia Técnica. Recibirá un aviso cuando se acepten o rechacen.</div>
-    <div class="tarjeta">${mias.length ? `<table class="simple"><tr><th>Fecha</th><th>Proyecto</th><th>Servicio</th><th>Descripción</th><th>F. requerida</th><th>Responsable</th><th>F. comprometida</th><th>Estado</th></tr>
-      ${mias.map(c => `<tr><td>${fmtFecha(c.f_solicitud)}</td><td>${esc(proyecto(c.proyecto_id)?.nombre_corto || '')}</td><td>${esc(etiqueta(c.servicio_id))}</td>
+    <div class="tarjeta">${mias.length ? `<table class="simple"><tr><th>Fecha</th><th>Proyecto</th><th>CET / Servicio</th><th>Descripción</th><th>F. requerida</th><th>Responsable</th><th>F. comprometida</th><th>Estado</th></tr>
+      ${mias.map(c => `<tr><td>${fmtFecha(c.f_solicitud)}</td><td>${esc(proyecto(c.proyecto_id)?.nombre_corto || '')}</td><td>${esc(cetServicio(c.servicio_id))}</td>
         <td>${esc(c.descripcion)}${c.motivo_rechazo ? `<div class="nota">Motivo: ${esc(c.motivo_rechazo)}</div>` : ''}</td><td>${fmtFecha(c.f_requerida)}</td>
         <td>${esc(nombre(c.responsable_id))}</td><td>${fmtFecha(c.f_comprometida)}</td>
         <td>${badge(textoEstado('estados_cartera', c.estado), colorEstado('estados_cartera', c.estado))}</td></tr>`).join('')}</table>`
@@ -221,10 +234,5 @@ async function renderSolicitante(el) {
 
 function pdf() {
   const items = grilla.filas().filter(c => c.id);
-  imprimirPDF('Cartera de servicios', tablaPDF([
-    { titulo: 'F. solicitud', valor: c => fmtFecha(c.f_solicitud) }, { titulo: 'Solicitante', valor: c => c.solicitante || nombre(c.solicitante_id) },
-    { titulo: 'Proyecto', valor: c => proyecto(c.proyecto_id)?.nombre_corto || '' }, { titulo: 'Descripción', valor: c => c.descripcion },
-    { titulo: 'Responsable', valor: c => nombre(c.responsable_id) }, { titulo: 'F. comprometida', valor: c => fmtFecha(c.f_comprometida) },
-    { titulo: 'Criticidad', valor: c => etiqueta(c.criticidad_id) }, { titulo: 'Estado', valor: c => textoEstado('estados_cartera', c.estado) },
-  ], items), { orientacion: 'landscape' });
+  imprimirPDF('Cartera de servicios', tablaPDF(grilla.columnasPDF(), items), { orientacion: 'landscape' });   // como en pantalla
 }

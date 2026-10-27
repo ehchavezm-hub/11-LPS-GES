@@ -1,6 +1,6 @@
 // Look Ahead (6.7): actividades de las próximas semanas, estado LA, restricciones y carga vs capacidad.
 import { api, mensajeError } from '../data/api.js';
-import { store, equipo, on, esGestor, puedeEditarActividad, lideres, nombre, proyecto, param, opciones, opcionesLideres, opcionesProyectos } from '../core/store.js';
+import { store, equipo, on, esGestor, puede, puedeEditarActividad, lideres, nombre, proyecto, param, opciones, opcionesLideres, opcionesProyectos } from '../core/store.js';
 import { lunes, sumarSemanas, etiquetaSemana, esc, html, num, sumarDias, DIAS, pct } from '../core/util.js';
 import { actualizarQuery } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -9,31 +9,45 @@ import { columnasActividad, derivarActividad, CAMPOS_CALC_ACT } from '../service
 import { capacidadSemana, colorCarga, restriccionesActivas } from '../services/indicadores.js';
 import { abrirDetalle, abrirRestricciones, confirmarRestricciones } from './detalle.js';
 import { imprimirPDF, tablaPDF } from '../services/pdf.js';
-import { textoEstado } from '../core/store.js';
+import { textoEstado, servicioDeProyecto, semanasLookAhead, configLookAhead, diaLookAhead } from '../core/store.js';
 
 let grilla, desuscribir = [], estado;
 
-function semanasLA() {
-  const n = Number(param('semanas_lookahead')) || 3;
-  return Array.from({ length: n }, (_, i) => sumarSemanas(lunes(), i + 1));
-}
+const semanasLA = () => semanasLookAhead();   // según Configuración → Parámetros (pedido 110)
 
 export async function render(el, { query }) {
   estado = { resp: query.get('resp') || (esGestor() ? 'todos' : store.usuario.id), semanas: semanasLA(), acts: [], rests: [], ubic: [], colab: new Map() };
   const pag = html(`<div>
     <div class="pagina-cab"><h1>Look Ahead</h1>
       <span class="pagina-sub">${estado.semanas.length} semanas: ${esc(etiquetaSemana(estado.semanas[0]))} → ${esc(etiquetaSemana(estado.semanas.at(-1)).split('·')[0])}</span>
-      <select class="sel" data-resp aria-label="Responsable"></select><span data-proy></span>
+      <select class="sel" data-resp aria-label="Responsable"></select>
+      <div class="pestanas pestanas-la">
+        <button data-v="la">🔭 Look Ahead</button>
+        <button data-v="carga">📊 Carga vs capacidad (HH) <span class="badge-alerta" data-alerta></span></button>
+      </div><span data-proy></span>
       <span class="flex"></span><button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
-    <div class="aviso">El Look Ahead responde <b>¿qué PUEDE hacerse?</b> Registre las actividades de las próximas semanas, identifique sus restricciones y márquelas como <b>Lista</b> cuando estén libres. En la reunión del viernes se comprometen las de la semana siguiente.</div>
-    <div class="tarjeta" style="margin-bottom:12px"><h2>Carga vs capacidad (HH)</h2><div data-carga></div></div>
+    <div data-vista="carga" class="oculto"><div class="tarjeta"><h2>Carga vs capacidad (HH)</h2><div data-carga></div></div></div>
+    <div data-vista="la">
+    <div class="aviso">El Look Ahead responde <b>¿qué PUEDE hacerse?</b> Registre las actividades de las próximas semanas, identifique sus restricciones y márquelas como <b>Lista</b> cuando estén libres. El Look Ahead se registra los <b>${esc(diaLookAhead())}</b> y se compromete la <b>${esc(etiquetaSemana(estado.semanas[0]))}</b>${configLookAhead().semana === 'actual' ? ' (la misma semana)' : ' (la semana siguiente)'}. Puede cambiarlo en Configuración → Parámetros.</div>
     <div class="barra" style="margin-bottom:10px">
-      <button class="btn btn-sm btn-azul" data-a="comprometer" title="Pasar al plan de la semana siguiente las filas seleccionadas o las Listas">✔ Comprometer semana siguiente</button>
+      <button class="btn btn-sm btn-azul" data-a="comprometer" title="Pasar al Plan semanal las filas seleccionadas o las Listas de la ${esc(etiquetaSemana(estado.semanas[0]))}">✔ Comprometer ${esc(etiquetaSemana(estado.semanas[0]).split('·')[0].trim())}</button>
       <button class="btn btn-sm" data-a="plantilla" title="Generar actividades desde una plantilla de servicio (M-05)">🧩 Aplicar plantilla de servicio</button>
       <button class="btn btn-sm" data-a="cartera" title="Crear actividades desde la cartera">🗂 Desde la cartera</button>
+      ${esGestor() || esGestor() ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
     </div>
-    <div data-grilla></div></div>`);
+    <div data-grilla></div></div></div>`);
   el.append(pag);
+  // Dos subventanas: la grilla del Look Ahead y la carga vs capacidad (se recuerda la última elegida)
+  const mostrarVista = v => {
+    pag.querySelectorAll('[data-v]').forEach(b => b.classList.toggle('activo', b.dataset.v === v));
+    pag.querySelectorAll('[data-vista]').forEach(d => d.classList.toggle('oculto', d.dataset.vista !== v));
+    try { localStorage.setItem('lpsgt-la-vista', v); } catch { /* sin almacenamiento */ }
+    if (v === 'la') grilla?.tabla?.redraw(true);
+  };
+  pag.querySelector('.pestanas-la').addEventListener('click', e => { const v = e.target.closest('[data-v]')?.dataset.v; if (v) mostrarVista(v); });
+  let vistaInicial = 'la';
+  try { vistaInicial = localStorage.getItem('lpsgt-la-vista') || 'la'; } catch { /* sin almacenamiento */ }
+  mostrarVista(vistaInicial);
   const sel = pag.querySelector('[data-resp]');
   sel.innerHTML = `<option value="todos">Todo el equipo</option>` + lideres().map(l => `<option value="${l.id}">${esc(l.nombre)}</option>`).join('');
   sel.value = estado.resp;
@@ -50,28 +64,29 @@ export async function render(el, { query }) {
         restricciones: { get: id => restriccionesActivas(id, estado.rests).length },
         colaboracion: estado.colab,
         abrirRestricciones: a => abrirRestricciones(a, { alCambiar: recargar }),
-        abrirDetalle: a => abrirDetalle('actividad', a),
+        abrirDetalle: a => abrirDetalle('actividad', a, { alCambiar: n => { estado.colab.set(a.id, n); grilla.refrescar(); } }),
       },
     }),
     camposCalc: CAMPOS_CALC_ACT,
     agrupar: [{ field: 'semana', label: 'Semana' }, { field: 'responsable_id', label: 'Responsable' }, { field: 'proyecto_id', label: 'Proyecto' }, { field: 'estado_la', label: 'Estado LA' }],
-    puedeEditarFila: a => puedeEditarActividad(a) && !a.comprometida,
+    // Una comprometida sigue editable mientras no tenga estado final (p. ej. para volver de "Trasladada" a "Lista");
+    // una vez reportada en el Plan (completada, no completada o cancelada) queda bloqueada
+    puedeEditarFila: a => puedeEditarActividad(a) && (!a.comprometida || a.estado === 'programado'),
     campoInicial: 'descripcion',
     listaParaCrear: a => !!((a.descripcion && a.descripcion.trim()) || a.proyecto_id || Number(a.hh_total)),
     nuevaFila: () => {
       const p = store.proyectoSel ? proyecto(store.proyectoSel) : null;
       return { area_id: store.area.id, semana: estado.semanas[0], responsable_id: estado.resp !== 'todos' ? estado.resp : store.usuario.id,
         comprometida: false, tipo: 'programada', estado: 'programado', estado_la: 'pendiente', origen: 'manual',
-        proyecto_id: p?.id || null, gerencia_id: p?.gerencia_id || null, cet_id: p?.cet_id || null,
+        proyecto_id: p?.id || null, gerencia_id: p?.gerencia_id || null, servicio_id: servicioDeProyecto(p),
         hh_lu: 0, hh_ma: 0, hh_mi: 0, hh_ju: 0, hh_vi: 0, hh_sa: 0, hh_do: 0, hh_total: 0, extra: {} };
     },
     derivar: derivarActividad,
     claseFila: a => restriccionesActivas(a.id, estado.rests).length ? 'fila-aviso' : '',
     alGuardar: () => cargarSilencioso(),
-    nombreArchivo: () => `Look_ahead_${estado.semanas[0]}`,
     menuFila: a => [
       { label: '🚧 Restricciones…', action: () => a.id && abrirRestricciones(a, { alCambiar: recargar }) },
-      { label: '💬 Comentarios y enlaces…', action: () => a.id && abrirDetalle('actividad', a) },
+      { label: '💬 Comentarios y enlaces…', action: () => a.id && abrirDetalle('actividad', a, { alCambiar: n => { estado.colab.set(a.id, n); grilla.refrescar(); } }) },
     ],
   });
   grilla.listo.then(() => grilla.tabla.setGroupBy('semana'));
@@ -106,6 +121,14 @@ async function leer() {
     api.list('ubicaciones_dia', { eq: { area_id: area }, gte: { fecha: estado.semanas[0] }, lte: { fecha: sumarDias(estado.semanas.at(-1), 6) } }),
   ]);
   Object.assign(estado, { acts, rests, ubic });
+  // Cantidad de comentarios y enlaces de cada actividad (columna 💬), igual que en el Plan semanal
+  try {
+    const ids = new Set(acts.map(a => a.id));
+    const [coms, enls] = await Promise.all([
+      api.list('comentarios', { eq: { entidad: 'actividad' } }), api.list('enlaces', { eq: { entidad: 'actividad' } })]);
+    estado.colab.clear();
+    for (const c of [...coms, ...enls]) if (ids.has(c.entidad_id)) estado.colab.set(c.entidad_id, (estado.colab.get(c.entidad_id) || 0) + 1);
+  } catch { /* opcional */ }
 }
 async function cargarSilencioso() { try { await leer(); pintarCabecera(); grilla.refrescar(); } catch { /* reintento en el próximo cambio */ } }
 async function recargar() { await cargarSilencioso(); }
@@ -116,11 +139,13 @@ function pintarCabecera() {
   if (!pag) return;
   pag.querySelector('[data-proy]').innerHTML = store.proyectoSel ? `<span class="chip-filtro">🏗 ${esc(proyecto(store.proyectoSel)?.nombre_corto || '')}</span>` : '';
   const personas = estado.resp === 'todos' ? equipo(estado.acts) : lideres().filter(l => l.id === estado.resp);
+  let sobrecargas = 0;
   const filas = personas.map(l => {
     const celdas = estado.semanas.map(s => {
       const hh = estado.acts.filter(a => a.responsable_id === l.id && a.semana === s && a.estado_la !== 'cancelada').reduce((x, a) => x + (Number(a.hh_total) || 0), 0);
       const cap = capacidadSemana(l.id, s, estado.ubic);
       const r = cap ? hh / cap : null;
+      if (r != null && r > 1.05) sobrecargas++;
       return `<td><div style="display:flex;align-items:center;gap:6px"><div class="barra-prog" style="flex:1;--bc:${colorCarga(r)}"><i style="width:${Math.min(100, (r || 0) * 100)}%"></i></div>
         <span class="nota" style="white-space:nowrap">${num(hh)} / ${num(cap)} ${r != null && r > 1.05 ? '⚠' : ''}</span></div></td>`;
     }).join('');
@@ -128,9 +153,16 @@ function pintarCabecera() {
   }).join('');
   pag.querySelector('[data-carga]').innerHTML = `<table class="simple"><tr><th>Responsable</th>${estado.semanas.map(s => `<th>${esc(etiquetaSemana(s))}</th>`).join('')}</tr>${filas}</table>
     <p class="nota">Verde: carga normal · Ámbar: más del 90 % · Rojo: sobrecarga (más que la capacidad). La capacidad descuenta vacaciones y feriados registrados en "Equipo y capacidad".</p>`;
+  // Aviso en la pestaña: cuántas semanas-persona están sobrecargadas
+  const alerta = pag.querySelector('[data-alerta]');
+  if (alerta) { alerta.textContent = sobrecargas ? `⚠ ${sobrecargas}` : ''; alerta.title = sobrecargas ? `${sobrecargas} semana(s) con sobrecarga` : ''; }
 }
 
 const acciones = {
+  async cet() {   // pedido 100: CET / Servicio nuevo sin salir del Look Ahead
+    const id = await (await import('./proyectos.js')).nuevoCETServicio({ proyectoId: store.proyectoSel || null });
+    if (id) grilla.refrescar();
+  },
   async comprometer() {
     const siguiente = estado.semanas[0];
     const sel = grilla.tabla.getRanges().flatMap(r => r.getRows()).map(r => r.getData()).filter(a => a.id);
@@ -163,11 +195,14 @@ const acciones = {
     if (d.responsable !== store.usuario.id && !esGestor()) return error('Solo puede generar actividades para usted.');
     const items = await api.list('plantilla_items', { eq: { plantilla_id: d.plantilla }, order: [['orden', true]] });
     const p = proyecto(d.proyecto);
+    const pl = plantillas.find(x => x.id === d.plantilla);
+    // CET / Servicio de cada actividad: el del ítem; si no tiene, el de la plantilla o el del proyecto
+    const servicio = i => i.servicio_id || pl?.servicio_id || servicioDeProyecto(p);
     try {
       await api.insert('actividades', items.map((i, k) => ({
         area_id: store.area.id, semana: sumarSemanas(d.semana, Number(i.semana_offset) || 0), responsable_id: d.responsable,
         comprometida: false, tipo: 'programada', estado: 'programado', estado_la: 'pendiente', origen: 'plantilla', origen_id: i.id,
-        proyecto_id: d.proyecto, gerencia_id: p?.gerencia_id || i.gerencia_id, cet_id: p?.cet_id || i.cet_id, servicio_id: i.servicio_id,
+        proyecto_id: d.proyecto, gerencia_id: p?.gerencia_id || i.gerencia_id, cet_id: i.cet_id, servicio_id: servicio(i),
         descripcion: i.descripcion, resp2: i.resp2, orden: k,
         ...Object.fromEntries(DIAS.map(x => [`hh_${x}`, Number(i[`hh_${x}`]) || 0])),
       })));
@@ -208,11 +243,10 @@ const acciones = {
     let cuerpo = '';
     for (const s of estado.semanas) {
       const de = acts.filter(a => a.semana === s);
+      // Mismas columnas, orden y anchos que la grilla en pantalla (más el detalle de restricciones)
       cuerpo += `<h2>${esc(etiquetaSemana(s))} · ${de.length} actividad(es)</h2>` + tablaPDF([
-        { titulo: 'Responsable', valor: a => nombre(a.responsable_id) }, { titulo: 'Proyecto', valor: a => proyecto(a.proyecto_id)?.nombre_corto || '' },
-        { titulo: 'Actividad', valor: a => a.descripcion }, { titulo: 'HH', valor: a => num(a.hh_total), num: true },
-        { titulo: 'Estado LA', html: true, valor: a => badge(textoEstado('estados_la', a.estado_la), '#4E79A7') },
-        { titulo: 'Restricciones', valor: a => restriccionesActivas(a.id, estado.rests).map(r => r.descripcion).join('; ') },
+        ...grilla.columnasPDF(),
+        { titulo: 'Restricciones', ancho: 180, valor: a => restriccionesActivas(a.id, estado.rests).map(r => r.descripcion).join('; ') },
       ], de);
     }
     imprimirPDF('Look Ahead', cuerpo, { orientacion: 'landscape' });

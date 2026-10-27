@@ -41,11 +41,18 @@ export function mostrarLogin(raiz, continuar) {
     e.preventDefault();
     const clave = caja.querySelector('#r-clave').value;
     if (clave.length < 8) return error('La contraseña debe tener al menos 8 caracteres.');
+    const b = fReg.querySelector('button'); b.disabled = true;
+    const correo = caja.querySelector('#r-email').value.trim();
     try {
-      const r = await api.auth.registrar(caja.querySelector('#r-email').value.trim(), clave, caja.querySelector('#r-nombre').value.trim());
-      if (r.session) continuar();
-      else ok('Cuenta creada. Revise su correo para confirmarla y luego ingrese.');
-    } catch (err) { error(mensajeError(err)); }
+      const r = await api.auth.registrar(correo, clave, caja.querySelector('#r-nombre').value.trim());
+      if (r.session) return continuar();
+      // Aviso fijo (no solo un mensaje temporal) y vuelta al formulario de ingreso con el correo listo
+      caja.querySelector('[data-aviso-registro]')?.remove();
+      fIng.before(html(`<div class="aviso ok" data-aviso-registro>Cuenta creada. Le enviamos un correo a <b>${esc(correo)}</b>:
+        ábralo, pulse el enlace de confirmación y luego ingrese aquí. Si no llega en unos minutos, revise la carpeta de spam.</div>`));
+      caja.querySelector('#l-email').value = correo;
+      caja.querySelector('[data-a="alternar"]').click();
+    } catch (err) { error(mensajeError(err)); } finally { b.disabled = false; }
   });
   caja.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
@@ -94,15 +101,18 @@ export function mostrarPendiente(raiz, mensaje) {
   caja.querySelector('[data-a="salir"]').onclick = async () => { await api.auth.salir(); location.reload(); };
 }
 
-export function mostrarNuevaClave(raiz) {
+export function mostrarNuevaClave(raiz, motivo = '') {
   raiz.innerHTML = '';
   const caja = html(`<div class="login"><div class="login-caja">
     <div class="logo"><span>LPS<b style="color:var(--naranja)">-GT</b></span></div>
     <div class="lema">Defina su nueva contraseña</div>
+    ${motivo ? `<div class="aviso">${esc(motivo)}</div>` : ''}
     <form><div class="campo"><label for="n1">Nueva contraseña</label><input id="n1" type="password" minlength="8" required autocomplete="new-password"></div>
     <div class="campo"><label for="n2">Repetir</label><input id="n2" type="password" minlength="8" required autocomplete="new-password"></div>
-    <button class="btn btn-primario" type="submit">Guardar</button></form></div></div>`);
+    <button class="btn btn-primario" type="submit">Guardar</button></form>
+    <button class="btn btn-sm" data-a="salir" style="margin-top:10px">Cerrar sesión</button></div></div>`);
   raiz.append(caja);
+  caja.querySelector('[data-a="salir"]').onclick = async () => { await api.auth.salir(); location.hash = ''; location.reload(); };
   caja.querySelector('form').addEventListener('submit', async e => {
     e.preventDefault();
     const a = caja.querySelector('#n1').value, b = caja.querySelector('#n2').value;

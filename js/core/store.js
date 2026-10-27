@@ -1,6 +1,7 @@
 // Estado de la sesión y catálogo en memoria (listas, parámetros, permisos, usuarios, proyectos).
 import { api } from '../data/api.js';
-import { PARAMETROS_INICIALES } from '../data/catalogos.js';
+import { PARAMETROS_INICIALES, PLANIFICADORES, AYUDA_ESTADOS } from '../data/catalogos.js';
+import { lunes, sumarSemanas, DIAS_NOMBRE } from './util.js';
 
 const bus = new EventTarget();
 
@@ -48,6 +49,7 @@ export async function cargarCatalogo() {
     api.list('columnas_personalizadas', { eq: { area_id: u.area_id }, order: [['orden', true]] }),
   ]);
   store.area = areas[0] || null;
+  api.fijarArea?.(store.area?.id);
   store.listas = {};
   const porLista = new Map();
   for (const l of listas.filter(l => !l.area_id || l.area_id === u.area_id)) {
@@ -75,15 +77,29 @@ export async function cargarCatalogo() {
 
 // ---------- Permisos ----------
 export function rol() { return store.usuario?.rol || 'anonimo'; }
-export function esAdmin() { return rol() === 'admin'; }
-export function esGestor() { return ['admin', 'delegado'].includes(rol()); }
-export function esStaff() { return ['admin', 'delegado', 'lider'].includes(rol()); }
+export function esSuperadmin() { return rol() === 'superadmin' || !!store.usuario?.es_admin_principal; }
+export function esAdmin() { return ['superadmin', 'admin'].includes(rol()); }
+export function esGestor() { return ['superadmin', 'admin', 'delegado'].includes(rol()); }
+export function esStaff() { return ['superadmin', 'admin', 'delegado', ...PLANIFICADORES].includes(rol()); }
 export function puede(accion) {
-  if (rol() === 'admin') return true;
-  return !!store.permisos[rol()]?.[accion];
+  if (esSuperadmin()) return true;
+  // El administrador usa su columna de la matriz (la edita el super administrador); sin fila, permitido
+  if (rol() === 'admin') return store.permisos.admin?.[accion] ?? true;
+  const propio = store.permisos[rol()]?.[accion];
+  // Igual que public.puede(): un rol de planificación sin fila propia usa los permisos de "lider"
+  if (propio === undefined && PLANIFICADORES.includes(rol())) return !!store.permisos.lider?.[accion];
+  return !!propio;
+}
+/** Agregar proyectos activos al menú (administración o permiso "agregar_proyecto", pedido 100). */
+export function puedeAgregarProyecto() { return esGestor() || esGestor(); }
+/** Editar un proyecto: quien administra proyectos, quien lo agregó (si tiene el permiso) o quien lo propuso. */
+export function puedeEditarProyecto(p) {
+  if (!p) return false;
+  const yo = store.usuario?.id;
+  return esGestor() || (esGestor() && p.created_by === yo) || (p.estado === 'propuesto' && p.propuesto_por === yo);
 }
 export function puedeEditarActividad(a) {
-  return a.responsable_id === store.usuario?.id || puede('editar_actividades_otros');
+  return a.responsable_id === store.usuario?.id || esGestor();
 }
 
 // ---------- Listas ----------
@@ -101,20 +117,60 @@ export function valorPorCodigo(clave, codigo) { return valoresLista(clave, { ina
 /** Texto visible de un estado protegido (renombrable desde listas configurables). */
 export function textoEstado(clave, codigo) { return valorPorCodigo(clave, codigo)?.valor || codigo || ''; }
 export function colorEstado(clave, codigo) { return valorPorCodigo(clave, codigo)?.color || '#BAB0AC'; }
-export function opcionesEstado(clave) { return valoresLista(clave, { inactivos: true }).map(v => ({ value: v.codigo, label: v.valor })); }
+export function opcionesEstado(clave) {
+  return valoresLista(clave, { inactivos: true }).map(v => ({ value: v.codigo, label: v.valor, ayuda: v.descripcion || AYUDA_ESTADOS[clave]?.[v.codigo] || '' }));
+}
 
 export function param(clave) { return store.parametros[clave] ?? PARAMETROS_INICIALES[clave]; }
+
+// ---------- Look Ahead (pedido 110) ----------
+// Configuración → Parámetros: día en que se registra el Look Ahead y si planifica esa misma semana o la siguiente.
+export function configLookAhead() {
+  const c = { ...PARAMETROS_INICIALES.look_ahead, ...(param('look_ahead') || {}) };
+  // Varios días (pedido 111); se acepta el formato anterior de un solo día ("dia")
+  const lista = (Array.isArray(c.dias) && c.dias.length ? c.dias : [c.dia ?? 5]).map(Number).filter(d => d >= 1 && d <= 7);
+  const dias = [...new Set(lista.length ? lista : [5])].sort((a, b) => a - b);
+  return { dias, ultimo: dias.at(-1), semana: c.semana === 'actual' ? 'actual' : 'siguiente' };
+}
+/** Primera semana del Look Ahead: la que se planifica y se compromete (la actual o la siguiente). */
+export function semanaInicioLA() { return configLookAhead().semana === 'actual' ? lunes() : sumarSemanas(lunes(), 1); }
+/** Semanas del horizonte del Look Ahead, desde semanaInicioLA(). */
+export function semanasLookAhead() {
+  const n = Number(param('semanas_lookahead')) || 3;
+  return Array.from({ length: n }, (_, i) => sumarSemanas(semanaInicioLA(), i));
+}
+/** ¿La semana todavía se está planificando? Lo que se agregue al Plan cuenta como programado (no como "no programado"). */
+export function semanaEnPlanificacion(semana) {
+  const actual = lunes();
+  if (semana > actual) return true;
+  if (semana < actual || configLookAhead().semana !== 'actual') return false;
+  const diaHoy = ((new Date().getDay() + 6) % 7) + 1;   // 1 = lunes … 7 = domingo
+  return diaHoy <= configLookAhead().ultimo;   // hasta el último día de registro
+}
+/** Días de la reunión de cumplimiento del plan semanal (pedido 112); acepta el formato anterior { dia }. */
+export function diasReunion() {
+  const r = { ...PARAMETROS_INICIALES.reunion, ...(param('reunion') || {}) };
+  const lista = (Array.isArray(r.dias) && r.dias.length ? r.dias : [r.dia ?? 5]).map(Number).filter(d => d >= 1 && d <= 7);
+  return [...new Set(lista.length ? lista : [5])].sort((a, b) => a - b);
+}
+const unirDias = ds => { const n = ds.map(d => DIAS_NOMBRE[d - 1].toLowerCase()); return n.length > 1 ? `${n.slice(0, -1).join(', ')} y ${n.at(-1)}` : n[0]; };
+/** "viernes", "viernes y sábado"… */
+export function textoDiasReunion() { return unirDias(diasReunion()); }
+/** "lunes", "lunes y martes", "lunes, martes y miércoles"… */
+export function diaLookAhead() {
+  const n = configLookAhead().dias.map(d => DIAS_NOMBRE[d - 1].toLowerCase());
+  return n.length > 1 ? `${n.slice(0, -1).join(', ')} y ${n.at(-1)}` : n[0];
+}
 
 // ---------- Personas ----------
 export function perfil(id) { return store.perfiles.find(p => p.id === id); }
 export function nombre(id) { return perfil(id)?.nombre || ''; }
 export function lideres({ inactivos = false } = {}) {
-  return store.perfiles.filter(p => ['admin', 'delegado', 'lider'].includes(p.rol) && (inactivos || p.activo));
+  return store.perfiles.filter(p => ['superadmin', 'admin', 'delegado', ...PLANIFICADORES].includes(p.rol) && !p.eliminado && (inactivos || p.activo));
 }
-/** Personas que planifican: líderes y delegado; el administrador solo si tiene actividades en 'acts'. */
-export function equipo(acts = []) {
-  const conActs = new Set(acts.map(a => a.responsable_id));
-  return lideres().filter(p => p.rol !== 'admin' || conActs.has(p.id));
+/** Todas las personas del equipo: administradores, delegado y roles que planifican (no consulta ni pendientes), por nombre. */
+export function equipo() {
+  return lideres().slice().sort((a, b) => a.nombre.localeCompare(b.nombre));
 }
 /** Restricción de visibilidad de consulta (en Supabase la aplica RLS; aquí también en modo demostración). */
 export function visibleParaConsulta(proyectoId) {
@@ -127,6 +183,24 @@ export function horasDia(id) { return Number(perfil(id)?.horas_dia ?? param('hor
 
 // ---------- Proyectos ----------
 export function proyecto(id) { return store.proyectos.find(p => p.id === id); }
+/** CET / Servicio asociado a un proyecto (columna Proyecto de la lista "CET / Servicio"), si hay uno solo. */
+export function servicioDeProyecto(p) {
+  if (!p) return null;
+  const asociados = valoresLista('servicios').filter(v => v.extra?.proyecto_id === p.id);
+  return asociados.length === 1 ? asociados[0].id : null;
+}
+/** Proyecto al que pertenece un CET / Servicio (columna Proyecto de la lista), o null. */
+export function proyectoDeServicio(id) { return (id && store.valores.get(id)?.extra?.proyecto_id) || null; }
+/**
+ * Opciones de CET / Servicio para elegir: si se indica un proyecto, solo los de ese proyecto y los que no tienen proyecto
+ * (si el proyecto no tiene ninguno asociado, se ofrecen todos). etiqueta(v) arma el texto de cada opción.
+ */
+export function opcionesServicio({ proyectoId = null, etiqueta: etq = v => (v.codigo ? `${v.codigo} · ${v.valor}` : v.valor), vacio = true } = {}) {
+  let vs = valoresLista('servicios');
+  if (proyectoId && vs.some(v => v.extra?.proyecto_id === proyectoId)) vs = vs.filter(v => !v.extra?.proyecto_id || v.extra.proyecto_id === proyectoId);
+  const ops = vs.map(v => ({ value: v.id, label: etq(v) }));
+  return vacio ? [{ value: null, label: '—' }, ...ops] : ops;
+}
 export function nombreProyecto(id) { const p = proyecto(id); return p ? `${p.codigo} · ${p.nombre_corto}` : ''; }
 export function proyectosActivos() { return store.proyectos.filter(p => p.estado === 'activo' || p.estado === 'propuesto'); }
 export function opcionesProyectos() {
@@ -134,8 +208,10 @@ export function opcionesProyectos() {
     value: p.id, label: `${p.codigo} · ${p.nombre_corto}${p.estado === 'propuesto' ? ' (por aprobar)' : ''}` }))];
 }
 export function misProyectos() {
-  const ids = new Set(store.proyectoLideres.filter(l => l.usuario_id === store.usuario?.id).map(l => l.proyecto_id));
-  return store.proyectos.filter(p => ids.has(p.id));
+  // Proyectos donde la persona es líder y los que ella misma agregó (pedido 100)
+  const yo = store.usuario?.id;
+  const ids = new Set(store.proyectoLideres.filter(l => l.usuario_id === yo).map(l => l.proyecto_id));
+  return store.proyectos.filter(p => ids.has(p.id) || (p.created_by && p.created_by === yo));
 }
 export function seleccionarProyecto(id) {
   store.proyectoSel = id || '';

@@ -1,5 +1,5 @@
 // Definición de columnas de la grilla de actividades (Plan semanal y Look Ahead) + columnas personalizadas.
-import { store, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, esGestor, textoEstado } from '../core/store.js';
+import { store, opciones, valoresLista, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, servicioDeProyecto, proyectoDeServicio, opcionesServicio, esGestor, textoEstado, param } from '../core/store.js';
 import { DIAS, DIAS_CORTOS, sumarDias, fmtCorto, esc, etiquetaSemana } from '../core/util.js';
 import { semanasPendiente } from './indicadores.js';
 
@@ -21,9 +21,10 @@ export function columnasPersonalizadas(grilla) {
  */
 export function columnasActividad({ modo, semana, semanasLA = [], extras = {} }) {
   const dias = DIAS.map((d, i) => ({
-    field: `hh_${d}`, alias: [d, DIAS_CORTOS[i], `hh ${d}`, ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'][i]], title: modo === 'plan' && semana ? `${DIAS_CORTOS[i]} ${fmtCorto(sumarDias(semana, i))}` : DIAS_CORTOS[i],
-    tipo: 'numero', ancho: 74, ocultarCero: true, total: true, vacioCero: true, paso: 0.5, filtro: false,
-    visible: i < 5 || undefined, ayuda: `HH del ${['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'][i]}`,
+    field: `hh_${d}`, alias: [d, DIAS_CORTOS[i], `hh ${d}`, ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'][i]], title: DIAS_CORTOS[i],
+    tipo: 'numero', ancho: 46, minAncho: 38, anchoFijo: true, align: 'center', ocultarCero: true, total: true, vacioCero: true, paso: 0.5, filtro: false,
+    visibilidadFija: true,   // la visibilidad la decide el parámetro de días (no una vista guardada)
+    visible: i < 5 || !!param('trabajo_fin_semana') || (param('dias_laborables') || []).map(Number).includes(i + 1), ayuda: `HH del ${['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'][i]}${modo === 'plan' && semana ? ` ${fmtCorto(sumarDias(semana, i))}` : ''}`,
   }));
   const cols = [
     modo === 'lookahead' ? {
@@ -31,14 +32,23 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
       opciones: () => semanasLA.map(s => ({ value: s, label: etiquetaSemana(s) })),
       formatoGrupo: s => etiquetaSemana(s),
     } : null,
+    // Plan semanal: la semana de cada compromiso, solo lectura (para moverlo de semana: clic derecho → Mover a la semana siguiente)
+    modo === 'plan' ? { field: 'semana', title: 'Semana', tipo: 'texto', ancho: 160, posicionFija: true, editable: false, filtro: false,
+      formato: v => esc(v ? etiquetaSemana(v) : ''), exportar: v => (v ? etiquetaSemana(v) : '') } : null,
     { field: 'responsable_id', title: 'Resp. 1', tipo: 'lista', ancho: 130, opciones: opcionesLideres, editable: () => esGestor(),
       ayuda: 'Responsable (el PAC se atribuye a esta persona)' },
-    { field: 'resp2', title: 'Resp. 2', tipo: 'texto', ancho: 110, ayuda: 'Persona de apoyo (solo dato)' },
     { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 95, opciones: () => opciones('gerencias').map(o => ({ ...o, label: o.value ? (store.valores.get(o.value)?.codigo || o.label) : o.label })) },
     { field: 'proyecto_id', title: 'Proyecto / Proceso', tipo: 'lista', ancho: 190, opciones: opcionesProyectos },
-    { field: 'cet_id', title: 'CET', tipo: 'lista', ancho: 85, opciones: () => opciones('cet'), visible: false },
-    { field: 'servicio_id', title: 'Servicio / Entregable', tipo: 'lista', ancho: 180, opciones: () => opciones('servicios') },
-    { field: 'descripcion', title: 'Actividad', tipo: 'texto', ancho: 300, minAncho: 160 },
+    // CET y Servicio van juntos (como nombre y apellido): son el mismo valor de la lista "CET / Servicio" visto por su código
+    // o por su nombre. Elegir o pegar uno completa el otro.
+    { field: '_cet', title: 'CET', tipo: 'lista', ancho: 100, posicionFija: true, ayuda: 'CET del servicio (al elegirlo se completa el Servicio)',
+      valor: d => d.servicio_id ?? null,
+      opciones: () => [{ value: null, label: '—' }, ...valoresLista('servicios', { inactivos: true }).map(v => ({ value: v.id, label: v.codigo || '' }))],
+      // Al editar: los CET del proyecto de la fila (y los que no tienen proyecto)
+      opcionesEdicion: d => opcionesServicio({ proyectoId: d?.proyecto_id }).filter(o => o.value == null || store.valores.get(o.value)?.codigo) },
+    { field: 'servicio_id', title: 'Servicio', tipo: 'lista', ancho: 180, opciones: () => opciones('servicios'),
+      opcionesEdicion: d => opcionesServicio({ proyectoId: d?.proyecto_id, etiqueta: v => v.valor }) },
+    { field: 'descripcion', title: 'Actividad', tipo: 'textoLargo', ancho: 300, minAncho: 160 },   // varias líneas: la fila crece
     ...dias,
     { field: 'hh_total', title: 'HH', tipo: 'numero', ancho: 64, calc: true, total: true, filtro: false },
   ];
@@ -71,7 +81,7 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
         return d.id ? `<button class="mini-btn" title="Comentarios y enlaces">${n || '＋'}</button>` : '';
       },
       click: (d, e) => { if (d.id && e.target.closest('button')) extras.abrirDetalle?.(d); } },
-    { field: 'comentario', title: 'Comentario', tipo: 'texto', ancho: 200 },
+    { field: 'comentario', title: 'Comentario', tipo: 'textoLargo', ancho: 220 },   // varias líneas, como Actividad
   );
   if (modo === 'plan') {
     cols.push({ field: '_pend', title: 'Sem. pend.', tipo: 'numero', ancho: 70, calc: true, ayuda: 'Semanas que el compromiso lleva pendiente (RN-06)',
@@ -85,16 +95,45 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
   return cols.filter(Boolean);
 }
 
-/** Al elegir un proyecto se completan gerencia y CET si están vacíos; si se completa, se limpia la CNC. */
-export function derivarActividad(fila, cambios) {
+/**
+ * Proyecto, Gerencia y CET / Servicio van juntos (Plan, Look Ahead, Plantillas y Cartera):
+ * al elegir un proyecto se completan su gerencia y su CET / Servicio (si la lista tiene uno solo asociado);
+ * al elegir un CET o un Servicio se completa el otro y, si la fila no tiene proyecto, el proyecto de ese servicio.
+ */
+export function derivarProyectoServicio(fila, cambios) {
   const d = {};
-  if (Object.keys(cambios).some(k => k.startsWith('hh_') && k !== 'hh_real' && k !== 'hh_total')) {
-    d.hh_total = DIAS.reduce((s, x) => s + (Number(fila[`hh_${x}`]) || 0), 0);
-  }
   if ('proyecto_id' in cambios && cambios.proyecto_id) {
     const p = proyecto(cambios.proyecto_id);
     if (p?.gerencia_id) d.gerencia_id = p.gerencia_id;
-    if (p?.cet_id && !fila.cet_id) d.cet_id = p.cet_id;
+    const serv = servicioDeProyecto(p);
+    const otro = proyectoDeServicio(fila.servicio_id);
+    // Proyecto con un solo CET / Servicio: se usa ese, salvo que la fila ya tenga uno de este mismo proyecto.
+    // Si el de la fila pertenece a otro proyecto, se reemplaza (o se limpia).
+    if (serv && otro !== p?.id) d.servicio_id = serv;
+    else if (fila.servicio_id && otro && otro !== p?.id) d.servicio_id = null;
+  }
+  if ('_cet' in cambios) d.servicio_id = cambios._cet ?? null;            // CET elegido → su Servicio
+  // Servicio de un proyecto elegido en una fila sin proyecto: se completan el proyecto y su gerencia
+  const servElegido = '_cet' in cambios ? cambios._cet : 'servicio_id' in cambios ? cambios.servicio_id : undefined;
+  if (servElegido && !fila.proyecto_id && !('proyecto_id' in cambios)) {
+    const p = proyecto(proyectoDeServicio(servElegido));
+    if (p && ['activo', 'propuesto'].includes(p.estado)) { d.proyecto_id = p.id; if (p.gerencia_id) d.gerencia_id = p.gerencia_id; }
+  }
+  if ('servicio_id' in d || 'servicio_id' in cambios) d._cet = d.servicio_id ?? cambios.servicio_id ?? null;
+  return d;
+}
+
+/** Reglas de la fila de actividad: HH total, proyecto ↔ servicio, Estado LA ↔ compromiso y CNC. */
+export function derivarActividad(fila, cambios) {
+  const d = derivarProyectoServicio(fila, cambios);
+  if (Object.keys(cambios).some(k => k.startsWith('hh_') && k !== 'hh_real' && k !== 'hh_total')) {
+    d.hh_total = DIAS.reduce((s, x) => s + (Number(fila[`hh_${x}`]) || 0), 0);
+  }
+  // Estado LA elegido a mano: "Trasladada al plan" compromete la actividad (aparece en el Plan semanal);
+  // volver a Pendiente, Con restricción o Lista la saca del Plan. Cancelada no cambia el compromiso.
+  if ('estado_la' in cambios) {
+    if (cambios.estado_la === 'trasladada') { d.comprometida = true; d.tipo = fila.tipo || 'programada'; }
+    else if (['pendiente', 'con_restriccion', 'lista'].includes(cambios.estado_la) && fila.comprometida) d.comprometida = false;
   }
   if ('estado' in cambios && cambios.estado !== 'no_completado' && fila.cnc_id) d.cnc_id = null;
   if ('estado' in cambios && cambios.estado === 'completado' && fila.hh_real == null && fila.hh_total) d.hh_real = fila.hh_total;

@@ -1,6 +1,6 @@
 // Reunión semanal (6.13) y modo reunión a pantalla completa con temporizador por paso (M-04).
 import { api, mensajeError } from '../data/api.js';
-import { store, puede, lideres, equipo, nombre, etiqueta, param, opciones, opcionesLideres, proyecto, textoEstado, colorEstado } from '../core/store.js';
+import { store, puede, lideres, equipo, semanaInicioLA, semanasLookAhead, nombre, etiqueta, param, opciones, opcionesLideres, proyecto, textoEstado, colorEstado } from '../core/store.js';
 import { lunes, sumarSemanas, etiquetaSemana, esc, html, pct, num, hoy, fmtFecha, sumarDias } from '../core/util.js';
 import { kpi, badge, ok, error, pedirDatos } from '../ui/ui.js';
 import { resumenPAC, colorPAC, paretoCNC, resumenRestricciones, capacidadSemana, colorCarga } from '../services/indicadores.js';
@@ -11,7 +11,7 @@ const PASOS = [
   ['cierre', '1. Cierre de la semana anterior'],
   ['avance', '2. Avance de la semana en curso'],
   ['restricciones', '3. Restricciones'],
-  ['compromisos', '4. Compromisos de la semana siguiente'],
+  ['compromisos', '4. Compromisos de la semana a planificar'],
   ['lookahead', '5. Look Ahead'],
   ['acuerdos', '6. Acuerdos de mejora'],
 ];
@@ -21,10 +21,10 @@ let estado, timer, grillaAcuerdos;
 export async function render(el) {
   const actual = lunes();
   estado = { paso: 0, inicio: Date.now(), tiempos: {}, asistentes: new Set(), reunion: null,
-    anterior: sumarSemanas(actual, -1), actual, siguiente: sumarSemanas(actual, 1) };
+    anterior: sumarSemanas(actual, -1), actual, siguiente: semanaInicioLA() };   // la semana que se planifica (pedido 110)
   const area = store.area.id;
   const [acts, rests, ubic, acuerdos, reuniones] = await Promise.all([
-    api.list('actividades', { eq: { area_id: area }, gte: { semana: estado.anterior }, lte: { semana: sumarSemanas(actual, Number(param('semanas_lookahead')) || 3) } }),
+    api.list('actividades', { eq: { area_id: area }, gte: { semana: estado.anterior }, lte: { semana: semanasLookAhead().at(-1) } }),
     api.list('restricciones', { eq: { area_id: area } }),
     api.list('ubicaciones_dia', { eq: { area_id: area }, gte: { fecha: estado.siguiente }, lte: { fecha: sumarDias(estado.siguiente, 6) } }),
     api.list('acuerdos', { eq: { area_id: area }, order: [['created_at', false]] }),
@@ -40,7 +40,7 @@ export async function render(el) {
       <span class="flex"></span><span class="cronometro" data-crono>00:00</span>
       <button class="btn btn-sm" data-a="pantalla">⛶ Modo reunión</button>
       <button class="btn btn-sm" data-a="pdf">🖨 Acta PDF</button>
-      ${puede('gestionar_reuniones') ? '<button class="btn btn-sm btn-primario" data-a="guardar">💾 Guardar reunión</button>' : ''}</div>
+      ${esGestor() ? '<button class="btn btn-sm btn-primario" data-a="guardar">💾 Guardar reunión</button>' : ''}</div>
     <div class="reunion-pasos">${PASOS.map(([k, t], i) => `<button class="reunion-paso" data-paso="${i}">${t}</button>`).join('')}</div>
     <details class="tarjeta" style="margin-bottom:12px"><summary><b>Asistentes</b> <span class="nota" data-asis-n></span></summary>
       <div class="multi" style="margin-top:8px;border:none">${lideres().map(l => `<label class="chk"><input type="checkbox" data-asis="${l.id}" ${estado.asistentes.has(l.id) ? 'checked' : ''}> ${esc(l.nombre)}</label>`).join('')}</div></details>
@@ -156,7 +156,7 @@ const PINTORES = {
       }).join('')}</table><p><a class="btn btn-azul" href="#/lookahead">Abrir el Look Ahead para comprometer ›</a></p></div>`;
   },
   lookahead(c) {
-    const semanas = Array.from({ length: Number(param('semanas_lookahead')) || 3 }, (_, i) => sumarSemanas(estado.actual, i + 1));
+    const semanas = semanasLookAhead();
     c.innerHTML = `<div class="tarjeta"><h2>Actividades del Look Ahead</h2><table class="simple"><tr><th>Líder</th>${semanas.map(s => `<th class="num">${esc(etiquetaSemana(s).split('·')[0])}</th>`).join('')}</tr>
       ${estado.equipo.map(l => `<tr><td>${esc(l.nombre)}</td>${semanas.map(s => {
         const m = estado.acts.filter(a => a.semana === s && a.responsable_id === l.id && a.estado_la !== 'cancelada');
@@ -167,7 +167,7 @@ const PINTORES = {
   acuerdos(c) {
     c.innerHTML = '<div class="aviso">Registre acciones de mejora a partir de las causas de no cumplimiento. Cada responsable puede actualizar el estado de sus acuerdos.</div><div data-g></div>';
     grillaAcuerdos = crearGrilla(c.querySelector('[data-g]'), {
-      id: 'acuerdos', tabla: 'acuerdos', titulo: 'Acuerdos', altura: '420px', puedeCrear: puede('gestionar_reuniones'),
+      id: 'acuerdos', tabla: 'acuerdos', titulo: 'Acuerdos', altura: '420px', puedeCrear: esGestor(),
       columnas: [
         { field: 'cnc_id', title: 'Causa (CNC)', tipo: 'lista', ancho: 230, opciones: () => opciones('cnc') },
         { field: 'accion', title: 'Acción de mejora', tipo: 'texto', ancho: 340 },
@@ -175,7 +175,7 @@ const PINTORES = {
         { field: 'fecha', title: 'Fecha', tipo: 'fecha', ancho: 105 },
         { field: 'estado', title: 'Estado', tipo: 'lista', ancho: 120, opciones: [{ value: 'pendiente', label: 'Pendiente' }, { value: 'en_proceso', label: 'En proceso' }, { value: 'cumplido', label: 'Cumplido' }, { value: 'cancelado', label: 'Cancelado' }] },
       ],
-      puedeEditarFila: a => puede('gestionar_reuniones') || a.responsable_id === store.usuario.id,
+      puedeEditarFila: a => esGestor() || a.responsable_id === store.usuario.id,
       nuevaFila: () => ({ area_id: store.area.id, reunion_id: estado.reunion?.id || null, estado: 'pendiente', accion: '' }),
       listaParaCrear: a => !!(a.accion && a.accion.trim()),
       camposCalc: ['created_at', 'updated_at', 'created_by'],

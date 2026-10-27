@@ -1,5 +1,7 @@
 // Enrutador por hash (#/ruta/parametro?clave=valor). Cada vista exporta render(el, params) y opcionalmente destruir().
 
+import { medir } from './monitoreo.js';
+
 const rutas = [];
 let vistaActual = null;
 let contenedor = null;
@@ -55,10 +57,10 @@ async function resolver(porDefecto) {
     const mod = await encontrada.cargar();
     vistaActual = mod;
     contenedor.innerHTML = '';
-    await mod.render(contenedor, { ...params, query });
+    await medir(`pantalla ${encontrada.patron}`, () => mod.render(contenedor, { ...params, query }));
     contenedor.scrollTop = 0;
   } catch (e) {
     console.error(e);
-    contenedor.innerHTML = `<div class="aviso error">No se pudo cargar la página: ${String(e.message || e)}</div>`;
+    contenedor.innerHTML = `<div class="aviso error">No se pudo cargar la página: ${String(e.message || e).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`)}</div>`;
   }
 }

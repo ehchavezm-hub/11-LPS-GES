@@ -16,6 +16,7 @@ const ARCHIVOS = [
   'js/services/indicadores.js',
   'js/services/pdf.js',
   'js/services/resumen.js',
+  'js/services/traer-demo.js',
   'js/views/actividad.js',
   'js/views/ayuda.js',
   'js/views/cartera.js',
@@ -31,6 +32,10 @@ const ARCHIVOS = [
   'js/views/restricciones.js',
   'js/views/reunion.js',
   'js/views/tablero.js',
+  'js/views/organigrama.js',
+  'js/views/importar-proyectos.js',
+  'js/views/traer-demo.js',
+  'js/views/reportes.js',
   'js/data/adapter-demo.js',
   'js/data/adapter-supabase.js',
   'js/data/api.js',
@@ -39,6 +44,7 @@ const ARCHIVOS = [
   'js/core/router.js',
   'js/core/store.js',
   'js/core/util.js',
+  'js/core/monitoreo.js',
   'vendor/chart.umd.min.js',
   'vendor/supabase.min.js',
   'vendor/tabulator.min.css',
@@ -50,7 +56,8 @@ const ARCHIVOS = [
 ];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));
+  // cache: 'reload' evita copiar al service worker archivos viejos de la caché HTTP del navegador
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(ARCHIVOS.map(a => new Request(a, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', e => {
@@ -78,7 +85,8 @@ self.addEventListener('fetch', e => {
       const copia = res.clone(); caches.open(VERSION).then(c => c.put(req, copia)); return res;
     })));
   } else {
-    e.respondWith(fetch(req).then(res => {
+    // GitHub Pages permite al navegador reutilizar archivos 10 minutos: 'no-cache' obliga a confirmar con el servidor
+    e.respondWith(fetch(req, { cache: 'no-cache' }).then(res => {
       if (res.ok) { const copia = res.clone(); caches.open(VERSION).then(c => c.put(req, copia)); }
       return res;
     }).catch(() => caches.match(req).then(r => r || caches.match('index.html'))));

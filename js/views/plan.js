@@ -1,4 +1,5 @@
 // Plan semanal (6.9): compromisos de la semana, avance, cierre con CNC y HH reales, PAC.
+import { medir } from '../core/monitoreo.js';
 import { api, mensajeError } from '../data/api.js';
 import { store, on, esGestor, puede, puedeEditarActividad, lideres, nombre, proyecto, horasDia } from '../core/store.js';
 import { lunes, sumarSemanas, etiquetaSemana, esc, html, hoy, pct, num, sumarDias, fmtFecha, DIAS } from '../core/util.js';
@@ -10,7 +11,7 @@ import { resumenPAC, colorPAC, capacidadSemana, colorCarga, restriccionesActivas
 import { abrirDetalle, abrirRestricciones, confirmarRestricciones } from './detalle.js';
 import { mostrarResumen } from '../services/resumen.js';
 import { imprimirPDF, tablaPDF, kpisPDF } from '../services/pdf.js';
-import { etiqueta, textoEstado } from '../core/store.js';
+import { etiqueta, textoEstado, servicioDeProyecto, semanaEnPlanificacion } from '../core/store.js';
 
 let grilla, desuscribir = [], estado;
 
@@ -83,7 +84,6 @@ export async function render(el, { query }) {
       return '';
     },
     alGuardar: () => { cargarSilencioso(); },
-    nombreArchivo: () => `Plan_semanal_${estado.semana}`,
     menuFila: a => [
       { label: '🚧 Restricciones…', action: () => a.id && abrirRestricciones(a, { alCambiar: recargarRestricciones }) },
       { label: '💬 Comentarios y enlaces…', action: () => a.id && abrirDetalle('actividad', a) },
@@ -114,6 +114,7 @@ export function destruir() {
 }
 
 function cambiarSemana(s) {
+  s = lunes(s);   // la semana siempre empieza el lunes: la columna L es ese lunes
   estado.semana = s;
   actualizarQuery({ semana: s });
   grilla.destruir();
@@ -131,16 +132,19 @@ function respNuevo() { return estado.resp !== 'todos' ? estado.resp : store.usua
 
 function nuevaFila() {
   const p = store.proyectoSel ? proyecto(store.proyectoSel) : null;
-  const empezo = lunes() >= estado.semana;
+  // Programada mientras la semana se esté planificando (con Look Ahead de la misma semana: hasta el día de registro)
+  const empezo = !semanaEnPlanificacion(estado.semana);
   return {
     area_id: store.area.id, semana: estado.semana, responsable_id: respNuevo(), comprometida: true,
     tipo: empezo ? 'no_programada' : 'programada', estado: 'programado', estado_la: 'trasladada', origen: 'manual',
-    proyecto_id: p?.id || null, gerencia_id: p?.gerencia_id || null, cet_id: p?.cet_id || null,
+    proyecto_id: p?.id || null, gerencia_id: p?.gerencia_id || null, servicio_id: servicioDeProyecto(p),
     hh_lu: 0, hh_ma: 0, hh_mi: 0, hh_ju: 0, hh_vi: 0, hh_sa: 0, hh_do: 0, hh_total: 0, extra: {},
   };
 }
 
-async function cargar() {
+async function cargar() { return medir('plan.cargar', cargarDatos); }
+
+async function cargarDatos() {
   const area = store.area.id;
   const [acts, rests, cierres, ubic] = await Promise.all([
     api.list('actividades', { eq: { area_id: area, semana: estado.semana }, order: [['orden', true], ['created_at', true]] }),
@@ -205,22 +209,23 @@ function pintarCabecera() {
   const pendientesLA = estado.acts.filter(a => !a.comprometida && a.semana === estado.semana && (!resp || a.responsable_id === resp) && a.estado_la !== 'cancelada');
   const cerradosEquipo = lideres().filter(l => cerrada(l.id)).length;
   aviso.innerHTML = [
-    cerradaResp ? `<div class="aviso ok">🔒 La semana de ${esc(nombre(resp))} está cerrada${estado.cierres.find(c => c.responsable_id === resp)?.automatico ? ' (cierre automático)' : ''}. ${puede('reabrir_semana') ? 'Puede reabrirla si necesita corregir algo.' : 'Solo el administrador puede reabrirla.'}</div>` : '',
+    cerradaResp ? `<div class="aviso ok">🔒 La semana de ${esc(nombre(resp))} está cerrada${estado.cierres.find(c => c.responsable_id === resp)?.automatico ? ' (cierre automático)' : ''}. ${esAdmin() ? 'Puede reabrirla si necesita corregir algo.' : 'Solo el administrador puede reabrirla.'}</div>` : '',
     !resp ? `<div class="aviso">Semanas cerradas: <b>${cerradosEquipo}</b> de ${lideres().length} líderes. Elija un responsable para cerrar o reabrir su semana.</div>` : '',
     pendientesLA.length ? `<div class="aviso warn">Hay ${pendientesLA.length} actividad(es) del Look Ahead de esta semana aún no comprometidas. Use "Traer del Look Ahead".</div>` : '',
     estado.semana < actual && resp && !cerradaResp ? `<div class="aviso warn">Esta semana ya pasó y aún no está cerrada. Complete estados, CNC y HH reales y ciérrela.</div>` : '',
   ].join('');
 
-  const puedeOperar = resp && (resp === yo || puede('cerrar_semana_otros')) ;
+  const puedeOperar = resp && (resp === yo || puede('cerrar_semana')) ;
   const acc = pag.querySelector('[data-acciones]');
   acc.innerHTML = `
     <button class="btn btn-sm" data-a="traer" title="Comprometer las actividades listas del Look Ahead de esta semana">⬇ Traer del Look Ahead</button>
     <button class="btn btn-sm" data-a="recurrentes" title="Agregar las actividades recurrentes de su plantilla">🔁 Recurrentes</button>
     <button class="btn btn-sm" data-a="arrastrar" title="Copiar las no completadas de la semana anterior">↪ Arrastrar no completadas</button>
     <button class="btn btn-sm" data-a="completar" title="Marcar las seleccionadas o todas como completadas">✔ Marcar estados…</button>
+    ${esGestor() || esGestor() ? '<button class="btn btn-sm" data-a="cet" title="Agregar un CET / Servicio nuevo (lo verá todo el equipo)">＋ Agregar CET / Servicio</button>' : ''}
     <span class="flex"></span>
     ${puedeOperar && !cerradaResp ? '<button class="btn btn-azul" data-a="cerrar">🔒 Cerrar semana</button>' : ''}
-    ${resp && cerradaResp && puede('reabrir_semana') ? '<button class="btn" data-a="reabrir">🔓 Reabrir semana</button>' : ''}`;
+    ${resp && cerradaResp && esAdmin() ? '<button class="btn" data-a="reabrir">🔓 Reabrir semana</button>' : ''}`;
 }
 
 function pintarKPIs() {
@@ -244,6 +249,10 @@ function pintarKPIs() {
 
 // ---------- Acciones ----------
 const acciones = {
+  async cet() {   // pedido 100: CET / Servicio nuevo sin salir del Plan
+    const id = await (await import('./proyectos.js')).nuevoCETServicio({ proyectoId: store.proyectoSel || null });
+    if (id) grilla.refrescar();
+  },
   async traer() {
     const resp = estado.resp === 'todos' ? null : estado.resp;
     const cands = estado.acts.filter(a => !a.comprometida && a.estado_la !== 'cancelada' &&
@@ -251,7 +260,7 @@ const acciones = {
     if (!cands.length) return toast('No hay actividades del Look Ahead pendientes de comprometer en esta semana.', 'info');
     const cuerpo = html(`<div><p>Seleccione las actividades que se comprometen esta semana:</p>
       <table class="simple"><tr><th></th><th>Responsable</th><th>Actividad</th><th>Estado LA</th><th class="num">HH</th></tr>
-      ${cands.map(a => `<tr><td><input type="checkbox" value="${a.id}" ${a.estado_la === 'lista' ? 'checked' : ''}></td><td>${esc(nombre(a.responsable_id))}</td>
+      ${cands.map(a => `<tr><td><input type="checkbox" value="${a.id}" ${['lista', 'trasladada'].includes(a.estado_la) ? 'checked' : ''}></td><td>${esc(nombre(a.responsable_id))}</td>
         <td>${esc(a.descripcion)}</td><td>${esc(textoEstado('estados_la', a.estado_la))}${restriccionesActivas(a.id, estado.rests).length ? ' 🚧' : ''}</td>
         <td class="num">${num(a.hh_total)}</td></tr>`).join('')}</table></div>`);
     modal({
@@ -401,10 +410,5 @@ function pdf() {
   imprimirPDF('Plan semanal', `<p class="nota">${esc(etiquetaSemana(estado.semana))} · ${esc(resp)}</p>` +
     kpisPDF([['PAC', pct(r.pac), colorPAC(r.pac)], ['Comprometidas', r.comprometidas], ['Completadas', r.completadas, '#59A14F'],
       ['No completadas', r.noCompletadas, '#E15759'], ['No programadas', r.noProgramadas, '#F28E2B'], ['HH plan', num(r.hhPlan)]]) +
-    tablaPDF([
-      { titulo: 'Resp. 1', valor: a => nombre(a.responsable_id) }, { titulo: 'Proyecto', valor: a => proyecto(a.proyecto_id)?.nombre_corto || '' },
-      { titulo: 'Actividad', valor: a => a.descripcion }, { titulo: 'HH', valor: a => num(a.hh_total), num: true },
-      { titulo: 'Tipo', valor: a => textoEstado('tipos_actividad', a.tipo) }, { titulo: 'Estado', valor: a => textoEstado('estados_compromiso', a.estado) },
-      { titulo: 'CNC', valor: a => etiqueta(a.cnc_id) }, { titulo: 'HH real', valor: a => num(a.hh_real), num: true },
-    ], acts), { orientacion: 'landscape' });
+    tablaPDF(grilla.columnasPDF(), acts), { orientacion: 'landscape' });   // mismas columnas y anchos que en pantalla
 }

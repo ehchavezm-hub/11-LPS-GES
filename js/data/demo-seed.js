@@ -30,6 +30,8 @@ export function crearDatosDemo() {
       valores[clave].push(v);
     });
   }
+  // Demostración: cada servicio con un CET ficticio, para que se vea el par CET ↔ Servicio
+  valores.servicios.forEach((v, i) => { if (!v.codigo) v.codigo = `CET-${String(101 + i)}`; });
   const vid = (clave, codigoOValor) => valores[clave].find(v => v.codigo === codigoOValor || v.valor === codigoOValor)?.id;
 
   db.parametros = Object.entries(PARAMETROS_INICIALES).map(([clave, valor]) => ({ id: uuid(), area_id: area, clave, valor, updated_at: ahora }));
@@ -42,11 +44,11 @@ export function crearDatosDemo() {
   const persona = (nombre, codigo, rol, extra = {}) => ({
     id: uuid(), area_id: area, email: codigo.toLowerCase() + '@demo.lpsgt', nombre, codigo, rol, es_admin_principal: false,
     gerencia_ids: [], horas_dia: null, activo: true, tour_visto: true, created_at: ahora, updated_at: ahora, ...extra });
-  const admin = persona('Gerente Técnico (demo)', 'GT', 'admin', { es_admin_principal: true });
+  const admin = persona('Gerente Técnico (demo)', 'GT', 'superadmin', { es_admin_principal: true });
   const delegado = persona('Diana Rojas', 'DR', 'delegado');
   const lideres = [
-    persona('Ana Torres', 'AT', 'lider'), persona('Bruno Salas', 'BS', 'lider'), persona('Carla Medina', 'CM', 'lider'),
-    persona('Diego Paredes', 'DP', 'lider'), persona('Elena Quiroga', 'EQ', 'lider', { horas_dia: 6 }),
+    persona('Ana Torres', 'AT', 'resp_equipo'), persona('Bruno Salas', 'BS', 'lider'), persona('Carla Medina', 'CM', 'resp_proceso'),
+    persona('Diego Paredes', 'DP', 'resp_actividad'), persona('Elena Quiroga', 'EQ', 'lider', { horas_dia: 6 }),
   ];
   const consulta = persona('Fernando Ruiz (GOC)', 'FR', 'consulta', { gerencia_ids: [vid('gerencias', 'GOC')] });
   const pendiente = persona('Gabriela Núñez', 'GN', 'pendiente');
@@ -65,7 +67,7 @@ export function crearDatosDemo() {
     proy('D-103', 'Puente Demo Río Azul', 'GOF', 'Preconstrucción'),
     proy('D-104', 'Edificio Corporativo Demo', 'GOC', 'Construcción'),
     proy('D-105', 'Licitación Demo Aeropuerto', 'PyL', 'Diseño'),
-    { ...proy('INT-01', 'Gestión del área', 'GI', 'Permanente'), tipo_id: vid('tipos_proyecto', 'Gestión del área'), cet_id: vid('cet', 'CET-001') },
+    { ...proy('INT-01', 'Gestión del área', 'GI', 'Permanente'), tipo_id: vid('tipos_proyecto', 'Gestión del área') },
     { ...proy('INT-02', 'Biblioteca de estándares BIM', 'GIPT', 'Permanente'), tipo_id: vid('tipos_proyecto', 'Proceso interno') },
     proy('D-106', 'Ampliación Demo Puerto', 'GOF', 'Diseño', 'propuesto', { propuesto_por: lideres[2].id }),
   ];
