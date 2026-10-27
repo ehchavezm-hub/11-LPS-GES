@@ -398,10 +398,11 @@ async function parametros(el) {
       options: [{ value: 'actual', label: 'La misma semana (p. ej. el lunes, para esa semana)' }, { value: 'siguiente', label: 'La semana siguiente (p. ej. el viernes, para la próxima)' }],
       help: 'Define la primera semana del Look Ahead y la semana que se compromete. Con «la misma semana», lo que se agrega al Plan hasta el último día de registro cuenta como programado' },
     { name: 'cierre_dia', label: 'Día de cierre semanal', type: 'select', value: String(p.cierre?.dia || 5), options: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((d, i) => ({ value: String(i + 1), label: d })) },
-    { name: 'cierre_hora', label: 'Hora de cierre', type: 'time', value: p.cierre?.hora || '17:00' },
     { name: 'reunion_dias', label: 'Días de la reunión de cumplimiento del plan semanal', type: 'multiselect', value: diasReunion().map(String),
       options: ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((d, i) => ({ value: String(i + 1), label: d })) },
     { name: 'reunion_hora', label: 'Hora de la reunión', type: 'time', value: p.reunion?.hora || '08:00' },
+    { name: '_libre', type: 'vacio' },   // la Hora de cierre va debajo de la Hora de la reunión
+    { name: 'cierre_hora', label: 'Hora de cierre', type: 'time', value: p.cierre?.hora || '17:00' },
     { name: 'cierre_automatico', label: 'Cierre automático', type: 'checkbox', texto: 'Cerrar automáticamente las semanas vencidas (los compromisos sin estado quedan "No reportado")', value: p.cierre_automatico },
     { name: 'alerta_dias', label: 'Días de aviso de restricciones por vencer', type: 'number', min: 0, max: 30, value: p.alerta_dias },
     { name: 'arrastre_alerta', label: 'Alertar arrastres desde (semanas)', type: 'number', min: 1, max: 10, value: p.arrastre_alerta },
