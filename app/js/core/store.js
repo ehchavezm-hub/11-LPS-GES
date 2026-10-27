@@ -156,6 +156,13 @@ export function diasReunion() {
 const unirDias = ds => { const n = ds.map(d => DIAS_NOMBRE[d - 1].toLowerCase()); return n.length > 1 ? `${n.slice(0, -1).join(', ')} y ${n.at(-1)}` : n[0]; };
 /** "viernes", "viernes y sábado"… */
 export function textoDiasReunion() { return unirDias(diasReunion()); }
+/** Días de cierre semanal (casillas, como el Look Ahead). Los parámetros anteriores guardaban un solo "dia". */
+export function diasCierre() {
+  const c = { ...PARAMETROS_INICIALES.cierre, ...(param('cierre') || {}) };
+  const lista = (Array.isArray(c.dias) && c.dias.length ? c.dias : [c.dia ?? 5]).map(Number).filter(d => d >= 1 && d <= 7);
+  return [...new Set(lista.length ? lista : [5])].sort((a, b) => a - b);
+}
+export function textoDiasCierre() { return unirDias(diasCierre()); }
 /** "lunes", "lunes y martes", "lunes, martes y miércoles"… */
 export function diaLookAhead() {
   const n = configLookAhead().dias.map(d => DIAS_NOMBRE[d - 1].toLowerCase());

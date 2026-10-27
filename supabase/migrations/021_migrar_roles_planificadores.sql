@@ -10,6 +10,6 @@ update public.profiles
 
 -- Actualizar la función pública que valida si un rol puede planificar
 create or replace function public.rol_planifica(p_rol text) returns boolean
-  language sql immutable security definer set search_path = public as $$
+  language sql immutable set search_path = public, pg_temp as $$
   select p_rol = 'lider'
 $$;

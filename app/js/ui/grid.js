@@ -825,11 +825,13 @@ export function crearGrilla(contenedor, cfg) {
 
   // ---------- Vistas guardadas ----------
   let vistas = [];
+  const soloDisposicion = ({ field, width, visible, frozen }) =>
+    Object.fromEntries(Object.entries({ field, width, visible, frozen }).filter(([, v]) => v !== undefined));
   const usuarioId = () => store.usuario?.id;
   function estadoVista() {
     return {
       // Solo orden, ancho, visibilidad y fijación: el título lo pone la pantalla (p. ej. "L 26/10" cambia con la semana)
-      columnas: tabla.getColumnLayout().map(({ title, ...c }) => c),
+      columnas: tabla.getColumnLayout().map(soloDisposicion),
       orden: tabla.getSorters().map(s => ({ column: s.field, dir: s.dir })),
       agrupar: tabla.options.groupBy || '',
     };
@@ -841,7 +843,10 @@ export function crearGrilla(contenedor, cfg) {
         // Las vistas guardadas antes también traían el título: se descarta y se usa el actual
         // anchoFijo: el ancho lo define la columna (p. ej. días L–D angostos), no la vista guardada
         // visibilidadFija: la visibilidad la decide la pantalla (p. ej. sábado y domingo según el parámetro), no la vista guardada
-        const conocidas = cfgVista.columnas.filter(c => porCampo.has(c.field)).map(({ title, ...c }) => {
+        // Solo la disposición: las vistas guardadas antes traían también el editor ("input"), que reemplazaba
+        // la caja de varias líneas de Actividad y Comentario (no crecía al escribir)
+        const conocidas = cfgVista.columnas.filter(c => porCampo.has(c.field)).map(c => {
+          c = soloDisposicion(c);
           const def = porCampo.get(c.field);
           if (def.anchoFijo) delete c.width;
           if (def.visibilidadFija) c.visible = def.visible !== false;

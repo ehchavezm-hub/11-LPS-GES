@@ -140,6 +140,9 @@ Estado de cada observación al 25/10/2026.
 | 111 | Días de registro del Look Ahead como casillas (varios días, p. ej. lunes y martes) | ✅ Siete casillas en Configuración → Parámetros; lo agregado al Plan cuenta como programado hasta el último día marcado | `la110.js` (lunes y martes) | ✅ Humo sin errores |
 | 112 | Días de la reunión de cumplimiento del plan semanal como casillas (p. ej. viernes, sábado o domingo) | ✅ Siete casillas en Configuración → Parámetros; se pueden marcar varios días; la Ayuda los muestra | `reu112.js` (5 verificaciones) | ✅ Humo sin errores |
 | 114 | Configuración → Parámetros: al inicio Días laborables, Trabajo en sábado y domingo y Horas disponibles por día | ✅ | Captura de la pantalla | ✅ Pruebas de parámetros sin errores |
+| 115 | Integrar lo trabajado desde la otra cuenta y laptop (nombre LPS-GES, matriz de permisos PPT v5 con 4 roles, cajas de texto que crecen) | ✅ Integrado sin perder nada. Para aplicarlo se corrigió: el super administrador conserva todos sus accesos, la regla de líderes por proyecto vuelve a separar por área y se mantienen los mensajes del cierre | Pruebas de base de datos ajustadas a PPT v5 | ✅ Base de datos y humo (160 pantallas) sin errores |
+| 116 | Días de cierre semanal como casillas, igual que los días de registro del Look Ahead | ✅ Siete casillas en Configuración → Parámetros; el cierre automático espera hasta el último día marcado | `cierre_dias.js` (4 verificaciones) | ✅ Humo sin errores |
+| 117 | Comentario del Plan semanal no crecía al escribir (Actividad sí, y en el Look Ahead ambos) | ✅ Las vistas guardadas antes también guardaban el editor de una sola línea y lo reponían al abrir la pantalla; ahora la vista solo guarda orden, ancho, visibilidad y fijación | `crece_com7.js` (falla en la versión anterior, pasa en la nueva) | ✅ |
 
 ## Lo que encontró la reconfirmación
 

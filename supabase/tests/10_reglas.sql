@@ -51,6 +51,9 @@ select a.id, 'P-2', 'Proyecto GOC', (select lv.id from lista_valores lv join lis
 
 -- ---------- Líder ----------
 set role authenticated;
+-- PPT v5: "crear_cartera" del líder parte en falso; el administrador lo habilita para que proponga proyectos
+select como('admin@x.pe');
+update permisos set permitido = true where rol = 'lider' and accion = 'crear_cartera';
 select como('lider1@x.pe');
 
 insert into actividades (area_id, semana, responsable_id, proyecto_id, descripcion, comprometida, hh_lu)
@@ -83,11 +86,12 @@ select debe_fallar($q$ update actividades set descripcion = 'cambio' where descr
 update cierres set cerrada = false;  -- el líder no reabre: RLS no le muestra la fila para actualizar
 do $$ begin assert (select cerrada from cierres limit 1), 'el líder reabrió la semana'; end $$;
 
--- Proyectos: el líder propone, y desde la 018 (pedido 100) también agrega proyectos activos
+-- Proyectos (matriz PPT v5, migración 020): con "crear_cartera" el líder propone; las altas directas
+-- son del administrador o el delegado
 insert into proyectos (area_id, codigo, nombre_corto, estado, propuesto_por)
 values (mi_area(), 'P-3', 'Propuesto por líder', 'propuesto', auth.uid());
-insert into proyectos (area_id, codigo, nombre_corto, estado)
-values (mi_area(), 'P-4', 'Activo directo', 'activo');
+select debe_fallar($q$ insert into proyectos (area_id, codigo, nombre_corto, estado)
+  values (mi_area(), 'P-4', 'Activo directo', 'activo') $q$, 'row-level security');
 
 -- Listas: el líder no edita
 select debe_fallar($q$ insert into lista_valores (lista_id, valor)
@@ -102,8 +106,13 @@ select debe_fallar($q$ select exportar_respaldo() $q$, 'Solo el administrador');
 
 -- ---------- Delegado ----------
 select como('delegado@x.pe');
-select debe_fallar($q$ update profiles set rol = 'lider' where email = 'admin@x.pe' $q$, 'administrador principal');
-select debe_fallar($q$ update profiles set rol = 'delegado' where email = 'lider2@x.pe' $q$, 'super administrador');
+-- PPT v5: gestionar usuarios es solo del administrador; la RLS no le deja actualizar perfiles ajenos
+update profiles set rol = 'lider' where email = 'admin@x.pe';
+update profiles set rol = 'delegado' where email = 'lider2@x.pe';
+do $$ begin
+  assert (select rol from profiles where email = 'admin@x.pe') <> 'lider', 'el delegado cambió el rol del administrador';
+  assert (select rol from profiles where email = 'lider2@x.pe') <> 'delegado', 'el delegado asignó el rol delegado';
+end $$;
 update profiles set nombre = 'Líder Dos' where email = 'lider2@x.pe';
 update cierres set cerrada = false;
 do $$ begin assert not (select cerrada from cierres limit 1), 'el delegado no pudo reabrir'; end $$;
@@ -116,6 +125,9 @@ select debe_fallar($q$ delete from lista_valores where codigo = 'completado' $q$
 update lista_valores set valor = 'Hecho' where codigo = 'completado';
 
 -- ---------- Consulta ----------
+-- PPT v5: "crear_solicitud" de consulta parte en falso; el administrador lo habilita en la matriz
+select como('admin@x.pe');
+update permisos set permitido = true where rol = 'consulta' and accion = 'crear_solicitud';
 select como('consulta@x.pe');
 do $$ begin
   assert (select count(*) from proyectos) = 1, 'consulta ve proyectos de otras gerencias';
@@ -214,30 +226,26 @@ do $$ begin
   assert exists (select 1 from actividades a join profiles p on p.id = a.responsable_id where p.eliminado), 'historial perdido';
 end $$;
 
--- ---------- Roles de planificación (007) ----------
+-- ---------- Roles de planificación (021: un solo rol "lider") ----------
 reset role;
 do $$ begin perform set_config('request.jwt.claim.sub', '', false); end $$;
 insert into auth.users (email) values ('equipo@x.pe'), ('actividad@x.pe');
-update profiles set rol = 'resp_equipo' where email = 'equipo@x.pe';
-update profiles set rol = 'resp_actividad' where email = 'actividad@x.pe';
-set role authenticated;
-select como('equipo@x.pe');
+update profiles set rol = 'lider' where email in ('equipo@x.pe', 'actividad@x.pe');
 do $$ begin
-  assert es_staff(), 'resp_equipo debe planificar';
-  assert puede('editar_actividades_otros'), 'resp_equipo edita actividades de otros';
-end $$;
-select como('actividad@x.pe');
-do $$ begin
-  assert es_staff() and es_miembro(), 'resp_actividad debe planificar';
-  assert not puede('proponer_proyecto'), 'resp_actividad no propone proyectos';
-  assert puede('comentar'), 'resp_actividad comenta';
-end $$;
-reset role;
-do $$ begin perform set_config('request.jwt.claim.sub', '', false); end $$;
-do $$ begin
+  assert public.rol_planifica('lider') and not public.rol_planifica('resp_equipo'), 'solo el líder planifica';
+  begin update profiles set rol = 'resp_actividad' where email = 'actividad@x.pe'; raise exception 'aceptó un rol retirado';
+  exception when check_violation then null; end;
   begin update profiles set rol = 'inventado' where email = 'actividad@x.pe'; raise exception 'aceptó rol inválido';
   exception when check_violation then null; end;
 end $$;
+set role authenticated;
+select como('equipo@x.pe');
+do $$ begin
+  assert es_staff() and es_miembro(), 'el líder debe planificar';
+  assert not puede('cerrar_semana'), 'el líder no cierra semanas de otros por defecto';
+end $$;
+reset role;
+do $$ begin perform set_config('request.jwt.claim.sub', '', false); end $$;
 
 -- ---------- Super administrador (009) ----------
 reset role;
@@ -248,21 +256,21 @@ set role authenticated;
 select como('admin2@x.pe');
 do $$ begin
   assert es_admin() and not es_superadmin(), 'admin2 es admin, no super';
-  assert puede('gestionar_listas'), 'admin tiene todo por defecto';
+  assert puede('exportar_pdf'), 'admin tiene todo por defecto';
 end $$;
-select debe_fallar($q$ insert into permisos (area_id, rol, accion, permitido) select mi_area(), 'admin', 'gestionar_listas', false
+select debe_fallar($q$ insert into permisos (area_id, rol, accion, permitido) select mi_area(), 'admin', 'exportar_pdf', false
   on conflict (area_id, rol, accion) do update set permitido = excluded.permitido $q$, 'row-level security');
-update permisos set permitido = false where rol = 'delegado' and accion = 'importar_historico';
+update permisos set permitido = false where rol = 'delegado' and accion = 'importar_datos';
 select debe_fallar($q$ update profiles set rol = 'delegado' where email = 'equipo@x.pe' $q$, 'super administrador');
 select como('admin@x.pe');
 do $$ begin
-  assert coalesce((select permitido from permisos where rol = 'admin' and accion = 'gestionar_listas'), true), 'admin editó su propia columna';
-  assert not (select permitido from permisos where rol = 'delegado' and accion = 'importar_historico'), 'admin no pudo editar al delegado';
+  assert coalesce((select permitido from permisos where rol = 'admin' and accion = 'exportar_pdf'), true), 'admin editó su propia columna';
+  assert not (select permitido from permisos where rol = 'delegado' and accion = 'importar_datos'), 'admin no pudo editar al delegado';
 end $$;
-insert into permisos (area_id, rol, accion, permitido) select mi_area(), 'admin', 'gestionar_listas', false
+insert into permisos (area_id, rol, accion, permitido) select mi_area(), 'admin', 'exportar_pdf', false
   on conflict (area_id, rol, accion) do update set permitido = excluded.permitido;  -- superadmin sí
 select como('admin2@x.pe');
-do $$ begin assert not puede('gestionar_listas'), 'superadmin no pudo restringir al admin'; end $$;
+do $$ begin assert not puede('exportar_pdf'), 'superadmin no pudo restringir al admin'; end $$;
 reset role;
 
 -- ---------- Eliminar proyectos (011) ----------
@@ -390,35 +398,19 @@ delete from restricciones where descripcion = 'Falta información';
 reset role;
 do $$ begin assert (select estado_la from actividades where descripcion = 'LA con restricción') = 'lista', 'no volvió a Lista al eliminar la restricción'; end $$;
 
--- ---------- 018: los líderes agregan proyectos y CET / Servicio ----------
-insert into auth.users (email, raw_user_meta_data) values ('resp5@x.pe', '{"nombre":"Resp Cinco"}');
-select como('admin@x.pe');
-update profiles set rol = 'resp_actividad', activo = true, area_id = (select area_id from profiles where email = 'admin@x.pe') where email = 'resp5@x.pe';
+-- ---------- 020 (PPT v5): proyectos y CET / Servicio los agrega el administrador o el delegado ----------
 set role authenticated;
 select como('admin@x.pe');
 insert into proyectos (area_id, codigo, nombre_corto, estado) values (mi_area(), 'A-1', 'Proyecto del administrador', 'activo');
-reset role;
-set role authenticated;
+insert into lista_valores (lista_id, codigo, valor) values ((select id from listas where clave = 'servicios' and area_id = mi_area()), 'CET-A1', 'Servicio del administrador');
 select como('lider3@x.pe');
-insert into proyectos (area_id, codigo, nombre_corto, estado) values (mi_area(), 'L-1', 'Proyecto de líder', 'activo');
-update proyectos set nombre_corto = 'Proyecto de líder (editado)' where codigo = 'L-1';
-update proyectos set nombre_corto = 'X' where codigo = 'A-1';                         -- ajeno: RLS no lo modifica
-delete from proyectos where codigo = 'L-1';                                           -- no puede eliminar
-select debe_fallar($q$ update proyectos set estado = 'cerrado' where codigo = 'L-1' $q$, 'row-level security');
-insert into lista_valores (lista_id, codigo, valor, extra)
-values ((select id from listas where clave = 'servicios' and area_id = mi_area()), 'CET-L1', 'Servicio de líder',
-        jsonb_build_object('proyecto_id', (select id from proyectos where codigo = 'L-1')));
-select debe_fallar($q$ insert into lista_valores (lista_id, valor) values ((select id from listas where clave = 'gerencias' and area_id = mi_area()), 'Gerencia X') $q$, 'row-level security');
-select debe_fallar($q$ update lista_valores set valor = 'Y' where codigo = 'CET-L1' returning 1/0 $q$);
-select como('resp5@x.pe');
-select debe_fallar($q$ insert into proyectos (area_id, codigo, nombre_corto, estado) values (mi_area(), 'R-1', 'No', 'activo') $q$, 'row-level security');
-select debe_fallar($q$ insert into lista_valores (lista_id, codigo, valor) values ((select id from listas where clave = 'servicios' and area_id = mi_area()), 'CET-R1', 'No') $q$, 'row-level security');
+select debe_fallar($q$ insert into proyectos (area_id, codigo, nombre_corto, estado) values (mi_area(), 'L-1', 'No', 'activo') $q$, 'row-level security');
+select debe_fallar($q$ insert into lista_valores (lista_id, codigo, valor) values ((select id from listas where clave = 'servicios' and area_id = mi_area()), 'CET-L1', 'No') $q$, 'row-level security');
+update proyectos set nombre_corto = 'X' where codigo = 'A-1';                         -- RLS no lo modifica
 reset role;
 do $$ begin
-  assert (select nombre_corto from proyectos where codigo = 'L-1') = 'Proyecto de líder (editado)', 'el líder no editó su proyecto';
-  assert (select nombre_corto from proyectos where codigo = 'A-1') = 'Proyecto del administrador', 'el líder editó un proyecto ajeno';
-  assert exists (select 1 from proyectos where codigo = 'L-1'), 'el líder eliminó un proyecto';
-  assert exists (select 1 from lista_valores where codigo = 'CET-L1' and valor = 'Servicio de líder'), 'el líder no agregó el CET / Servicio';
+  assert (select nombre_corto from proyectos where codigo = 'A-1') = 'Proyecto del administrador', 'el líder editó un proyecto';
+  assert exists (select 1 from lista_valores where codigo = 'CET-A1'), 'el administrador no agregó el CET / Servicio';
 end $$;
 
 -- 017: las funciones de disparador no se pueden invocar como API
