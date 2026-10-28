@@ -17,8 +17,7 @@ export const NAV = [
   { ruta: '/reunion', ico: '👥', texto: 'Reunión semanal', si: esStaff },
   { ruta: '/equipo', ico: '🧭', texto: 'Equipo y capacidad', si: esStaff },
   { ruta: '/reportes', ico: '🖨', texto: 'Reportes', si: () => esStaff() || puede('ver_indicadores') },
-  { grupo: 'Más' },
-  { ruta: '/config/usuarios', ico: '⚙', texto: 'Configuración', si: esGestor, prefijo: '/config' },
+  { grupo: 'Sistema' },
   { ruta: '/plantillas', ico: '🧩', texto: 'Plantillas', si: esStaff },
   { ruta: '/mejoras', ico: '💡', texto: 'Mejoras del aplicativo', si: () => true },
   { ruta: '/ayuda', ico: '❔', texto: 'Ayuda', si: () => true },
@@ -46,6 +45,7 @@ export function montarLayout(raiz, { alSalir }) {
     </header>
     <aside class="lateral"><div class="lateral-tirador" title="Arrastre para cambiar el ancho del menú (doble clic: ancho normal)"></div>
       <nav class="nav" aria-label="Navegación principal"></nav>
+      ${esGestor() ? '<button class="nav-admin-btn" data-a="admin" title="Consola de Administración"><span class="ico">⚙</span><span class="txt">Administración</span></button>' : ''}
       <section class="menu-proy" aria-label="Menú de proyectos">
         <div class="menu-proy-cab"><h3>Proyectos</h3>
           ${esGestor() || puede('crear_cartera') ? `<button class="btn btn-sm btn-primario btn-agregar-proy" data-a="nuevo-proy" title="Agregar un proyecto nuevo (lo verá todo el equipo)">＋ ${esGestor() ? 'Agregar' : 'Proponer'}</button>` : ''}</div>
@@ -110,8 +110,10 @@ export function montarLayout(raiz, { alSalir }) {
     if (a === 'actualizar') location.reload();
     if (a === 'actualizar-menu') menuActualizar();
     if (a === 'ayuda') import('../views/ayuda.js').then(m => m.iniciarRecorrido(true));
+    if (a === 'admin') import('../views/admin-console.js').then(m => m.showAdminConsole());
   });
   app.querySelector('[data-a="nuevo-proy"]')?.addEventListener('click', () => import('../views/proyectos.js').then(m => m.formularioProyecto()));
+  app.querySelector('[data-a="admin"]')?.addEventListener('click', () => import('../views/admin-console.js').then(m => m.showAdminConsole()));
 
   // Confirmación tras "Vaciar caché y volver a cargar"
   try {
