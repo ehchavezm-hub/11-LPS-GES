@@ -1,4 +1,4 @@
-// Estructura general: cabecera, navegación lateral y menú de proyectos (6.3), notificaciones y usuario.
+// Estructura general: cabecera, navegación lateral y menú de proyectos (6.3), notificaciones y usuario. v1.1
 import { api, modoDemo, mensajeError } from '../data/api.js';
 import { store, on, esGestor, esStaff, esAdmin, puede, seleccionarProyecto, misProyectos, etiqueta, cargarCatalogo, rol } from '../core/store.js';
 import { ROLES } from '../data/catalogos.js';
@@ -102,7 +102,7 @@ export function montarLayout(raiz, { alSalir }) {
   app.querySelector('.cabecera').addEventListener('click', e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'menu') {
-      // En celular abre/cierra el menú flotante; en pantallas grandes lo contrae a solo íconos
+      // En celular abre/cierra el menú flotante; en pantallas grandes lo contrae a solo íonos
       if (matchMedia('(max-width: 900px)').matches) document.body.classList.toggle('menu-abierto');
       else aplicarPreferencias({ contraido: !preferencias.contraido });
     }
@@ -168,7 +168,7 @@ function tiradorLateral(app) {
     document.body.classList.add('arrastrando-lateral');
     const mover = ev => {
       const ancho = Math.round(Math.min(460, Math.max(60, a0 + ev.clientX - x0)));
-      // Muy angosto: queda contraído (solo íconos)
+      // Muy angosto: queda contraído (solo íonos)
       aplicarPreferencias(ancho < 150 ? { contraido: true } : { contraido: false, ancho });
     };
     const soltar = () => { document.body.classList.remove('arrastrando-lateral'); removeEventListener('mousemove', mover); removeEventListener('mouseup', soltar); };
@@ -220,7 +220,7 @@ function menuActualizar() {
   if (document.querySelector('.menu-actualizar')) return cerrarFlotantes();
   cerrarFlotantes();
   const m = html(`<div class="menu-usuario menu-actualizar">
-    <button data-op="normal">⟳ Actualizar página</button>
+    <button data-op="normal">↳ Actualizar página</button>
     <button data-op="forzado">🧹 Vaciar caché y volver a cargar de manera forzada</button></div>`);
   const r = document.querySelector('[data-a="actualizar-menu"]').getBoundingClientRect();
   m.style.right = Math.max(8, innerWidth - r.right) + 'px';
