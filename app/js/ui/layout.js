@@ -1,12 +1,14 @@
-// Estructura general: cabecera, navegación lateral y menú de proyectos (6.3), notificaciones y usuario.
+// Estructura general: cabecera, navegación lateral y menú de proyectos (6.3), notificaciones y usuario. v1.1
 import { api, modoDemo, mensajeError } from '../data/api.js';
-import { store, on, esGestor, esStaff, puede, seleccionarProyecto, misProyectos, etiqueta, cargarCatalogo, rol } from '../core/store.js';
+import { store, on, esGestor, esStaff, esAdmin, puede, seleccionarProyecto, misProyectos, etiqueta, cargarCatalogo, rol } from '../core/store.js';
 import { ROLES } from '../data/catalogos.js';
 import { esc, html, normalizar, agrupar, fmtFechaHora } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { pedirDatos, ok, error, arrastrable } from './ui.js';
 
 export const NAV = [
+  { grupo: 'Administración' },
+  { ruta: '/admin', ico: '⚙', texto: 'Administración', si: esAdmin, prefijo: '/admin' },
   { grupo: 'Planificación' },
   { ruta: '/plan', ico: '📅', texto: 'Plan semanal', si: esStaff },
   { ruta: '/lookahead', ico: '🔭', texto: 'Look Ahead', si: esStaff },
@@ -100,7 +102,6 @@ export function montarLayout(raiz, { alSalir }) {
   app.querySelector('.cabecera').addEventListener('click', e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'menu') {
-      // En celular abre/cierra el menú flotante; en pantallas grandes lo contrae a solo íconos
       if (matchMedia('(max-width: 900px)').matches) document.body.classList.toggle('menu-abierto');
       else aplicarPreferencias({ contraido: !preferencias.contraido });
     }
@@ -113,7 +114,6 @@ export function montarLayout(raiz, { alSalir }) {
   });
   app.querySelector('[data-a="nuevo-proy"]')?.addEventListener('click', () => import('../views/proyectos.js').then(m => m.formularioProyecto()));
 
-  // Confirmación tras "Vaciar caché y volver a cargar"
   try {
     const previa = sessionStorage.getItem('lpsgt-recarga-forzada');
     if (previa !== null) {
@@ -123,7 +123,6 @@ export function montarLayout(raiz, { alSalir }) {
     }
   } catch { /* opcional */ }
 
-  // Notificaciones y catálogo en tiempo real
   cargarNotificaciones();
   api.subscribe(['notificaciones'], ev => {
     if (ev.fila?.usuario_id === u.id || ev.anterior?.usuario_id === u.id) cargarNotificaciones();
@@ -138,7 +137,6 @@ function debounceCatalogo() {
   return () => { clearTimeout(t); t = setTimeout(() => cargarCatalogo().catch(() => {}), 800); };
 }
 
-// ---------- Preferencias de vista (por computadora): letra grande, ancho y menú contraído ----------
 const preferencias = (() => {
   try { return { ancho: 260, contraido: false, letraGrande: false, ...JSON.parse(localStorage.getItem('lpsgt-vista') || '{}') }; }
   catch { return { ancho: 260, contraido: false, letraGrande: false }; }
@@ -152,7 +150,6 @@ function aplicarPreferencias(cambios) {
   document.body.classList.toggle('lateral-contraido', !!preferencias.contraido);
   document.documentElement.classList.toggle('letra-grande', !!preferencias.letraGrande);
   document.querySelectorAll('.tam-letra button').forEach(b => b.classList.toggle('activo', (b.dataset.a === 'letra-grande') === !!preferencias.letraGrande));
-  // Las grillas recalculan anchos y altos de fila
   clearTimeout(aplicarPreferencias.t);
   aplicarPreferencias.t = setTimeout(() => (window.Tabulator?.findTable?.('.tabulator') || []).forEach(t => t.redraw(true)), 80);
 }
@@ -166,7 +163,6 @@ function tiradorLateral(app) {
     document.body.classList.add('arrastrando-lateral');
     const mover = ev => {
       const ancho = Math.round(Math.min(460, Math.max(60, a0 + ev.clientX - x0)));
-      // Muy angosto: queda contraído (solo íconos)
       aplicarPreferencias(ancho < 150 ? { contraido: true } : { contraido: false, ancho });
     };
     const soltar = () => { document.body.classList.remove('arrastrando-lateral'); removeEventListener('mousemove', mover); removeEventListener('mouseup', soltar); };
@@ -212,13 +208,11 @@ async function cargarNotificaciones() {
   if (c) { c.textContent = n > 99 ? '99+' : n; c.classList.toggle('oculto', !n); }
 }
 
-// Botón actualizar: recarga normal o forzada (vacía la caché del aplicativo y del service worker).
-// No borra la sesión ni los datos: solo los archivos guardados del aplicativo.
 function menuActualizar() {
   if (document.querySelector('.menu-actualizar')) return cerrarFlotantes();
   cerrarFlotantes();
   const m = html(`<div class="menu-usuario menu-actualizar">
-    <button data-op="normal">⟳ Actualizar página</button>
+    <button data-op="normal">↳ Actualizar página</button>
     <button data-op="forzado">🧹 Vaciar caché y volver a cargar de manera forzada</button></div>`);
   const r = document.querySelector('[data-a="actualizar-menu"]').getBoundingClientRect();
   m.style.right = Math.max(8, innerWidth - r.right) + 'px';
@@ -233,7 +227,6 @@ function menuActualizar() {
   }), 0);
 }
 
-// Versión publicada (la escribe el flujo de publicación en config.js: commit y fecha)
 export function versionApp() { return window.LPSGT_VERSION || 'local'; }
 
 export async function recargaForzada() {
@@ -241,11 +234,9 @@ export async function recargaForzada() {
   const aviso = html('<div class="recarga-forzada"><div><span class="spinner"></span> Vaciando caché y descargando la última versión…</div></div>');
   document.body.append(aviso);
   try {
-    // 1. Quitar el service worker y sus cachés
     const regs = await navigator.serviceWorker?.getRegistrations?.() || [];
     await Promise.all(regs.map(r => r.unregister()));
     if (window.caches) await Promise.all((await caches.keys()).map(k => caches.delete(k)));
-    // 2. Volver a descargar del servidor cada archivo del aplicativo, reemplazando la copia de la caché del navegador
     const base = new URL('./', location.href).href;
     const archivos = new Set([base, base + 'index.html', base + 'config.js', base + 'sw.js']);
     for (const r of performance.getEntriesByType('resource')) {

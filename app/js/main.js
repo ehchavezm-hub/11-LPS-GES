@@ -1,6 +1,6 @@
 // Arranque del aplicativo: sesión, catálogo, estructura y rutas.
 import { api, modoDemo, mensajeError } from './data/api.js';
-import { store, cargarPerfil, cargarCatalogo, esStaff, esSuperadmin } from './core/store.js';
+import { store, cargarPerfil, cargarCatalogo, esStaff, esSuperadmin, esAdmin } from './core/store.js';
 import { ruta, iniciarRouter } from './core/router.js';
 import { montarLayout } from './ui/layout.js';
 import { mostrarLogin, mostrarPendiente, mostrarNuevaClave } from './views/login.js';
@@ -37,6 +37,9 @@ ruta('/reportes', () => import('./views/reportes.js'));
 ruta('/config/:seccion', () => import('./views/config.js'), { gestor: true });
 ruta('/mejoras', () => import('./views/mejoras.js'));
 ruta('/ayuda', () => import('./views/ayuda.js'));
+ruta('/admin', () => import('./views/admin-console.js').then(m => ({
+  render(el) { el.innerHTML = ''; m.showAdminConsole(undefined, el); },
+})), { admin: true });
 
 async function arrancar() {
   iniciarMonitoreo();
@@ -85,6 +88,7 @@ async function arrancar() {
     guardia: r => {
       if (r.staff && !esStaff()) { location.hash = '#/tablero'; return false; }
       if (r.gestor && !['superadmin', 'admin', 'delegado'].includes(store.usuario.rol)) { location.hash = '#/plan'; return false; }
+      if (r.admin && !esAdmin()) { location.hash = '#/tablero'; return false; }
       return true;
     },
   });
