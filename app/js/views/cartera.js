@@ -1,6 +1,6 @@
 // Cartera de servicios por líder (6.5) y formulario de solicitudes de otras gerencias (M-01).
 import { api, mensajeError } from '../data/api.js';
-import { store, on, esGestor, esStaff, puede, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado, lideres, colorValor, opcionesServicio, semanaInicioLA, semanasLookAhead } from '../core/store.js';
+import { store, on, esGestor, esStaff, puede, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado, lideres, colorValor, opcionesServicio, semanaInicioLA, semanasLookAhead, enProyectoSel } from '../core/store.js';
 import { esc, html, hoy, fmtFecha, lunes, sumarSemanas, etiquetaSemana } from '../core/util.js';
 import { crearGrilla } from '../ui/grid.js';
 import { kpi, badge, pedirDatos, ok, error, vacio, toast } from '../ui/ui.js';
@@ -92,7 +92,7 @@ export function columnasCartera() {
 function filtro(c) {
   if (c.estado === 'nueva') return false;
   if (estado.resp !== 'todos' && c.responsable_id !== estado.resp) return false;
-  if (store.proyectoSel && c.proyecto_id !== store.proyectoSel) return false;
+  if (!enProyectoSel(c.proyecto_id)) return false;
   if (estado.ver === 'abiertas') return ['abierta', 'en_proceso'].includes(c.estado);
   if (estado.ver === 'cerradas') return ['cerrada', 'rechazada'].includes(c.estado);
   return true;
@@ -121,7 +121,7 @@ function pintarExtras() {
         <button class="btn btn-sm" data-rechazar="${c.id}">Rechazar</button>` : '<span class="nota">Por atender</span>'}</td></tr>`).join('')}</table></div>` : '';
   pag.querySelectorAll('[data-aceptar]').forEach(b => b.onclick = () => aceptar(estado.items.find(c => c.id === b.dataset.aceptar)));
   pag.querySelectorAll('[data-rechazar]').forEach(b => b.onclick = () => rechazar(estado.items.find(c => c.id === b.dataset.rechazar)));
-  const base = estado.items.filter(c => (estado.resp === 'todos' || c.responsable_id === estado.resp) && (!store.proyectoSel || c.proyecto_id === store.proyectoSel));
+  const base = estado.items.filter(c => (estado.resp === 'todos' || c.responsable_id === estado.resp) && enProyectoSel(c.proyecto_id));
   const abiertas = base.filter(c => ['abierta', 'en_proceso'].includes(c.estado));
   const alta = abiertas.filter(c => normal(etiqueta(c.criticidad_id)) === 'alta');
   const vencidas = abiertas.filter(c => c.f_comprometida && c.f_comprometida < hoy());

@@ -568,10 +568,11 @@ async function panelProyectos(el) {
   </div>
   <div class="tarjeta admin-tabla-wrap">
     <table class="simple" id="tabla-proy">
-      <thead><tr><th>CÓDIGO</th><th>NOMBRE</th><th>PORTAFOLIO</th><th>PROGRAMA</th><th>GERENCIA</th><th>ESTADO</th><th>LÍDERES</th><th></th></tr></thead>
+      <thead><tr><th>CÓDIGO</th><th>NOMBRE</th><th>SUB-PROYECTO DE</th><th>PORTAFOLIO</th><th>PROGRAMA</th><th>GERENCIA</th><th>ESTADO</th><th>LÍDERES</th><th></th></tr></thead>
       <tbody>${proyectos.map(p => `<tr data-port="${p.portafolio_id || '-'}" data-est="${p.estado || ''}">
           <td><b>${esc(p.codigo || '—')}</b></td>
           <td>${esc(p.nombre_corto || '—')}</td>
+          <td>${esc(proyectos.find(x => x.id === p.padre_id)?.nombre_corto || '—')}</td>
           <td>${esc(nomPort(p.portafolio_id) || '—')}</td>
           <td>${esc(nomProg(p.programa_id) || '—')}</td>
           <td>${esc(etiqueta(p.gerencia_id) || '—')}</td>
@@ -637,20 +638,22 @@ const estadoEst = e => e === 'inactivo' ? badge('Inactivo', '#888') : badge('Act
 async function panelEstructura(el) {
   const { portafolios, programas, proyectos } = await cargarEstructura();
   const vivos = proyectos.filter(p => !['cerrado', 'rechazado'].includes(p.estado));
-  const itemProy = p => `<li class="est-proy"><b>${esc(p.codigo)}</b> · ${esc(p.nombre_corto)} <small class="nota">${esc(p.estado)}</small></li>`;
+  const subs = p => vivos.filter(x => x.padre_id === p.id);
+  const itemProy = p => `<li class="est-proy"><b>${esc(p.codigo)}</b> · ${esc(p.nombre_corto)} <small class="nota">${esc(p.estado)}</small>
+    ${subs(p).length ? `<ul>${subs(p).map(x => `<li class="est-proy">▫ <b>${esc(x.codigo)}</b> · ${esc(x.nombre_corto)} <small class="nota">sub-proyecto</small></li>`).join('')}</ul>` : ''}</li>`;
   const ramaPrograma = g => {
-    const ps = vivos.filter(p => p.programa_id === g.id);
+    const ps = vivos.filter(p => p.programa_id === g.id && !p.padre_id);
     return `<li><span class="est-prog">📁 ${esc(g.nombre)}</span> ${g.estado === 'inactivo' ? estadoEst(g.estado) : ''}
       <small class="nota">${ps.length} proyecto(s)</small>${ps.length ? `<ul>${ps.map(itemProy).join('')}</ul>` : ''}</li>`;
   };
   const ramaPortafolio = f => {
     const gs = programas.filter(g => g.portafolio_id === f.id);
-    const ps = vivos.filter(p => p.portafolio_id === f.id && !p.programa_id);
+    const ps = vivos.filter(p => p.portafolio_id === f.id && !p.programa_id && !p.padre_id);
     return `<li><span class="est-port">🗂 ${esc(f.nombre)}</span> ${f.estado === 'inactivo' ? estadoEst(f.estado) : ''}
       <ul>${gs.map(ramaPrograma).join('')}${ps.map(itemProy).join('')}${!gs.length && !ps.length ? '<li class="nota">Sin programas ni proyectos</li>' : ''}</ul></li>`;
   };
   const progSueltos = programas.filter(g => !g.portafolio_id);
-  const proySueltos = vivos.filter(p => !p.portafolio_id && !p.programa_id);
+  const proySueltos = vivos.filter(p => !p.portafolio_id && !p.programa_id && !p.padre_id);
   el.innerHTML = cab('Estructura de la empresa', [btn('🖨 Imprimir', 'imprimir')]) +
     `<p class="admin-sub">Cada proyecto puede pertenecer a un programa, y cada programa a un portafolio. Se asignan en
       <b>Portafolios</b>, <b>Programas</b> y en el formulario de cada proyecto.</p>

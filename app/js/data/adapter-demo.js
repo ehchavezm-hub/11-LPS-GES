@@ -123,7 +123,7 @@ export function crearAdaptadorDemo() {
   const CAMPOS_EST = {
     portafolios: ['codigo', 'nombre', 'descripcion', 'responsable_id', 'estado'],
     programas: ['codigo', 'nombre', 'descripcion', 'responsable_id', 'estado', 'portafolio_id'],
-    proyectos: ['codigo', 'nombre_corto', 'nombre_completo', 'estado', 'portafolio_id', 'programa_id', 'gerencia_id', 'fase_id', 'pais_id', 'fecha_inicio', 'fecha_fin', 'observaciones'],
+    proyectos: ['codigo', 'nombre_corto', 'nombre_completo', 'estado', 'portafolio_id', 'programa_id', 'padre_id', 'gerencia_id', 'fase_id', 'pais_id', 'fecha_inicio', 'fecha_fin', 'observaciones'],
   };
   async function plataformaDemo(accion, d, yo) {
     const ahora = new Date().toISOString();
@@ -169,6 +169,8 @@ export function crearAdaptadorDemo() {
       if (!CAMPOS_EST[t]) throw new Error('Tabla no válida.');
       if (d.op === 'eliminar') {
         if (t === 'proyectos') {
+          const hijos = tabla('proyectos').filter(x => x.padre_id === d.id).length;
+          if (hijos) throw new Error(`El proyecto tiene ${hijos} sub-proyecto(s): elimínelos o muévalos primero.`);
           const n = tabla('actividades').filter(a => a.proyecto_id === d.id).length;
           if (n) throw new Error(`El proyecto tiene ${n} actividades: ciérrelo en lugar de eliminarlo para conservar su historial.`);
           db.proyecto_lideres = tabla('proyecto_lideres').filter(l => l.proyecto_id !== d.id);
@@ -181,6 +183,13 @@ export function crearAdaptadorDemo() {
       const datos = {};
       for (const k of CAMPOS_EST[t]) if (k in (d.datos || {})) datos[k] = d.datos[k] === '' ? null : d.datos[k];
       if (t === 'proyectos' && datos.programa_id) { const g = tabla('programas').find(x => x.id === datos.programa_id); if (g?.portafolio_id) datos.portafolio_id = g.portafolio_id; }
+      // Emula public.tg_subproyecto: un sub-proyecto hereda portafolio y programa; solo dos niveles
+      if (t === 'proyectos' && datos.padre_id) {
+        const padre = tabla('proyectos').find(x => x.id === datos.padre_id);
+        if (!padre) throw new Error('El proyecto padre no pertenece a esta empresa.');
+        if (padre.padre_id) throw new Error('Un sub-proyecto no puede tener sub-proyectos.');
+        datos.portafolio_id = padre.portafolio_id ?? null; datos.programa_id = padre.programa_id ?? null;
+      }
       if (d.id) { const x = tabla(t).find(r => r.id === d.id); Object.assign(x, datos, { updated_at: ahora }); guardar(); return { registro: clon(x) }; }
       if (!existe(area)) throw new Error('Empresa no encontrada.');
       if (t === 'proyectos') {

@@ -202,7 +202,7 @@ const TABLAS_ESTRUCTURA = ['portafolios', 'programas', 'proyectos'];
 const CAMPOS: Record<string, string[]> = {
   portafolios: ['codigo', 'nombre', 'descripcion', 'responsable_id', 'estado'],
   programas: ['codigo', 'nombre', 'descripcion', 'responsable_id', 'estado', 'portafolio_id'],
-  proyectos: ['codigo', 'nombre_corto', 'nombre_completo', 'estado', 'portafolio_id', 'programa_id', 'gerencia_id', 'fase_id',
+  proyectos: ['codigo', 'nombre_corto', 'nombre_completo', 'estado', 'portafolio_id', 'programa_id', 'padre_id', 'gerencia_id', 'fase_id',
     'pais_id', 'fecha_inicio', 'fecha_fin', 'observaciones'],
 };
 
@@ -218,7 +218,7 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
       admin.from('profiles').select('id, area_id, nombre, email, codigo, rol, activo, eliminado, es_admin_principal, es_plataforma, created_at'),
       admin.from('portafolios').select('*'),
       admin.from('programas').select('*'),
-      admin.from('proyectos').select('id, area_id, codigo, nombre_corto, nombre_completo, estado, portafolio_id, programa_id, gerencia_id, fecha_inicio, fecha_fin, created_at'),
+      admin.from('proyectos').select('id, area_id, codigo, nombre_corto, nombre_completo, estado, portafolio_id, programa_id, padre_id, gerencia_id, fecha_inicio, fecha_fin, created_at'),
       admin.from('proyecto_lideres').select('proyecto_id, usuario_id'),
     ]);
     const error = [areas, perfiles, portafolios, programas, proyectos, lideres].find(r => r.error)?.error;
@@ -284,6 +284,8 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
       const { data: x } = await admin.from(tabla).select('id').eq('id', String(d.id ?? '')).maybeSingle();
       if (!x) return falla('Registro no encontrado.', 404);
       if (tabla === 'proyectos') {
+        const { count: hijos } = await admin.from('proyectos').select('id', { count: 'exact', head: true }).eq('padre_id', x.id);
+        if (hijos) return falla(`El proyecto tiene ${hijos} sub-proyecto(s): elimínelos o muévalos primero.`);
         const { count } = await admin.from('actividades').select('id', { count: 'exact', head: true }).eq('proyecto_id', x.id);
         if (count) return falla(`El proyecto tiene ${count} actividades: ciérrelo en lugar de eliminarlo para conservar su historial.`);
         await admin.from('proyecto_lideres').delete().eq('proyecto_id', x.id);

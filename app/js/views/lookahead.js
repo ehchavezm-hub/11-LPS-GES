@@ -1,6 +1,6 @@
 // Look Ahead (6.7): actividades de las próximas semanas, estado LA, restricciones y carga vs capacidad.
 import { api, mensajeError } from '../data/api.js';
-import { store, equipo, on, esGestor, puede, puedeEditarActividad, lideres, nombre, proyecto, param, opciones, opcionesLideres, opcionesProyectos } from '../core/store.js';
+import { store, equipo, on, esGestor, puede, puedeEditarActividad, lideres, nombre, proyecto, param, opciones, opcionesLideres, opcionesProyectos, enProyectoSel, esContenedor } from '../core/store.js';
 import { lunes, sumarSemanas, etiquetaSemana, esc, html, num, sumarDias, DIAS, pct } from '../core/util.js';
 import { actualizarQuery } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -75,7 +75,7 @@ export async function render(el, { query }) {
     campoInicial: 'descripcion',
     listaParaCrear: a => !!((a.descripcion && a.descripcion.trim()) || a.proyecto_id || Number(a.hh_total)),
     nuevaFila: () => {
-      const p = store.proyectoSel ? proyecto(store.proyectoSel) : null;
+      const p = store.proyectoSel && !esContenedor(proyecto(store.proyectoSel)) ? proyecto(store.proyectoSel) : null;   // con sub-proyectos: se elige uno
       return { area_id: store.area.id, semana: estado.semanas[0], responsable_id: estado.resp !== 'todos' ? estado.resp : store.usuario.id,
         comprometida: false, tipo: 'programada', estado: 'programado', estado_la: 'pendiente', origen: 'manual',
         proyecto_id: p?.id || null, gerencia_id: p?.gerencia_id || null, servicio_id: servicioDeProyecto(p),
@@ -103,7 +103,7 @@ export function destruir() { desuscribir.forEach(f => f && f()); desuscribir = [
 function filtroFila(a) {
   if (!estado.semanas.includes(a.semana)) return false;
   if (estado.resp !== 'todos' && a.responsable_id !== estado.resp) return false;
-  if (store.proyectoSel && a.proyecto_id !== store.proyectoSel) return false;
+  if (!enProyectoSel(a.proyecto_id)) return false;
   return true;
 }
 

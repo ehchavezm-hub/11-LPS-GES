@@ -180,8 +180,19 @@ function pintarProyectos() {
   const programas = (store.programas || []).filter(x => x.estado !== 'inactivo');
   const idsPort = new Set(portafolios.map(x => x.id)), idsProg = new Set(programas.map(x => x.id));
 
-  const item = (p, nivel) => `<div class="proy-item arbol-n${nivel}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto}`)}">
-      <span class="arbol-ico">📋</span><span class="nom">${esc(p.nombre_corto)}${p.estado === 'propuesto' ? ' ⏳' : ''}</span></div>`;
+  const item = (p, nivel, sub) => `<div class="proy-item arbol-n${nivel}${sub ? ' arbol-sub' : ''}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto}${sub ? ' (sub-proyecto)' : ''}`)}">
+      <span class="arbol-ico">${sub ? '▫' : '📋'}</span><span class="nom">${esc(p.nombre_corto)}${p.estado === 'propuesto' ? ' ⏳' : ''}</span></div>`;
+  // Proyecto con sub-proyectos (pedido a7): se elige completo con un clic en el nombre; la flecha lo abre o cierra
+  const hijosDe = p => lista.filter(x => x.padre_id === p.id);
+  const nodo = (p, nivel) => {
+    const hs = hijosDe(p);
+    if (!hs.length) return item(p, nivel);
+    const ab = abierta('p' + p.id);
+    return `<div class="proy-item arbol-cont arbol-n${nivel}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto} (con sus sub-proyectos)`)}">
+        <span class="arbol-flecha" data-rama="p${p.id}" role="button" aria-expanded="${ab}">${ab ? '▾' : '▸'}</span><span class="arbol-ico">📋</span>
+        <span class="nom">${esc(p.nombre_corto)} <small>(${hs.length})</small></span></div>` + (ab ? hs.map(h => item(h, nivel + 1, true)).join('') : '');
+  };
+  const raiz = arr => arr.filter(p => !p.padre_id || !lista.some(x => x.id === p.padre_id));
   const rama = (clave, nivel, ico, nombre, codigo, n, hijos, clase) => {
     if (soloConProyectos && !n) return '';
     const ab = abierta(clave);
@@ -191,15 +202,15 @@ function pintarProyectos() {
       ${ab ? (hijos || `<div class="arbol-vacio arbol-n${nivel + 1}">Sin contenido</div>`) : ''}`;
   };
   const deProg = g => lista.filter(p => p.programa_id === g.id);
-  const ramaProg = (g, nivel) => { const ps = deProg(g); return rama('g' + g.id, nivel, '📁', g.nombre, g.codigo, ps.length, ps.map(p => item(p, nivel + 1)).join(''), 'arbol-prog'); };
+  const ramaProg = (g, nivel) => { const ps = deProg(g); return rama('g' + g.id, nivel, '📁', g.nombre, g.codigo, ps.length, raiz(ps).map(p => nodo(p, nivel + 1)).join(''), 'arbol-prog'); };
   const ramasPort = portafolios.map(fp => {
     const gs = programas.filter(g => g.portafolio_id === fp.id);
     const directos = lista.filter(p => p.portafolio_id === fp.id && !idsProg.has(p.programa_id));
     const n = gs.reduce((s, g) => s + deProg(g).length, 0) + directos.length;
-    return rama('f' + fp.id, 1, '🗂', fp.nombre, fp.codigo, n, gs.map(g => ramaProg(g, 2)).join('') + directos.map(p => item(p, 2)).join(''), 'arbol-port');
+    return rama('f' + fp.id, 1, '🗂', fp.nombre, fp.codigo, n, gs.map(g => ramaProg(g, 2)).join('') + raiz(directos).map(p => nodo(p, 2)).join(''), 'arbol-port');
   }).join('');
   const progSueltos = programas.filter(g => !idsPort.has(g.portafolio_id)).map(g => ramaProg(g, 1)).join('');
-  const sueltos = lista.filter(p => !idsPort.has(p.portafolio_id) && !idsProg.has(p.programa_id)).map(p => item(p, 1)).join('');
+  const sueltos = raiz(lista.filter(p => !idsPort.has(p.portafolio_id) && !idsProg.has(p.programa_id))).map(p => nodo(p, 1)).join('');
   const cuerpo = ramasPort + progSueltos + sueltos;
   const empresa = store.area?.nombre || 'Empresa';
   const abiertaEmp = abierta('empresa');

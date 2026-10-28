@@ -310,6 +310,10 @@ export async function formularioProyecto(p = null) {
       { name: 'gerencia_id', label: 'Gerencia', type: 'select', required: true, options: opciones('gerencias') },
       { name: 'fase_id', label: 'Fase', type: 'select', options: opciones('fases') },
       { name: 'pais_id', label: 'País', type: 'select', options: opciones('paises') },
+      // Sub-proyecto (pedido a7): el LPS se registra en los sub-proyectos; heredan portafolio, programa y líderes
+      ...(store.proyectos.some(x => x.padre_id === p?.id) ? [] : [{ name: 'padre_id', label: 'Sub-proyecto de (opcional)', type: 'select',
+        options: store.proyectos.filter(x => !x.padre_id && x.id !== p?.id && !['cerrado', 'rechazado'].includes(x.estado))
+          .map(x => ({ value: x.id, label: `${x.codigo} · ${x.nombre_corto}` })) }]),
       { name: 'portafolio_id', label: 'Portafolio', type: 'select',
         options: portafolios.filter(x => x.estado !== 'inactivo' || x.id === p?.portafolio_id).map(x => ({ value: x.id, label: x.nombre })) },
       { name: 'programa_id', label: 'Programa', type: 'select',
@@ -321,6 +325,10 @@ export async function formularioProyecto(p = null) {
     ],
     alGuardar: async v => {
       const datos = { ...v, portafolio_id: v.portafolio_id || null, programa_id: v.programa_id || null };
+      if ('padre_id' in v) datos.padre_id = v.padre_id || null;
+      // Un sub-proyecto hereda la ubicación de su proyecto (en la base lo asegura public.tg_subproyecto)
+      const padre = datos.padre_id && store.proyectos.find(x => x.id === datos.padre_id);
+      if (padre) { datos.portafolio_id = padre.portafolio_id || null; datos.programa_id = padre.programa_id || null; }
       // El programa define su portafolio
       const prog = programas.find(x => x.id === datos.programa_id);
       if (prog?.portafolio_id) datos.portafolio_id = prog.portafolio_id;

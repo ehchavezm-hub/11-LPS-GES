@@ -215,17 +215,38 @@ export function opcionesServicio({ proyectoId = null, etiqueta: etq = v => (v.co
   const ops = vs.map(v => ({ value: v.id, label: etq(v) }));
   return vacio ? [{ value: null, label: '—' }, ...ops] : ops;
 }
-export function nombreProyecto(id) { const p = proyecto(id); return p ? `${p.codigo} · ${p.nombre_corto}` : ''; }
+export function nombreProyecto(id) { const p = proyecto(id); return p ? `${p.codigo} · ${nombreConPadre(p)}` : ''; }
 export function proyectosActivos() { return store.proyectos.filter(p => p.estado === 'activo' || p.estado === 'propuesto'); }
+// ---------- Sub-proyectos (pedido a7) ----------
+/** Sub-proyectos de un proyecto. */
+export function subproyectos(id) { return id ? store.proyectos.filter(p => p.padre_id === id) : []; }
+/** Un proyecto con sub-proyectos es un contenedor: el LPS se registra en sus sub-proyectos. */
+export function esContenedor(p) { return !!p && store.proyectos.some(x => x.padre_id === p.id); }
+/** ¿La actividad / restricción / registro del proyecto «id» entra en el proyecto elegido en el menú?
+ *  Elegir un proyecto incluye sus sub-proyectos. */
+export function enProyectoSel(id) {
+  const sel = store.proyectoSel;
+  return !sel || id === sel || (!!id && proyecto(id)?.padre_id === sel);
+}
+const nombreConPadre = p => { const padre = p.padre_id && proyecto(p.padre_id); return padre ? `${padre.nombre_corto} › ${p.nombre_corto}` : p.nombre_corto; };
 export function opcionesProyectos() {
-  return [{ value: null, label: '—' }, ...proyectosActivos().map(p => ({
-    value: p.id, label: `${p.codigo} · ${p.nombre_corto}${p.estado === 'propuesto' ? ' (por aprobar)' : ''}` }))];
+  // Solo proyectos sin sub-proyectos y sub-proyectos: es donde se registra el LPS
+  return [{ value: null, label: '—' }, ...proyectosActivos().filter(p => !esContenedor(p)).map(p => ({
+    value: p.id, label: `${p.codigo} · ${nombreConPadre(p)}${p.estado === 'propuesto' ? ' (por aprobar)' : ''}` }))];
 }
 export function misProyectos() {
-  // Proyectos donde la persona es líder y los que ella misma agregó (pedido 100)
+  // Proyectos donde la persona es líder y los que ella misma agregó (pedido 100).
+  // Los usuarios se registran en la empresa y los niveles de abajo los heredan (pedido a8): el líder de un proyecto
+  // lo es también de sus sub-proyectos.
   const yo = store.usuario?.id;
   const ids = new Set(store.proyectoLideres.filter(l => l.usuario_id === yo).map(l => l.proyecto_id));
-  return store.proyectos.filter(p => ids.has(p.id) || (p.created_by && p.created_by === yo));
+  return store.proyectos.filter(p => ids.has(p.id) || ids.has(p.padre_id) || (p.created_by && p.created_by === yo));
+}
+/** Líderes de un proyecto: los propios o, en un sub-proyecto sin líderes propios, los heredados de su proyecto. */
+export function lideresHeredados(id) {
+  const propios = store.proyectoLideres.filter(l => l.proyecto_id === id).map(l => l.usuario_id);
+  const p = proyecto(id);
+  return propios.length || !p?.padre_id ? propios : store.proyectoLideres.filter(l => l.proyecto_id === p.padre_id).map(l => l.usuario_id);
 }
 export function seleccionarProyecto(id) {
   store.proyectoSel = id || '';

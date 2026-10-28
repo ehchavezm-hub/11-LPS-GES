@@ -1,6 +1,6 @@
 // Log de restricciones (6.8) con indicadores de liberación a tiempo (M-08).
 import { api } from '../data/api.js';
-import { store, on, esStaff, opciones, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado } from '../core/store.js';
+import { store, on, esStaff, opciones, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado, enProyectoSel } from '../core/store.js';
 import { esc, html, hoy, fmtFecha, pct, num, agrupar } from '../core/util.js';
 import { crearGrilla } from '../ui/grid.js';
 import { kpi, badge } from '../ui/ui.js';
@@ -89,7 +89,7 @@ export function atraso(r) {
 }
 function filtro(r) {
   if (!estado.todas && r.estado === 'levantada') return false;
-  if (store.proyectoSel && r.proyecto_id !== store.proyectoSel) return false;
+  if (!enProyectoSel(r.proyecto_id)) return false;
   return true;
 }
 async function leer() {
@@ -108,7 +108,7 @@ function pintarKPIs() {
   const pag = document.querySelector('#contenido');
   if (!pag?.querySelector('[data-kpis]')) return;
   pag.querySelector('[data-proy]').innerHTML = store.proyectoSel ? `<span class="chip-filtro">🏗 ${esc(proyecto(store.proyectoSel)?.nombre_corto || '')}</span>` : '';
-  const base = estado.rests.filter(r => !store.proyectoSel || r.proyecto_id === store.proyectoSel);
+  const base = estado.rests.filter(r => enProyectoSel(r.proyecto_id));
   const r = resumenRestricciones(base);
   pag.querySelector('[data-kpis]').innerHTML = [
     kpi('Abiertas', r.abiertas, { color: r.abiertas ? '#EDC948' : '#59A14F' }),

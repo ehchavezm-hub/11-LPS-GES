@@ -19,6 +19,9 @@ const usuariosDe = id => datos.perfiles.filter(p => p.area_id === id);
 const principalDe = id => usuariosDe(id).find(p => p.es_admin_principal && !p.es_plataforma) || usuariosDe(id).find(p => p.es_admin_principal);
 const proyectosDe = id => datos.proyectos.filter(p => p.area_id === id);
 const lideresDe = proyId => datos.lideres.filter(l => l.proyecto_id === proyId).map(l => datos.perfiles.find(p => p.id === l.usuario_id)).filter(Boolean);
+// Los niveles de abajo heredan (pedido a8): un sub-proyecto sin líderes propios usa los de su proyecto
+const lideresEf = p => lideresDe(p.id).length || !p.padre_id ? lideresDe(p.id) : lideresDe(p.padre_id);
+const subDe = p => datos.proyectos.filter(x => x.padre_id === p.id);
 const nombreCorto = p => p ? (p.email ? p.email.split('@')[0] : p.nombre) : '';
 const codigoEmpresa = a => String(a.id).slice(0, 8);
 const activa = a => a.activa !== false;
@@ -44,7 +47,7 @@ export async function panelResumenPlataforma(el, ctx) {
   await cargarPlataforma();
   const act = datos.areas.filter(activa).length;
   const vivos = datos.proyectos.filter(p => !['cerrado', 'rechazado'].includes(p.estado));
-  const sinAdmin = vivos.filter(p => !lideresDe(p.id).length).length;
+  const sinAdmin = vivos.filter(p => !lideresEf(p).length).length;
   const usuarios = datos.perfiles.filter(p => p.activo && p.rol !== 'pendiente').length;
   el.innerHTML = cab('Resumen de la plataforma', 'Todas las empresas que usan este aplicativo.', `<button class="btn btn-sm" data-a="imprimir">🖨 Imprimir</button>`) +
     `<div class="admin-kpis">
@@ -328,12 +331,13 @@ export async function panelEstructuraTodas(el, ctx) {
   await cargarPlataforma();
   const pintarTodo = () => {
     const vivos = datos.proyectos.filter(p => !['cerrado', 'rechazado'].includes(p.estado));
-    const sinAdmin = vivos.filter(p => !lideresDe(p.id).length).length;
+    const sinAdmin = vivos.filter(p => !lideresEf(p).length).length;
     el.innerHTML = cab('Estructura de todas las empresas', 'Empresa › Portafolio › Programa › Proyecto. Es la misma estructura que cada empresa ve en «Estructura de la empresa»: lo que cambie aquí se refleja allá.',
       `<button class="btn" data-nuevo="portafolios">+ Portafolio</button><button class="btn" data-nuevo="programas">+ Programa</button><button class="btn btn-primario" data-nuevo="proyectos">+ Proyecto</button>`) +
       `<div class="chips-cifras">
         <span class="chip-cifra"><b>${datos.areas.length}</b> Empresas</span><span class="chip-cifra"><b>${datos.portafolios.length}</b> Portafolios</span>
-        <span class="chip-cifra"><b>${datos.programas.length}</b> Programas</span><span class="chip-cifra"><b>${datos.proyectos.length}</b> Proyectos</span>
+        <span class="chip-cifra"><b>${datos.programas.length}</b> Programas</span><span class="chip-cifra"><b>${datos.proyectos.filter(p => !p.padre_id).length}</b> Proyectos</span>
+        <span class="chip-cifra"><b>${datos.proyectos.filter(p => p.padre_id).length}</b> Sub-proyectos</span>
         <span class="chip-cifra ${sinAdmin ? 'alerta' : ''}"><b>${sinAdmin}</b> Proyectos sin administrador</span></div>
       <div class="pestanas-linea"><button data-vista="tabla" class="${vistaEstructura === 'tabla' ? 'activo' : ''}">Estructura de todas las empresas</button>
         <button data-vista="arbol" class="${vistaEstructura === 'arbol' ? 'activo' : ''}">Estructura jerárquica</button></div>
@@ -349,9 +353,9 @@ export async function panelEstructuraTodas(el, ctx) {
       if (d.vista) { vistaEstructura = d.vista; pintarTodo(); return; }
       if (d.toggle) { contraidos.has(d.toggle) ? contraidos.delete(d.toggle) : contraidos.add(d.toggle); pintarTodo(); return; }
       if (d.a === 'expandir') { contraidos.clear(); pintarTodo(); return; }
-      if (d.a === 'contraer') { datos.areas.forEach(a => contraidos.add('a' + a.id)); datos.portafolios.forEach(f => contraidos.add('f' + f.id)); datos.programas.forEach(g => contraidos.add('g' + g.id)); pintarTodo(); return; }
+      if (d.a === 'contraer') { datos.areas.forEach(a => contraidos.add('a' + a.id)); datos.portafolios.forEach(f => contraidos.add('f' + f.id)); datos.programas.forEach(g => contraidos.add('g' + g.id)); datos.proyectos.forEach(p => contraidos.add('p' + p.id)); pintarTodo(); return; }
       let cambio = false, area = null;
-      if (d.nuevo) { const r = await editarNodo(d.nuevo, null, { area: d.area, portafolio: d.portafolio, programa: d.programa }); cambio = !!r; area = r?.area_id; }
+      if (d.nuevo) { const r = await editarNodo(d.nuevo, null, { area: d.area, portafolio: d.portafolio, programa: d.programa, padre: d.padre }); cambio = !!r; area = r?.area_id; }
       if (d.editar) { const x = datos[d.tabla].find(r => r.id === d.editar); cambio = !!await editarNodo(d.tabla, x, {}); area = x?.area_id; }
       if (d.eliminar) { const x = datos[d.tabla].find(r => r.id === d.eliminar); cambio = await eliminarNodo(d.tabla, x); area = x?.area_id; }
       if (d.lideres) { const p = datos.proyectos.find(r => r.id === d.lideres); cambio = !!await miembrosProyecto(p); area = p?.area_id; }
@@ -375,19 +379,22 @@ function pintarTabla(cuerpo) {
     return abierto;
   };
   const filaProyecto = (p, nivel) => {
-    const lid = lideresDe(p.id);
-    fila(nivel, 'proyecto', p, {
-      nombre: `<span class="est-ico">📋</span> <span class="est-n-proy">${esc(p.nombre_corto)}</span> ${p.estado !== 'activo' ? badge(TXT_EST[p.estado] || p.estado, COLOR_EST[p.estado]) : ''}`,
-      tipo: badge('Proyecto', '#E8762B'), codigo: esc(p.codigo || '—'), buscar: `${p.nombre_corto} ${p.codigo} ${lid.map(nombreCorto).join(' ')}`,
-      admin: lid.length ? `${esc(lid.map(nombreCorto).join(', '))} <button class="btn btn-xs" data-lideres="${p.id}">Cambiar</button>`
+    const lid = lideresEf(p), sub = !!p.padre_id, hijos = sub ? [] : subDe(p);
+    const heredado = sub && !lideresDe(p.id).length && lid.length;
+    const abierto = fila(nivel, sub ? 'subproyecto' : 'proyecto', p, {
+      nombre: `<span class="est-ico">${sub ? '▫' : '📋'}</span> <span class="${sub ? 'est-n-sub' : 'est-n-proy'}">${esc(p.nombre_corto)}</span> ${p.estado !== 'activo' ? badge(TXT_EST[p.estado] || p.estado, COLOR_EST[p.estado]) : ''}`,
+      tipo: sub ? badge('Sub-proyecto', '#1A365D') : badge('Proyecto', '#E8762B'), codigo: esc(p.codigo || '—'), buscar: `${p.nombre_corto} ${p.codigo} ${lid.map(nombreCorto).join(' ')}`,
+      admin: lid.length ? `${esc(lid.map(nombreCorto).join(', '))}${heredado ? ' <small class="nota">(heredado)</small>' : ''} <button class="btn btn-xs" data-lideres="${p.id}">Cambiar</button>`
         : `${badge('Sin asignar', '#EDC948')} <button class="btn btn-xs btn-azul" data-lideres="${p.id}">Asignar</button>`,
-      acciones: `<button class="btn btn-xs" data-editar="${p.id}" data-tabla="proyectos">Editar</button>
+      acciones: `${sub ? '' : `<button class="btn btn-xs" data-nuevo="proyectos" data-area="${p.area_id}" data-padre="${p.id}">+ Sub-proyecto</button>`}
+        <button class="btn btn-xs" data-editar="${p.id}" data-tabla="proyectos">Editar</button>
         <button class="btn btn-xs" data-lideres="${p.id}">Miembros y permisos</button>
         <button class="btn btn-xs btn-peligro-borde" data-eliminar="${p.id}" data-tabla="proyectos">Eliminar</button>`,
-    }, 'p' + p.id, false);
+    }, 'p' + p.id, hijos.length);
+    if (abierto) hijos.forEach(h => filaProyecto(h, nivel + 1));
   };
   const filaPrograma = (g, nivel) => {
-    const ps = datos.proyectos.filter(p => p.programa_id === g.id);
+    const ps = datos.proyectos.filter(p => p.programa_id === g.id && !p.padre_id);
     if (fila(nivel, 'programa', g, {
       nombre: `<span class="est-ico">📁</span> <span class="est-n-prog">${esc(g.nombre)}</span> ${g.estado === 'inactivo' ? badge('Inactivo', '#888') : ''}`,
       tipo: badge('Programa', '#8E44AD'), codigo: esc(g.codigo || '—'), buscar: `${g.nombre} ${g.codigo || ''}`,
@@ -401,7 +408,7 @@ function pintarTabla(cuerpo) {
     const pr = principalDe(a.id);
     const ports = datos.portafolios.filter(f => f.area_id === a.id);
     const progSueltos = datos.programas.filter(g => g.area_id === a.id && !g.portafolio_id);
-    const proySueltos = proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id);
+    const proySueltos = proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id && !p.padre_id);
     const abierta = fila(0, 'empresa', a, {
       nombre: `<span class="est-ico">🏢</span> <b>${esc(a.nombre)}</b> ${a.id === datos.mi_area ? badge('En uso ahora', '#1565c0') : ''} ${activa(a) ? '' : badge('Suspendida', '#b71c1c')}`,
       tipo: badge('Empresa', '#2e7d32'), codigo: esc(codigoEmpresa(a)), buscar: `${a.nombre} ${codigoEmpresa(a)}`,
@@ -414,7 +421,7 @@ function pintarTabla(cuerpo) {
     if (!abierta) continue;
     for (const f of ports) {
       const gs = datos.programas.filter(g => g.portafolio_id === f.id);
-      const ps = datos.proyectos.filter(p => p.portafolio_id === f.id && !p.programa_id);
+      const ps = datos.proyectos.filter(p => p.portafolio_id === f.id && !p.programa_id && !p.padre_id);
       if (fila(1, 'portafolio', f, {
         nombre: `<span class="est-ico">🗂</span> <span class="est-n-port">${esc(f.nombre)}</span> ${f.estado === 'inactivo' ? badge('Inactivo', '#888') : ''}`,
         tipo: badge('Portafolio', '#1565c0'), codigo: esc(f.codigo || '—'), buscar: `${f.nombre} ${f.codigo || ''}`,
@@ -431,7 +438,7 @@ function pintarTabla(cuerpo) {
   cuerpo.innerHTML = `<div class="admin-filtros">
       <input class="inp" data-buscar placeholder="Buscar en la estructura..." style="width:260px">
       <select class="inp" data-mostrar><option value="">Mostrar: todo</option><option value="empresa">Solo empresas</option><option value="portafolio">Hasta portafolios</option>
-        <option value="programa">Hasta programas</option><option value="sinadmin">Proyectos sin administrador</option></select>
+        <option value="programa">Hasta programas</option><option value="proyecto">Hasta proyectos</option><option value="sinadmin">Proyectos sin administrador</option></select>
       <button class="btn btn-sm" data-a="expandir">Expandir todo</button><button class="btn btn-sm" data-a="contraer">Contraer todo</button></div>
     <div class="tarjeta admin-tabla-wrap"><table class="simple tabla-estructura">
       <thead><tr><th>NOMBRE</th><th>TIPO</th><th>CÓDIGO</th><th>ADMINISTRADOR</th><th></th></tr></thead><tbody>${filas.join('')}</tbody></table></div>`;
@@ -440,10 +447,10 @@ function pintarTabla(cuerpo) {
 function filtrarTabla(el) {
   const q = (el.querySelector('[data-buscar]')?.value || '').trim().toLowerCase();
   const m = el.querySelector('[data-mostrar]')?.value || '';
-  const orden = ['empresa', 'portafolio', 'programa', 'proyecto'];
+  const orden = ['empresa', 'portafolio', 'programa', 'proyecto', 'subproyecto'];
   el.querySelectorAll('.est-fila').forEach(tr => {
     let ver = !q || tr.dataset.texto.includes(q);
-    if (m === 'sinadmin') ver = ver && tr.dataset.tipo === 'proyecto' && !!tr.querySelector('.btn-azul');
+    if (m === 'sinadmin') ver = ver && ['proyecto', 'subproyecto'].includes(tr.dataset.tipo) && !!tr.querySelector('.btn-azul');
     else if (m) ver = ver && orden.indexOf(tr.dataset.tipo) <= orden.indexOf(m);
     tr.style.display = ver ? '' : 'none';
   });
@@ -453,25 +460,29 @@ function filtrarTabla(el) {
 function pintarOrganigrama(cuerpo) {
   const caja = (tipo, titulo, sub) => `<div class="org-caja org-${tipo}"><b>${esc(titulo)}</b><small>${esc(sub)}</small></div>`;
   const nodo = (htmlCaja, hijos) => `<li>${htmlCaja}${hijos.length ? `<ul>${hijos.join('')}</ul>` : ''}</li>`;
-  const proy = p => nodo(caja('proyecto', p.nombre_corto, `Proyecto${lideresDe(p.id).length ? ' · ' + lideresDe(p.id).map(nombreCorto).join(', ') : ''}`), []);
-  const prog = g => nodo(caja('programa', g.nombre, 'Programa'), datos.proyectos.filter(p => p.programa_id === g.id).map(proy));
+  const sub = p => nodo(caja('subproyecto', p.nombre_corto, 'Sub-proyecto'), []);
+  const proy = p => nodo(caja('proyecto', p.nombre_corto, `Proyecto${lideresDe(p.id).length ? ' · ' + lideresDe(p.id).map(nombreCorto).join(', ') : ''}`), subDe(p).map(sub));
+  const raiz = arr => arr.filter(p => !p.padre_id);
+  const prog = g => nodo(caja('programa', g.nombre, 'Programa'), raiz(datos.proyectos.filter(p => p.programa_id === g.id)).map(proy));
   const arboles = datos.areas.map(a => {
     const hijos = [
       ...datos.portafolios.filter(f => f.area_id === a.id).map(f => nodo(caja('portafolio', f.nombre, 'Portafolio'), [
         ...datos.programas.filter(g => g.portafolio_id === f.id).map(prog),
-        ...datos.proyectos.filter(p => p.portafolio_id === f.id && !p.programa_id).map(proy)])),
+        ...raiz(datos.proyectos.filter(p => p.portafolio_id === f.id && !p.programa_id)).map(proy)])),
       ...datos.programas.filter(g => g.area_id === a.id && !g.portafolio_id).map(prog),
-      ...proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id).map(proy),
+      ...raiz(proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id)).map(proy),
     ];
     return `<div class="org-arbol"><ul>${nodo(caja('empresa', a.nombre, 'Empresa'), hijos)}</ul></div>`;
   });
-  cuerpo.innerHTML = `<p class="nota">Desplácese horizontalmente para ver toda la estructura. Las cajas naranjas son proyectos; bajo cada uno, su administrador.</p>
+  cuerpo.innerHTML = `<p class="nota">Desplácese horizontalmente para ver toda la estructura. Las cajas naranjas son proyectos (con su administrador) y las azul oscuro, sus sub-proyectos, donde se registra el LPS.</p>
     <div class="org-lienzo">${arboles.join('')}</div>`;
 }
 
 // ---------- Altas, ediciones y bajas (pasan por el servidor: pueden ser de cualquier empresa) ----------
-async function editarNodo(tabla, x, { area, portafolio, programa }) {
+async function editarNodo(tabla, x, { area, portafolio, programa, padre }) {
   const areaId = x?.area_id || area;
+  const padreId = x?.padre_id || padre || '';
+  const padreP = padreId && datos.proyectos.find(z => z.id === padreId);
   const campos = [];
   if (!areaId) campos.push({ name: 'area_id', label: 'Empresa', type: 'select', required: true, full: true, options: datos.areas.map(a => ({ value: a.id, label: a.nombre })) });
   const opcPort = id => datos.portafolios.filter(f => (!id || f.area_id === id) && f.estado !== 'inactivo').map(f => ({ value: f.id, label: areaId ? f.nombre : `${empresa(f.area_id)?.nombre} › ${f.nombre}` }));
@@ -483,8 +494,9 @@ async function editarNodo(tabla, x, { area, portafolio, programa }) {
   if (tabla === 'proyectos') {
     campos.push({ name: 'codigo', label: 'Código', required: true }, { name: 'nombre_corto', label: 'Nombre corto (menú)', required: true },
       { name: 'nombre_completo', label: 'Nombre completo', full: true },
-      { name: 'portafolio_id', label: 'Portafolio', type: 'select', options: opcPort(areaId) },
-      { name: 'programa_id', label: 'Programa (define el portafolio)', type: 'select', options: opcProg(areaId) },
+      // Un sub-proyecto hereda el portafolio y el programa de su proyecto
+      ...(padreP ? [] : [{ name: 'portafolio_id', label: 'Portafolio', type: 'select', options: opcPort(areaId) },
+        { name: 'programa_id', label: 'Programa (define el portafolio)', type: 'select', options: opcProg(areaId) }]),
       { name: 'estado', label: 'Estado', type: 'select', required: true, options: Object.entries(TXT_EST).map(([value, label]) => ({ value, label })) },
       { name: 'fecha_inicio', label: 'Inicio previsto', type: 'date' }, { name: 'fecha_fin', label: 'Fin previsto', type: 'date' });
   } else {
@@ -494,10 +506,11 @@ async function editarNodo(tabla, x, { area, portafolio, programa }) {
       { name: 'estado', label: 'Estado', type: 'select', required: true, options: [{ value: 'activo', label: 'Activo' }, { value: 'inactivo', label: 'Inactivo' }] },
       { name: 'descripcion', label: 'Descripción', type: 'textarea', full: true });
   }
-  const que = { portafolios: 'portafolio', programas: 'programa', proyectos: 'proyecto' }[tabla];
+  const que = { portafolios: 'portafolio', programas: 'programa', proyectos: padreP ? 'sub-proyecto' : 'proyecto' }[tabla];
   let creado = null;
   const r = await pedirDatos({
-    titulo: x ? `Editar ${que}: ${x.nombre || x.nombre_corto}` : `Nuevo ${que}${areaId ? ' en ' + (empresa(areaId)?.nombre || '') : ''}`,
+    titulo: x ? `Editar ${que}: ${x.nombre || x.nombre_corto}` : padreP ? `Nuevo sub-proyecto de ${padreP.nombre_corto}` : `Nuevo ${que}${areaId ? ' en ' + (empresa(areaId)?.nombre || '') : ''}`,
+    antes: padreP ? 'El sub-proyecto hereda el portafolio, el programa y los líderes de su proyecto. El Look Ahead y el Plan semanal se registran en él.' : '',
     valores: x || { estado: 'activo', portafolio_id: portafolio || '', programa_id: programa || '' },
     campos,
     alGuardar: async d => {
@@ -507,6 +520,7 @@ async function editarNodo(tabla, x, { area, portafolio, programa }) {
         if (d[k] && datos[t].find(z => z.id === d[k])?.area_id !== area_id) throw new Error(`El ${k === 'portafolio_id' ? 'portafolio' : 'programa'} elegido es de otra empresa.`);
       }
       const { area_id: _, ...resto } = d;
+      if (padreP) resto.padre_id = padreP.id;
       const res = await api.adminUsuarios('estructura', { tabla, id: x?.id, area_id, datos: resto });
       creado = res.registro;
       ok(`${que[0].toUpperCase() + que.slice(1)} guardado.`);
@@ -518,6 +532,7 @@ async function editarNodo(tabla, x, { area, portafolio, programa }) {
 async function eliminarNodo(tabla, x) {
   if (!x) return false;
   const que = { portafolios: 'el portafolio', programas: 'el programa', proyectos: 'el proyecto' }[tabla];
+  if (tabla === 'proyectos' && subDe(x).length) { error(`"${x.nombre_corto}" tiene ${subDe(x).length} sub-proyecto(s): elimínelos o muévalos primero.`); return false; }
   const aviso = tabla === 'proyectos' ? 'Solo se puede si no tiene actividades; si tiene historial, ciérrelo.'
     : 'Sus programas y proyectos no se eliminan: quedan sin ' + (tabla === 'portafolios' ? 'portafolio.' : 'programa.');
   if (!await confirmar(`¿Eliminar ${que} "${x.nombre || x.nombre_corto}"? ${aviso}`, { titulo: 'Eliminar', texto: 'Eliminar', peligro: true })) return false;
@@ -533,7 +548,8 @@ async function miembrosProyecto(p) {
   const candidatos = usuariosDe(p.area_id).filter(u => u.activo && u.rol !== 'pendiente');
   return pedirDatos({
     titulo: `Miembros de ${p.nombre_corto}`, texto: 'Guardar',
-    antes: `Empresa: <b>${esc(empresa(p.area_id)?.nombre || '')}</b>. Los usuarios marcados administran el proyecto (líderes). Lo que cada uno puede hacer lo define su rol en «Matriz de permisos».`,
+    antes: `Empresa: <b>${esc(empresa(p.area_id)?.nombre || '')}</b>. Los usuarios se registran en la empresa y aquí solo se eligen: los marcados administran el proyecto (líderes).
+      ${p.padre_id ? 'Si no marca a nadie, el sub-proyecto hereda los líderes de su proyecto. ' : 'Sus sub-proyectos los heredan. '}Lo que cada uno puede hacer lo define su rol en «Matriz de permisos».`,
     valores: { usuarios: actuales },
     campos: [{ name: 'usuarios', label: 'Líderes / administradores del proyecto', type: 'multiselect', full: true,
       options: candidatos.map(u => ({ value: u.id, label: `${u.nombre} · ${ROLES[u.rol] || u.rol}` })) }],
@@ -609,7 +625,7 @@ export async function panelReportesPlataforma(el, ctx) {
     const cuenta = est => ps.filter(p => p.estado === est).length;
     return [a.nombre, activa(a) ? 'Activa' : 'Suspendida', usuariosDe(a.id).filter(p => p.activo && p.rol !== 'pendiente').length,
       datos.portafolios.filter(x => x.area_id === a.id).length, datos.programas.filter(x => x.area_id === a.id).length,
-      cuenta('activo'), cuenta('propuesto'), cuenta('en_pausa'), cuenta('cerrado'), ps.filter(p => !['cerrado', 'rechazado'].includes(p.estado) && !lideresDe(p.id).length).length];
+      cuenta('activo'), cuenta('propuesto'), cuenta('en_pausa'), cuenta('cerrado'), ps.filter(p => !['cerrado', 'rechazado'].includes(p.estado) && !lideresEf(p).length).length];
   });
   const cabs = ['Empresa', 'Estado', 'Usuarios activos', 'Portafolios', 'Programas', 'Proyectos activos', 'Propuestos', 'En pausa', 'Cerrados', 'Sin administrador'];
   el.innerHTML = cab('Reportes de la plataforma', 'Cifras por empresa.',

@@ -1,6 +1,6 @@
 // Resumen semanal en texto, listo para pegar en Teams o enviar por correo (reemplaza la macro ExportarResumen).
 import { api } from '../data/api.js';
-import { store, lideres, nombre, etiqueta, param, nombreProyecto } from '../core/store.js';
+import { store, lideres, nombre, etiqueta, param, nombreProyecto, enProyectoSel } from '../core/store.js';
 import { etiquetaSemana, hoy, pct, esc, html, num } from '../core/util.js';
 import { resumenPAC, paretoCNC, resumenRestricciones, semanasPendiente } from './indicadores.js';
 import { modal, ok } from '../ui/ui.js';
@@ -11,7 +11,7 @@ export async function generarResumen(semana) {
     api.list('actividades', { eq: { area_id: area, semana } }),
     api.list('restricciones', { eq: { area_id: area } }),
   ]);
-  const filtradas = store.proyectoSel ? acts.filter(a => a.proyecto_id === store.proyectoSel) : acts;
+  const filtradas = store.proyectoSel ? acts.filter(a => enProyectoSel(a.proyecto_id)) : acts;
   const r = resumenPAC(filtradas);
   const meta = Number(param('meta_pac'));
   const lineas = [];

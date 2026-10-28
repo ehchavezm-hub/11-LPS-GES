@@ -417,3 +417,8 @@ html.letra-grande .aviso, html.letra-grande .nota { font-size: 14.5px; }
 .arbol-n1 { padding-left: 14px; } .arbol-n2 { padding-left: 28px; } .arbol-n3 { padding-left: 42px; }
 .proy-item.arbol-n1 { padding-left: 26px; } .proy-item.arbol-n2 { padding-left: 40px; } .proy-item.arbol-n3 { padding-left: 54px; }
 .arbol-vacio { font-size: 11px; font-style: italic; color: var(--texto-3); padding: 2px 6px 4px 40px; }
+.arbol-n4 { padding-left: 56px; } .proy-item.arbol-n4 { padding-left: 68px; }
+.proy-item.arbol-cont .nom { font-weight: 700; }
+.proy-item.arbol-cont .arbol-flecha { cursor: pointer; }
+.proy-item.arbol-sub .nom { font-size: 12px; }
+.proy-item.arbol-sub .arbol-ico { color: var(--texto-3); }

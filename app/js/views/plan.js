@@ -1,7 +1,7 @@
 // Plan semanal (6.9): compromisos de la semana, avance, cierre con CNC y HH reales, PAC.
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError } from '../data/api.js';
-import { store, on, esGestor, esAdmin, puede, puedeEditarActividad, lideres, nombre, proyecto, horasDia } from '../core/store.js';
+import { store, on, esGestor, esAdmin, puede, puedeEditarActividad, lideres, nombre, proyecto, horasDia, enProyectoSel, esContenedor } from '../core/store.js';
 import { lunes, sumarSemanas, etiquetaSemana, esc, html, hoy, pct, num, sumarDias, fmtFecha, DIAS } from '../core/util.js';
 import { actualizarQuery } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -125,13 +125,13 @@ function cerrada(resp) { return estado.cierres.some(c => c.responsable_id === re
 function filtroFila(a) {
   if (a.semana !== estado.semana || !a.comprometida) return false;
   if (estado.resp !== 'todos' && a.responsable_id !== estado.resp) return false;
-  if (store.proyectoSel && a.proyecto_id !== store.proyectoSel) return false;
+  if (!enProyectoSel(a.proyecto_id)) return false;
   return true;
 }
 function respNuevo() { return estado.resp !== 'todos' ? estado.resp : store.usuario.id; }
 
 function nuevaFila() {
-  const p = store.proyectoSel ? proyecto(store.proyectoSel) : null;
+  const p = store.proyectoSel && !esContenedor(proyecto(store.proyectoSel)) ? proyecto(store.proyectoSel) : null;   // con sub-proyectos: se elige uno
   // Programada mientras la semana se esté planificando (con Look Ahead de la misma semana: hasta el día de registro)
   const empezo = !semanaEnPlanificacion(estado.semana);
   return {
@@ -256,7 +256,7 @@ const acciones = {
   async traer() {
     const resp = estado.resp === 'todos' ? null : estado.resp;
     const cands = estado.acts.filter(a => !a.comprometida && a.estado_la !== 'cancelada' &&
-      (!resp || a.responsable_id === resp) && puedeEditarActividad(a) && (!store.proyectoSel || a.proyecto_id === store.proyectoSel));
+      (!resp || a.responsable_id === resp) && puedeEditarActividad(a) && enProyectoSel(a.proyecto_id));
     if (!cands.length) return toast('No hay actividades del Look Ahead pendientes de comprometer en esta semana.', 'info');
     const cuerpo = html(`<div><p>Seleccione las actividades que se comprometen esta semana:</p>
       <table class="simple"><tr><th></th><th>Responsable</th><th>Actividad</th><th>Estado LA</th><th class="num">HH</th></tr>
