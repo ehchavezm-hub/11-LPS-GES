@@ -36,10 +36,7 @@ const MENU = [
   { id: 'portafolios',   ico: '🗂', texto: 'Portafolios',             si: esAdmin },
   { id: 'programas',     ico: '📁', texto: 'Programas',               si: esAdmin },
   { id: 'proyectos',     ico: '📌', texto: 'Proyectos / Procesos',    si: esAdmin },
-  { sep: true },
-  { id: 'listas',        ico: '📋', texto: 'Listas configurables',    si: esAdmin },
-  { id: 'parametros',    ico: '🔧', texto: 'Parámetros',              si: esAdmin },
-  { id: 'calendario',    ico: '📅', texto: 'Calendario',              si: esAdmin },
+  // Listas configurables, Parámetros y Calendario aplican a los sub-proyectos: quedan en Configuración (pedido a11)
   { sep: true },
   { id: 'auditoria',     ico: '🕑', texto: 'Auditoría',               si: esAdmin },
 ];

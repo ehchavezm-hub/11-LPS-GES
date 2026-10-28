@@ -154,6 +154,7 @@ Estado de cada observación al 25/10/2026.
 | 126 (a8) | Los módulos de Planificación, Seguimiento y Más funcionan: no modificarlos (son para un sub-proyecto) | ✅ Sin cambios de comportamiento. Solo reconocen sub-proyectos cuando existan: elegir un proyecto incluye sus sub-proyectos y las actividades se registran en el sub-proyecto | Humo 160 pantallas sin errores | ✅ |
 | 127 (a9) | Una empresa recién creada (WSP) no se podía eliminar | ✅ Sus listas tienen valores protegidos (p. ej. «Completado») que la regla de protección no dejaba borrar, y el borrado era por partes (quedó a medias). Migración 025: `eliminar_empresa()` elimina todo en una sola transacción, solo sin historial y solo desde el servidor | Pruebas de base de datos 025 | ⏳ Falta aplicar en Supabase (pendiente de tu aprobación) |
 | 128 (a10) | Empresas: mostrar nombre y correo del administrador; «Administrador» (propietario) separado de «Super administrador» (de la empresa, crea portafolios y hacia abajo) | ✅ Columnas ADMINISTRADOR (propietarios, con nombre y correo) y SUPER ADMINISTRADOR (Sin asignar → Asignar / Cambiar); el formulario «Nueva empresa» muestra quién será su administrador | `adm10.js` | ✅ |
+| 129 (a11) | Administración: quitar Listas configurables, Parámetros y Calendario (solo aplican a los sub-proyectos) | ✅ Retirados del menú de Administración; Listas y Parámetros siguen en Configuración | Humo sin errores | ✅ |
 
 ## Lo que encontró la reconfirmación
 
