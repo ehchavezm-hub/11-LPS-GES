@@ -7,7 +7,7 @@
 //   - accion "crear_empresa": empresa nueva con sus listas, parámetros y permisos iniciales (la administran los propietarios).
 //   - accion "estado_empresa": activar o desactivar una empresa.
 //   - acciones de la consola de plataforma: "plataforma" (datos de todas las empresas), "editar_empresa",
-//     "eliminar_empresa" (solo sin historial), "usar_empresa" (trabajar en otra empresa), "cambiar_principal",
+//     "eliminar_empresa" (cualquier empresa, con todos sus datos), "usar_empresa" (trabajar en otra empresa), "cambiar_principal",
 //     "estructura" (portafolios, programas y proyectos de cualquier empresa), "lideres", "propietario",
 //     "usuario_plataforma" y "auditoria_plataforma".
 // Lo que cruza empresas pasa solo por aquí: en las pantallas normales cada usuario ve únicamente su empresa.
@@ -241,8 +241,8 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
     if (!await existeArea(area)) return falla('Empresa no encontrada.', 404);
     // Cuentas de acceso de sus usuarios: se borran después de eliminar la empresa (la base solo borra los perfiles)
     const { data: usuarios } = await admin.from('profiles').select('id').eq('area_id', area);
-    // Todo en una transacción (public.eliminar_empresa, migración 025): o se elimina completa o no cambia nada.
-    // Solo procede sin historial (proyectos, actividades o cartera); si tiene, se suspende.
+    // Todo en una transacción (public.eliminar_empresa, migración 025): o se elimina completa, con todos sus datos,
+    // o no cambia nada. El aplicativo pide escribir el nombre de la empresa para confirmar.
     const { error: e } = await admin.rpc('eliminar_empresa', { p_area: area });
     if (e) return falla(e.message);
     for (const u of usuarios ?? []) await admin.auth.admin.deleteUser(u.id);

@@ -195,15 +195,22 @@ async function estadoEmpresa(a) {
 async function eliminarEmpresas(ids) {
   const lista = ids.map(empresa).filter(Boolean);
   if (!lista.length) return false;
-  const nombres = lista.map(a => `"${a.nombre}"`).join(', ');
+  // Elimina cualquier empresa con TODOS sus datos: se confirma escribiendo su nombre (o ELIMINAR si son varias)
+  const cifras = a => {
+    const ps = proyectosDe(a.id);
+    return `<li><b>${esc(a.nombre)}</b>: ${usuariosDe(a.id).length} usuario(s), ${datos.portafolios.filter(x => x.area_id === a.id).length} portafolio(s),
+      ${datos.programas.filter(x => x.area_id === a.id).length} programa(s), ${ps.filter(p => !p.padre_id).length} proyecto(s) y ${ps.filter(p => p.padre_id).length} sub-proyecto(s)</li>`;
+  };
+  const clave = lista.length === 1 ? lista[0].nombre : 'ELIMINAR';
   const d = await pedirDatos({
-    titulo: lista.length > 1 ? `Eliminar ${lista.length} empresas` : 'Eliminar empresa', texto: 'Eliminar definitivamente',
-    antes: `Se eliminarán ${nombres}, con sus usuarios, listas y parámetros. Solo se permite si no tienen proyectos ni actividades;
-      si tienen historial, suspéndalas para conservarlo. Esta acción no se puede deshacer.`,
-    campos: [{ name: 'confirmacion', label: 'Escriba ELIMINAR para confirmar', required: true, full: true }],
+    titulo: lista.length > 1 ? `Eliminar ${lista.length} empresas` : `Eliminar la empresa ${lista[0].nombre}`, texto: 'Eliminar definitivamente',
+    antes: `<div class="aviso error"><b>Se eliminarán por completo, con todos sus datos:</b><ul style="margin:6px 0 0 18px">${lista.map(cifras).join('')}</ul>
+      También su Look Ahead, plan semanal, restricciones, cartera, historial y las cuentas de sus usuarios. <b>No se puede deshacer.</b>
+      Si quiere conservar la información, use «Suspender» o descargue antes un respaldo.</div>`,
+    campos: [{ name: 'confirmacion', label: `Para confirmar escriba: ${clave}`, required: true, full: true }],
   });
   if (!d) return false;
-  if (String(d.confirmacion).trim().toUpperCase() !== 'ELIMINAR') { error('Escriba ELIMINAR para confirmar.'); return false; }
+  if (String(d.confirmacion).trim().toLowerCase() !== clave.toLowerCase()) { error(`Escriba exactamente «${clave}» para confirmar.`); return false; }
   const fallas = [];
   for (const a of lista) {
     try { await api.adminUsuarios('eliminar_empresa', { area_id: a.id }); } catch (e) { fallas.push(`${a.nombre}: ${mensajeError(e)}`); }

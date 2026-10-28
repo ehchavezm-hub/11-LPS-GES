@@ -490,7 +490,29 @@ do $$ begin
   assert not exists (select 1 from areas where nombre = 'Empresa para borrar'), 'no se eliminó la empresa';
   assert coalesce(current_setting('lpsgt.eliminando_empresa', true), '') <> 'on', 'quedó desactivada la protección de valores';
 end $$;
-select debe_fallar($q$ select eliminar_empresa((select area_id from proyectos limit 1)) $q$, 'proyecto');
+-- Cualquier empresa, también con proyectos, sub-proyectos, actividades (semana cerrada) y restricciones
+insert into areas (nombre) values ('Empresa con historial');
+select sembrar_area((select id from areas where nombre = 'Empresa con historial'));
+insert into auth.users (email, raw_user_meta_data) values ('hist@x.pe', '{"nombre":"Hist"}');
+update profiles set area_id = (select id from areas where nombre = 'Empresa con historial'), rol = 'lider', activo = true where email = 'hist@x.pe';
+insert into portafolios (area_id, nombre) select id, 'PF hist' from areas where nombre = 'Empresa con historial';
+insert into proyectos (area_id, codigo, nombre_corto, estado, portafolio_id) select a.id, 'H-1', 'Proyecto hist', 'activo', f.id
+  from areas a join portafolios f on f.area_id = a.id where a.nombre = 'Empresa con historial';
+insert into proyectos (area_id, codigo, nombre_corto, estado, padre_id) select area_id, 'H-1.1', 'Sub hist', 'activo', id from proyectos where codigo = 'H-1';
+insert into actividades (area_id, responsable_id, semana, proyecto_id, descripcion, comprometida, estado)
+  select p.area_id, u.id, date_trunc('week', current_date)::date - 7, p.id, 'Actividad hist', true, 'completado'
+  from proyectos p, profiles u where p.codigo = 'H-1.1' and u.email = 'hist@x.pe';
+insert into restricciones (area_id, actividad_id, proyecto_id, descripcion, estado)
+  select area_id, id, proyecto_id, 'Restricción hist', 'pendiente' from actividades where descripcion = 'Actividad hist';
+insert into cierres (area_id, responsable_id, semana, cerrada) select area_id, responsable_id, semana, true from actividades where descripcion = 'Actividad hist';
+select eliminar_empresa((select id from areas where nombre = 'Empresa con historial'));
+do $$ begin
+  assert not exists (select 1 from areas where nombre = 'Empresa con historial'), 'no se eliminó la empresa con historial';
+  assert not exists (select 1 from proyectos where codigo in ('H-1', 'H-1.1')), 'quedaron proyectos';
+  assert not exists (select 1 from actividades where descripcion = 'Actividad hist'), 'quedaron actividades';
+  assert not exists (select 1 from profiles where email = 'hist@x.pe'), 'quedó el usuario';
+  assert exists (select 1 from areas where nombre <> 'Empresa con historial'), 'se borraron otras empresas';
+end $$;
 select debe_fallar($q$ delete from lista_valores where codigo = 'completado' $q$, 'protegido');
 set role authenticated;
 select como('admin@x.pe');

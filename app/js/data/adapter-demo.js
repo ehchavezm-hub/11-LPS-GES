@@ -141,15 +141,19 @@ export function crearAdaptadorDemo() {
       guardar(); return { ok: true };
     }
     if (accion === 'eliminar_empresa') {
+      // Emula public.eliminar_empresa (025): cualquier empresa, con todos sus datos
       if (area === yo.area_id) throw new Error('No puede eliminar la empresa en la que está trabajando. Abra otra empresa primero.');
-      for (const [t, texto] of [['proyectos', 'proyectos'], ['actividades', 'actividades'], ['cartera', 'registros de cartera']]) {
-        const n = tabla(t).filter(x => x.area_id === area).length;
-        if (n) throw new Error(`La empresa tiene ${n} ${texto}. Para conservar su historial, suspéndala en lugar de eliminarla (o elimine antes sus proyectos).`);
-      }
-      if (tabla('profiles').some(p => p.area_id === area && p.es_plataforma)) throw new Error('Un administrador de la plataforma está trabajando en esa empresa. Que abra otra empresa primero.');
-      const listas = tabla('listas').filter(l => l.area_id === area).map(l => l.id);
-      db.lista_valores = tabla('lista_valores').filter(v => !listas.includes(v.lista_id));
-      for (const t of ['programas', 'portafolios', 'vistas', 'permisos', 'parametros', 'listas', 'profiles']) db[t] = tabla(t).filter(x => x.area_id !== area);
+      if (tabla('profiles').some(p => p.area_id === area && p.es_plataforma)) throw new Error('Un propietario de la plataforma está trabajando en esa empresa. Que abra otra empresa primero.');
+      const proys = new Set(tabla('proyectos').filter(p => p.area_id === area).map(p => p.id));
+      const usuarios = new Set(tabla('profiles').filter(p => p.area_id === area).map(p => p.id));
+      const listas = new Set(tabla('listas').filter(l => l.area_id === area).map(l => l.id));
+      const plantillas = new Set(tabla('plantillas').filter(x => x.area_id === area).map(x => x.id));
+      db.lista_valores = tabla('lista_valores').filter(v => !listas.has(v.lista_id));
+      db.plantilla_items = tabla('plantilla_items').filter(x => !plantillas.has(x.plantilla_id) && !proys.has(x.proyecto_id));
+      db.proyecto_lideres = tabla('proyecto_lideres').filter(x => !proys.has(x.proyecto_id));
+      db.proyecto_favoritos = tabla('proyecto_favoritos').filter(x => !proys.has(x.proyecto_id) && !usuarios.has(x.usuario_id));
+      db.notificaciones = tabla('notificaciones').filter(x => !usuarios.has(x.usuario_id));
+      for (const t of Object.keys(db)) if (Array.isArray(db[t]) && t !== 'areas') db[t] = db[t].filter(x => x?.area_id !== area);
       db.areas = tabla('areas').filter(a => a.id !== area);
       guardar(); return { ok: true };
     }
