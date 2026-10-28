@@ -77,10 +77,11 @@ export async function cargarCatalogo() {
 
 // ---------- Permisos ----------
 export function rol() { return store.usuario?.rol || 'anonimo'; }
-export function esSuperadmin() { return rol() === 'superadmin' || !!store.usuario?.es_admin_principal; }
-export function esAdmin() { return ['superadmin', 'admin'].includes(rol()); }
-export function esGestor() { return ['superadmin', 'admin', 'delegado'].includes(rol()); }
-export function esStaff() { return ['superadmin', 'admin', 'delegado', ...PLANIFICADORES].includes(rol()); }
+export function esPropietario() { return rol() === 'propietario' || !!store.usuario?.es_propietario; }
+export function esSuperadmin() { return esPropietario() || rol() === 'superadmin' || !!store.usuario?.es_admin_principal; }
+export function esAdmin() { return esPropietario() || ['superadmin', 'admin'].includes(rol()); }
+export function esGestor() { return esPropietario() || ['superadmin', 'admin', 'delegado'].includes(rol()); }
+export function esStaff() { return esPropietario() || ['superadmin', 'admin', 'delegado', ...PLANIFICADORES].includes(rol()); }
 export function puede(accion) {
   if (esSuperadmin()) return true;
   // El administrador usa su columna de la matriz (la edita el super administrador); sin fila, permitido
