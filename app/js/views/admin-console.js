@@ -68,6 +68,8 @@ export function cerrarConsola() {
   overlay = null;
   dejarEscuchar?.();
   dejarEscuchar = null;
+  // Redirigir fuera de #/admin para que el botón del sidebar pueda reabrir el panel
+  if (location.hash === '#/admin') location.hash = '#/tablero';
 }
 
 function buildShell() {
