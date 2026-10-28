@@ -378,6 +378,7 @@ export async function panelEstructuraTodas(el, ctx) {
       if (d.editar) { const x = datos[d.tabla].find(r => r.id === d.editar); cambio = !!await editarNodo(d.tabla, x, {}); area = x?.area_id; }
       if (d.eliminar) { const x = datos[d.tabla].find(r => r.id === d.eliminar); cambio = await eliminarNodo(d.tabla, x); area = x?.area_id; }
       if (d.lideres) { const p = datos.proyectos.find(r => r.id === d.lideres); cambio = !!await miembrosProyecto(p); area = p?.area_id; }
+      if (d.eliminarEmpresa) { cambio = await eliminarEmpresas([d.eliminarEmpresa]); }
       if (d.editarEmpresa) { const a = empresa(d.editarEmpresa); cambio = !!await editarEmpresa(a); area = a?.id; if (cambio) ctx.repintarCabecera(); }
       if (d.usuarios) { await gestionarUsuarios(empresa(d.usuarios), () => refrescar(d.usuarios).then(pintarTodo)); }
       if (cambio) { await refrescar(area); pintarTodo(); }
@@ -481,7 +482,9 @@ function pintarOrganigrama(cuerpo) {
   // Cada tarjeta se edita con un clic sobre ella (pedido 14)
   const TABLA = { portafolio: 'portafolios', programa: 'programas', proyecto: 'proyectos', subproyecto: 'proyectos' };
   const caja = (tipo, titulo, sub, id) => `<div class="org-caja org-${tipo}" role="button" tabindex="0" title="Clic para editar"
-      ${tipo === 'empresa' ? `data-editar-empresa="${id}"` : `data-editar="${id}" data-tabla="${TABLA[tipo]}"`}><b>${esc(titulo)}</b><small>${esc(sub)}</small></div>`;
+      ${tipo === 'empresa' ? `data-editar-empresa="${id}"` : `data-editar="${id}" data-tabla="${TABLA[tipo]}"`}><b>${esc(titulo)}</b><small>${esc(sub)}</small>
+      ${tipo === 'empresa' && id === datos.mi_area ? '' : `<button class="org-borrar" title="Eliminar" aria-label="Eliminar ${esc(titulo)}"
+        ${tipo === 'empresa' ? `data-eliminar-empresa="${id}"` : `data-eliminar="${id}" data-tabla="${TABLA[tipo]}"`}>🗑</button>`}</div>`;
   const nodo = (htmlCaja, hijos) => `<li>${htmlCaja}${hijos.length ? `<ul>${hijos.join('')}</ul>` : ''}</li>`;
   const sub = p => nodo(caja('subproyecto', p.nombre_corto, 'Sub-proyecto', p.id), []);
   const proy = p => nodo(caja('proyecto', p.nombre_corto, `Proyecto${lideresDe(p.id).length ? ' · ' + lideresDe(p.id).map(nombreCorto).join(', ') : ''}`, p.id), subDe(p).map(sub));
@@ -497,7 +500,7 @@ function pintarOrganigrama(cuerpo) {
     ];
     return `<div class="org-arbol"><ul>${nodo(caja('empresa', a.nombre, 'Empresa', a.id), hijos)}</ul></div>`;
   });
-  cuerpo.innerHTML = `<p class="nota">Haga clic en una tarjeta para editarla. Desplácese horizontalmente para ver toda la estructura. Las cajas naranjas son proyectos (con su administrador) y las azul oscuro, sus sub-proyectos, donde se registra el LPS.</p>
+  cuerpo.innerHTML = `<p class="nota">Haga clic en una tarjeta para editarla; 🗑 la elimina. Desplácese horizontalmente para ver toda la estructura. Las cajas naranjas son proyectos (con su administrador) y las azul oscuro, sus sub-proyectos, donde se registra el LPS.</p>
     <div class="org-lienzo">${arboles.join('')}</div>`;
 }
 
@@ -585,13 +588,38 @@ function filtrarPorEmpresa() {
 
 async function eliminarNodo(tabla, x) {
   if (!x) return false;
-  const que = { portafolios: 'el portafolio', programas: 'el programa', proyectos: 'el proyecto' }[tabla];
-  if (tabla === 'proyectos' && subDe(x).length) { error(`"${x.nombre_corto}" tiene ${subDe(x).length} sub-proyecto(s): elimínelos o muévalos primero.`); return false; }
-  const aviso = tabla === 'proyectos' ? 'Solo se puede si no tiene actividades; si tiene historial, ciérrelo.'
-    : 'Sus programas y proyectos no se eliminan: quedan sin ' + (tabla === 'portafolios' ? 'portafolio.' : 'programa.');
-  if (!await confirmar(`¿Eliminar ${que} "${x.nombre || x.nombre_corto}"? ${aviso}`, { titulo: 'Eliminar', texto: 'Eliminar', peligro: true })) return false;
+  if (tabla === 'proyectos') return eliminarProyecto(x);
+  const que = tabla === 'portafolios' ? 'el portafolio' : 'el programa';
+  const aviso = 'Sus programas y proyectos no se eliminan: quedan sin ' + (tabla === 'portafolios' ? 'portafolio.' : 'programa.');
+  if (!await confirmar(`¿Eliminar ${que} "${x.nombre}"? ${aviso}`, { titulo: 'Eliminar', texto: 'Eliminar', peligro: true })) return false;
   await api.adminUsuarios('estructura', { tabla, op: 'eliminar', id: x.id });
   ok('Eliminado.');
+  return true;
+}
+
+// Proyecto (pedido 18): sin trabajo registrado se elimina con una confirmación; con historial o sub-proyectos se muestra
+// lo que se borrará y se confirma escribiendo su nombre
+async function eliminarProyecto(x) {
+  const h = await api.adminUsuarios('historial_proyecto', { id: x.id });
+  const sub = x.padre_id ? 'sub-proyecto' : 'proyecto';
+  if (!h.subproyectos && !h.actividades && !h.restricciones && !h.cartera) {
+    if (!await confirmar(`¿Eliminar el ${sub} "${x.nombre_corto}"? Todavía no tiene trabajo registrado.`, { titulo: 'Eliminar', texto: 'Eliminar', peligro: true })) return false;
+    await api.adminUsuarios('estructura', { tabla: 'proyectos', op: 'eliminar', id: x.id });
+    ok(`${sub[0].toUpperCase() + sub.slice(1)} eliminado.`);
+    return true;
+  }
+  const items = [h.subproyectos && `${h.subproyectos} sub-proyecto(s)`, h.actividades && `${h.actividades} actividad(es) del Look Ahead y del plan semanal`,
+    h.restricciones && `${h.restricciones} restricción(es)`, h.cartera && `${h.cartera} registro(s) de cartera`].filter(Boolean);
+  const d = await pedirDatos({
+    titulo: `Eliminar el ${sub} ${x.nombre_corto}`, texto: 'Eliminar definitivamente',
+    antes: `<div class="aviso error"><b>Se eliminará con todo su historial:</b><ul style="margin:6px 0 0 18px">${items.map(t => `<li>${esc(t)}</li>`).join('')}</ul>
+      También sus comentarios, enlaces e hitos (aunque sean de semanas cerradas). <b>No se puede deshacer.</b> Si quiere conservarlo, cámbielo a «Cerrado».</div>`,
+    campos: [{ name: 'confirmacion', label: `Para confirmar escriba: ${x.nombre_corto}`, required: true, full: true }],
+  });
+  if (!d) return false;
+  if (String(d.confirmacion).trim().toLowerCase() !== x.nombre_corto.trim().toLowerCase()) { error(`Escriba exactamente «${x.nombre_corto}» para confirmar.`); return false; }
+  await api.adminUsuarios('estructura', { tabla: 'proyectos', op: 'eliminar', id: x.id, completo: true });
+  ok(`${sub[0].toUpperCase() + sub.slice(1)} eliminado con su historial.`);
   return true;
 }
 

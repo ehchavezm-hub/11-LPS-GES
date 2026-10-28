@@ -172,6 +172,17 @@ export function crearAdaptadorDemo() {
       const t = String(d.tabla || '');
       if (!CAMPOS_EST[t]) throw new Error('Tabla no válida.');
       if (d.op === 'eliminar') {
+        if (t === 'proyectos' && d.completo) {
+          // Emula public.eliminar_proyecto_plataforma (026): con historial y sub-proyectos
+          const ids = new Set([d.id, ...tabla('proyectos').filter(r => r.padre_id === d.id).map(r => r.id)]);
+          const acts = new Set(tabla('actividades').filter(a => ids.has(a.proyecto_id)).map(a => a.id));
+          db.restricciones = tabla('restricciones').filter(r => !ids.has(r.proyecto_id) && !acts.has(r.actividad_id));
+          db.actividades = tabla('actividades').filter(a => !acts.has(a.id));
+          db.cartera = tabla('cartera').filter(c => !ids.has(c.proyecto_id));
+          for (const tt of ['proyecto_lideres', 'proyecto_favoritos', 'plantilla_items', 'hitos']) db[tt] = tabla(tt).filter(r => !ids.has(r.proyecto_id));
+          db.proyectos = tabla('proyectos').filter(r => !ids.has(r.id));
+          guardar(); return { ok: true };
+        }
         if (t === 'proyectos') {
           const hijos = tabla('proyectos').filter(x => x.padre_id === d.id).length;
           if (hijos) throw new Error(`El proyecto tiene ${hijos} sub-proyecto(s): elimínelos o muévalos primero.`);
@@ -248,6 +259,11 @@ export function crearAdaptadorDemo() {
       }
       if (d.activo !== undefined) { if (u.id === yo.id && !d.activo) throw new Error('No puede desactivarse a sí mismo.'); u.activo = !!d.activo; }
       guardar(); return { ok: true };
+    }
+    if (accion === 'historial_proyecto') {
+      const ids = new Set([d.id, ...tabla('proyectos').filter(r => r.padre_id === d.id).map(r => r.id)]);
+      const n = t => tabla(t).filter(r => ids.has(r.proyecto_id)).length;
+      return { subproyectos: ids.size - 1, actividades: n('actividades'), restricciones: n('restricciones'), cartera: n('cartera') };
     }
     if (accion === 'auditoria_plataforma') {
       return { registros: clon(tabla('auditoria').filter(r => !area || r.area_id === area).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 300)) };
@@ -515,7 +531,7 @@ export function crearAdaptadorDemo() {
       if (!yo || !GESTORES.includes(yo.rol)) throw new Error('No tiene permiso para gestionar usuarios.');
       if (['empresas', 'crear_empresa', 'estado_empresa'].includes(accion)) return empresasDemo(accion, d, yo);
       if (['plataforma', 'editar_empresa', 'eliminar_empresa', 'usar_empresa', 'cambiar_principal', 'estructura', 'lideres', 'propietario',
-        'usuario_plataforma', 'auditoria_plataforma'].includes(accion)) {
+        'usuario_plataforma', 'auditoria_plataforma', 'historial_proyecto'].includes(accion)) {
         if (!yo.es_plataforma) throw new Error('Solo el administrador de la plataforma gestiona empresas.');
         return plataformaDemo(accion, d, yo);
       }

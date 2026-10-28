@@ -537,6 +537,28 @@ do $$ begin
   assert (select portafolio_id from proyectos where codigo = 'MV-1.1') = (select id from portafolios where codigo = 'PF-D'), 'el sub-proyecto no tomó el portafolio de destino';
 end $$;
 
+-- ---------- 026: eliminar un proyecto con historial y sub-proyectos (servidor) ----------
+reset role;
+insert into proyectos (area_id, codigo, nombre_corto, estado) select id, 'DEL-1', 'A eliminar', 'activo' from areas where nombre <> 'Destino' order by created_at limit 1;
+insert into proyectos (area_id, codigo, nombre_corto, estado, padre_id) select area_id, 'DEL-1.1', 'Sub a eliminar', 'activo', id from proyectos where codigo = 'DEL-1';
+insert into actividades (area_id, responsable_id, semana, proyecto_id, descripcion, comprometida, estado)
+  select p.area_id, u.id, date_trunc('week', current_date)::date - 14, p.id, 'Act a eliminar', true, 'completado'
+  from proyectos p, profiles u where p.codigo = 'DEL-1.1' and u.email = 'lider3@x.pe';
+insert into cierres (area_id, responsable_id, semana, cerrada) select area_id, responsable_id, semana, true from actividades where descripcion = 'Act a eliminar'
+  on conflict do nothing;
+insert into restricciones (area_id, actividad_id, proyecto_id, descripcion, estado)
+  select area_id, id, proyecto_id, 'Rest a eliminar', 'pendiente' from actividades where descripcion = 'Act a eliminar';
+do $$ declare r jsonb; begin
+  r := eliminar_proyecto_plataforma((select id from proyectos where codigo = 'DEL-1'));
+  assert (r->>'subproyectos')::int = 1 and (r->>'actividades')::int = 1 and (r->>'restricciones')::int = 1, 'conteo incorrecto: ' || r::text;
+  assert not exists (select 1 from proyectos where codigo in ('DEL-1', 'DEL-1.1')), 'quedaron proyectos';
+  assert not exists (select 1 from actividades where descripcion = 'Act a eliminar'), 'quedaron actividades';
+end $$;
+set role authenticated;
+select como('admin@x.pe');
+select debe_fallar($q$ select eliminar_proyecto_plataforma((select id from proyectos limit 1)) $q$, 'permission denied');
+reset role;
+
 -- 017: las funciones de disparador no se pueden invocar como API
 do $$ begin
   assert not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prorettype = 'trigger'::regtype

@@ -82,7 +82,8 @@ async function atender(req: Request): Promise<Response> {
     const d = await req.json().catch(() => ({}));
     const clave = String(d.clave ?? '');
     const accionesEmpresa = ['empresas', 'crear_empresa', 'estado_empresa', 'plataforma', 'editar_empresa', 'eliminar_empresa',
-      'usar_empresa', 'cambiar_principal', 'estructura', 'lideres', 'propietario', 'usuario_plataforma', 'auditoria_plataforma'];
+      'usar_empresa', 'cambiar_principal', 'estructura', 'lideres', 'propietario', 'usuario_plataforma', 'auditoria_plataforma',
+      'historial_proyecto'];
     if (accionesEmpresa.includes(d.accion)) {
       if (!yo.es_plataforma) return falla('Solo el administrador de la plataforma gestiona empresas.', 403);
       return await empresas(admin, yo, d, clave);
@@ -155,7 +156,7 @@ async function atender(req: Request): Promise<Response> {
 // deno-lint-ignore no-explicit-any
 async function empresas(admin: any, yo: any, d: any, _clave: string): Promise<Response> {
   const otras = ['plataforma', 'editar_empresa', 'eliminar_empresa', 'usar_empresa', 'cambiar_principal', 'estructura', 'lideres',
-    'propietario', 'usuario_plataforma', 'auditoria_plataforma'];
+    'propietario', 'usuario_plataforma', 'auditoria_plataforma', 'historial_proyecto'];
   if (otras.includes(d.accion)) return await plataforma(admin, yo, d);
   if (d.accion === 'empresas') {
     const { data: areas, error: e } = await admin.from('areas').select('id, nombre, descripcion, activa, created_at').order('created_at');
@@ -266,6 +267,15 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
       programas: programas.data, proyectos: proyectos.data, lideres: lideres.data, mi_area: yo.area_id });
   }
 
+  if (d.accion === 'historial_proyecto') {
+    // Lo que se perdería al eliminar el proyecto (y sus sub-proyectos)
+    const id = String(d.id ?? '');
+    const { data: subs } = await admin.from('proyectos').select('id').eq('padre_id', id);
+    const ids = [id, ...(subs ?? []).map((x: any) => x.id)];
+    const cuenta = async (t: string) => (await admin.from(t).select('id', { count: 'exact', head: true }).in('proyecto_id', ids)).count ?? 0;
+    return respuesta({ subproyectos: ids.length - 1, actividades: await cuenta('actividades'), restricciones: await cuenta('restricciones'), cartera: await cuenta('cartera') });
+  }
+
   if (d.accion === 'editar_empresa') {
     const nombre = String(d.nombre ?? '').trim();
     if (!nombre) return falla('Indique el nombre de la empresa.');
@@ -308,11 +318,16 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
     if (d.op === 'eliminar') {
       const { data: x } = await admin.from(tabla).select('id').eq('id', String(d.id ?? '')).maybeSingle();
       if (!x) return falla('Registro no encontrado.', 404);
+      if (tabla === 'proyectos' && d.completo) {
+        // Con su historial y sus sub-proyectos, en una transacción (public.eliminar_proyecto_plataforma, migración 026)
+        const { data: r, error: e } = await admin.rpc('eliminar_proyecto_plataforma', { p_proyecto: x.id });
+        return e ? falla(e.message) : respuesta({ ok: true, eliminado: r });
+      }
       if (tabla === 'proyectos') {
         const { count: hijos } = await admin.from('proyectos').select('id', { count: 'exact', head: true }).eq('padre_id', x.id);
         if (hijos) return falla(`El proyecto tiene ${hijos} sub-proyecto(s): elimínelos o muévalos primero.`);
         const { count } = await admin.from('actividades').select('id', { count: 'exact', head: true }).eq('proyecto_id', x.id);
-        if (count) return falla(`El proyecto tiene ${count} actividades: ciérrelo en lugar de eliminarlo para conservar su historial.`);
+        if (count) return falla(`El proyecto tiene ${count} actividades: confirme la eliminación con su historial.`);
         await admin.from('proyecto_lideres').delete().eq('proyecto_id', x.id);
         await admin.from('proyecto_favoritos').delete().eq('proyecto_id', x.id);
       }

@@ -426,3 +426,8 @@
 .admin-quien > .nota { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
 .org-caja[role="button"] { cursor: pointer; transition: box-shadow .15s, transform .15s; }
 .org-caja[role="button"]:hover, .org-caja[role="button"]:focus-visible { box-shadow: 0 0 0 2px #0b6f86, 0 4px 10px rgba(0,0,0,.12); transform: translateY(-1px); outline: none; }
+.org-caja { position: relative; }
+.org-borrar { position: absolute; top: -9px; right: -9px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid #e3a1a1; background: #fff;
+  font-size: 11px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity .15s; padding: 0; }
+.org-caja:hover .org-borrar, .org-caja:focus-within .org-borrar, .org-borrar:focus-visible { opacity: 1; }
+.org-borrar:hover { background: #fdecec; }
