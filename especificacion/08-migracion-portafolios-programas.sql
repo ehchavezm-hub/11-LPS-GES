@@ -4,6 +4,17 @@
 -- Ejecutar en Supabase > SQL Editor (una sola vez).
 
 -- ============================================================
+-- 0. Función set_updated_at (si no existe ya)
+-- ============================================================
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+-- ============================================================
 -- 1. portafolios
 -- ============================================================
 CREATE TABLE IF NOT EXISTS portafolios (
