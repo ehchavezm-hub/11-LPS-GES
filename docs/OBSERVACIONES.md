@@ -153,6 +153,7 @@ Estado de cada observación al 25/10/2026.
 | 125 (a8) | Usuarios registrados solo en la empresa; los niveles de abajo los heredan | ✅ Portafolios, programas, proyectos y sub-proyectos solo eligen usuarios de la empresa; un sub-proyecto sin líderes propios hereda los de su proyecto (y «Mis proyectos» lo incluye) | `sub.js` | ✅ |
 | 126 (a8) | Los módulos de Planificación, Seguimiento y Más funcionan: no modificarlos (son para un sub-proyecto) | ✅ Sin cambios de comportamiento. Solo reconocen sub-proyectos cuando existan: elegir un proyecto incluye sus sub-proyectos y las actividades se registran en el sub-proyecto | Humo 160 pantallas sin errores | ✅ |
 | 127 (a9) | Una empresa recién creada (WSP) no se podía eliminar | ✅ Sus listas tienen valores protegidos (p. ej. «Completado») que la regla de protección no dejaba borrar, y el borrado era por partes (quedó a medias). Migración 025: `eliminar_empresa()` elimina todo en una sola transacción, solo sin historial y solo desde el servidor | Pruebas de base de datos 025 | ⏳ Falta aplicar en Supabase (pendiente de tu aprobación) |
+| 128 (a10) | Empresas: mostrar nombre y correo del administrador; «Administrador» (propietario) separado de «Super administrador» (de la empresa, crea portafolios y hacia abajo) | ✅ Columnas ADMINISTRADOR (propietarios, con nombre y correo) y SUPER ADMINISTRADOR (Sin asignar → Asignar / Cambiar); el formulario «Nueva empresa» muestra quién será su administrador | `adm10.js` | ✅ |
 
 ## Lo que encontró la reconfirmación
 

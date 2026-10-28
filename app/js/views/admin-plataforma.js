@@ -23,6 +23,16 @@ const lideresDe = proyId => datos.lideres.filter(l => l.proyecto_id === proyId).
 const lideresEf = p => lideresDe(p.id).length || !p.padre_id ? lideresDe(p.id) : lideresDe(p.padre_id);
 const subDe = p => datos.proyectos.filter(x => x.padre_id === p.id);
 const nombreCorto = p => p ? (p.email ? p.email.split('@')[0] : p.nombre) : '';
+// Administrador de cada empresa: los propietarios de la plataforma (la crean y la administran por defecto).
+// Super administrador: el responsable dentro de la empresa (crea portafolios, programas y proyectos); es opcional.
+const propietarios = () => datos.perfiles.filter(p => p.es_plataforma && p.activo);
+const superDe = id => { const p = principalDe(id); return p && !p.es_plataforma ? p : null; };
+const celdaAdministrador = () => propietarios().map(p => `<b>${esc(p.nombre)}</b><br><small class="nota">${esc(p.email || '')}</small>`).join('<br>') || '—';
+const celdaSuper = (a, conBoton = true) => {
+  const sa = superDe(a.id);
+  return (sa ? `<b>${esc(sa.nombre)}</b><br><small class="nota">${esc(sa.email || '')}</small>` : badge('Sin asignar', '#EDC948')) +
+    (conBoton ? ` <button class="btn btn-xs${sa ? '' : ' btn-azul'}" data-principal="${a.id}">${sa ? 'Cambiar' : 'Asignar'}</button>` : '');
+};
 const codigoEmpresa = a => String(a.id).slice(0, 8);
 const activa = a => a.activa !== false;
 
@@ -56,10 +66,10 @@ export async function panelResumenPlataforma(el, ctx) {
       ${kpi(sinAdmin, 'Proyectos sin administrador', sinAdmin ? 'alerta' : '')}
     </div>
     <div class="tarjeta admin-tabla-wrap"><table class="simple">
-      <thead><tr><th>EMPRESA</th><th>SUPER ADMIN</th><th class="num">USUARIOS</th><th class="num">PORTAFOLIOS</th><th class="num">PROGRAMAS</th><th class="num">PROYECTOS</th><th>ESTADO</th></tr></thead>
+      <thead><tr><th>EMPRESA</th><th>ADMINISTRADOR</th><th>SUPER ADMINISTRADOR</th><th class="num">USUARIOS</th><th class="num">PORTAFOLIOS</th><th class="num">PROGRAMAS</th><th class="num">PROYECTOS</th><th>ESTADO</th></tr></thead>
       <tbody>${datos.areas.map(a => `<tr>
         <td><b>${esc(a.nombre)}</b>${a.id === datos.mi_area ? ' ' + badge('En uso ahora', '#1565c0') : ''}</td>
-        <td>${esc(principalDe(a.id) && !principalDe(a.id).es_plataforma ? nombreCorto(principalDe(a.id)) : 'Propietarios')}</td>
+        <td>${celdaAdministrador()}</td><td>${celdaSuper(a, false)}</td>
         <td class="num">${usuariosDe(a.id).filter(p => p.activo && p.rol !== 'pendiente').length}</td>
         <td class="num">${datos.portafolios.filter(x => x.area_id === a.id).length}</td>
         <td class="num">${datos.programas.filter(x => x.area_id === a.id).length}</td>
@@ -85,14 +95,14 @@ export async function panelEmpresas(el, ctx) {
       <span class="flex"></span><span class="nota" data-contador></span>
     </div>
     <div class="tarjeta admin-tabla-wrap"><table class="simple tabla-empresas">
-      <thead><tr><th style="width:28px"><input type="checkbox" data-todas aria-label="Seleccionar todas"></th><th>EMPRESA</th><th>SUPER ADMIN</th>
+      <thead><tr><th style="width:28px"><input type="checkbox" data-todas aria-label="Seleccionar todas"></th><th>EMPRESA</th><th>ADMINISTRADOR</th><th>SUPER ADMINISTRADOR</th>
         <th class="num">USUARIOS</th><th class="num">PROYECTOS</th><th>ESTADO</th><th>CREADA</th><th></th></tr></thead>
       <tbody></tbody></table></div>`;
   const tbody = el.querySelector('tbody');
   const f = k => el.querySelector(`[data-f="${k}"]`).value;
   const pintar = () => {
     const q = f('q').trim().toLowerCase();
-    let lista = datos.areas.filter(a => (!q || `${a.nombre} ${codigoEmpresa(a)} ${nombreCorto(principalDe(a.id))}`.toLowerCase().includes(q)) &&
+    let lista = datos.areas.filter(a => (!q || `${a.nombre} ${codigoEmpresa(a)} ${superDe(a.id)?.nombre || ''} ${superDe(a.id)?.email || ''}`.toLowerCase().includes(q)) &&
       (!f('estado') || (f('estado') === 'activa') === activa(a)));
     const orden = f('orden');
     if (orden === 'nombre') lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -100,11 +110,12 @@ export async function panelEmpresas(el, ctx) {
     if (orden === 'reciente') lista.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
     el.querySelector('[data-contador]').textContent = `${lista.length} de ${datos.areas.length}`;
     tbody.innerHTML = lista.map(a => {
-      const pr = principalDe(a.id), mia = a.id === datos.mi_area;
+      const mia = a.id === datos.mi_area;
       return `<tr data-id="${a.id}">
         <td><input type="checkbox" data-sel="${a.id}" ${mia ? 'disabled title="Es la empresa en la que está trabajando"' : ''}></td>
         <td><b>${esc(a.nombre)}</b>${mia ? ' ' + badge('En uso ahora', '#1565c0') : ''}<br><small class="nota">Código ${esc(codigoEmpresa(a))}</small></td>
-        <td>${pr && !pr.es_plataforma ? esc(nombreCorto(pr)) : badge('Propietarios', '#B07AA1')} <button class="btn btn-xs" data-principal="${a.id}">Cambiar</button></td>
+        <td>${celdaAdministrador()}</td>
+        <td>${celdaSuper(a)}</td>
         <td class="num">${usuariosDe(a.id).filter(p => p.activo && p.rol !== 'pendiente').length} <button class="btn btn-xs" data-usuarios="${a.id}">Gestionar</button></td>
         <td class="num">${proyectosDe(a.id).length}</td>
         <td>${activa(a) ? badge('Activa', '#2e7d32') : badge('Suspendida', '#b71c1c')}</td>
@@ -114,7 +125,7 @@ export async function panelEmpresas(el, ctx) {
           <button class="btn btn-xs" data-editar="${a.id}">Editar</button>
           <button class="btn btn-xs" data-estado="${a.id}" ${mia ? 'disabled' : ''}>${activa(a) ? 'Suspender' : 'Activar'}</button>
           <button class="btn btn-xs btn-peligro-borde" data-eliminar="${a.id}" ${mia ? 'disabled' : ''}>Eliminar</button></td></tr>`;
-    }).join('') || '<tr><td colspan="8" class="nota">Sin empresas con ese filtro.</td></tr>';
+    }).join('') || '<tr><td colspan="9" class="nota">Sin empresas con ese filtro.</td></tr>';
     actualizarSel();
   };
   const seleccionadas = () => [...el.querySelectorAll('[data-sel]:checked')].map(c => c.dataset.sel);
@@ -149,8 +160,9 @@ async function nuevaEmpresa() {
   const { semillaEmpresa } = await import('../data/catalogos.js');
   return pedirDatos({
     titulo: 'Nueva empresa', texto: 'Crear empresa',
-    antes: 'Se crea con sus listas, parámetros y permisos iniciales. Usted y los demás propietarios de la plataforma la administran por defecto: ' +
-      'para trabajar en ella use «Abrir». Después puede agregarle usuarios con «Gestionar» y, si quiere, designar su super administrador con «Cambiar».',
+    antes: `<div class="admin-quien"><span class="nota">Administrador de la empresa</span>${celdaAdministrador()}</div>
+      Se crea con sus listas, parámetros y permisos iniciales y la administran los propietarios de la plataforma (para trabajar en ella use «Abrir»).
+      Después puede agregarle usuarios con «Gestionar» y asignarle su <b>super administrador</b>, que creará sus portafolios, programas y proyectos.`,
     campos: [
       { name: 'nombre_empresa', label: 'Nombre de la empresa', required: true, full: true },
       { name: 'descripcion', label: 'Descripción', full: true },
@@ -216,12 +228,12 @@ async function cambiarPrincipal(a) {
   if (!candidatos.length) { error('La empresa todavía no tiene usuarios: la administran los propietarios. Agregue usuarios con «Gestionar» y luego designe aquí su super administrador.'); return false; }
   const actual = principalDe(a.id);
   return pedirDatos({
-    titulo: `Super administrador de ${a.nombre}`, texto: 'Cambiar',
-    antes: 'El super administrador principal administra la empresa y asigna los roles de administrador y delegado.',
+    titulo: `Super administrador de ${a.nombre}`, texto: superDe(a.id) ? 'Cambiar' : 'Asignar',
+    antes: 'El super administrador es el responsable dentro de la empresa: crea sus portafolios, programas, proyectos y sub-proyectos, y asigna los roles de administrador y delegado. Los propietarios de la plataforma siguen siendo sus administradores.',
     valores: { usuario_id: actual && !actual.es_plataforma ? actual.id : '' },
     campos: [{ name: 'usuario_id', label: 'Usuario', type: 'select', required: true, full: true,
       options: candidatos.map(p => ({ value: p.id, label: `${p.nombre} (${p.email || '—'}) · ${ROLES[p.rol] || p.rol}` })) }],
-    alGuardar: async d => { await api.adminUsuarios('cambiar_principal', { area_id: a.id, usuario_id: d.usuario_id }); ok('Super administrador cambiado.'); },
+    alGuardar: async d => { await api.adminUsuarios('cambiar_principal', { area_id: a.id, usuario_id: d.usuario_id }); ok('Super administrador asignado.'); },
   });
 }
 
@@ -405,14 +417,13 @@ function pintarTabla(cuerpo) {
     }, 'g' + g.id, ps.length)) ps.forEach(p => filaProyecto(p, nivel + 1));
   };
   for (const a of datos.areas) {
-    const pr = principalDe(a.id);
     const ports = datos.portafolios.filter(f => f.area_id === a.id);
     const progSueltos = datos.programas.filter(g => g.area_id === a.id && !g.portafolio_id);
     const proySueltos = proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id && !p.padre_id);
     const abierta = fila(0, 'empresa', a, {
       nombre: `<span class="est-ico">🏢</span> <b>${esc(a.nombre)}</b> ${a.id === datos.mi_area ? badge('En uso ahora', '#1565c0') : ''} ${activa(a) ? '' : badge('Suspendida', '#b71c1c')}`,
       tipo: badge('Empresa', '#2e7d32'), codigo: esc(codigoEmpresa(a)), buscar: `${a.nombre} ${codigoEmpresa(a)}`,
-      admin: `<small class="nota">Super admin: ${esc(pr && !pr.es_plataforma ? nombreCorto(pr) : 'propietarios')}</small>`,
+      admin: `<small class="nota">Administrador: ${esc(propietarios().map(nombreCorto).join(', ') || '—')} · Super administrador: ${esc(superDe(a.id) ? nombreCorto(superDe(a.id)) : 'sin asignar')}</small>`,
       acciones: `<button class="btn btn-xs" data-nuevo="portafolios" data-area="${a.id}">+ Portafolio</button>
         <button class="btn btn-xs" data-nuevo="programas" data-area="${a.id}">+ Programa</button>
         <button class="btn btn-xs" data-nuevo="proyectos" data-area="${a.id}">+ Proyecto</button>
