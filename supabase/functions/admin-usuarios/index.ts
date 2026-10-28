@@ -239,28 +239,14 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
   if (d.accion === 'eliminar_empresa') {
     if (area === yo.area_id) return falla('No puede eliminar la empresa en la que está trabajando. Abra otra empresa primero.');
     if (!await existeArea(area)) return falla('Empresa no encontrada.', 404);
-    // Solo sin historial: lo que tenga datos de trabajo se suspende (se conserva)
-    for (const [t, texto] of [['proyectos', 'proyectos'], ['actividades', 'actividades'], ['cartera', 'registros de cartera']]) {
-      const { count } = await admin.from(t).select('id', { count: 'exact', head: true }).eq('area_id', area);
-      if (count) return falla(`La empresa tiene ${count} ${texto}. Para conservar su historial, suspéndala en lugar de eliminarla (o elimine antes sus proyectos).`);
-    }
-    const { data: plat } = await admin.from('profiles').select('id').eq('area_id', area).eq('es_plataforma', true);
-    if (plat?.length) return falla('Un administrador de la plataforma está trabajando en esa empresa. Que abra otra empresa primero.');
+    // Cuentas de acceso de sus usuarios: se borran después de eliminar la empresa (la base solo borra los perfiles)
     const { data: usuarios } = await admin.from('profiles').select('id').eq('area_id', area);
-    for (const t of ['notificaciones']) await admin.from(t).delete().in('usuario_id', (usuarios ?? []).map((u: any) => u.id));
-    for (const t of ['programas', 'portafolios', 'vistas', 'permisos', 'parametros', 'columnas_personalizadas', 'delegado_historial', 'auditoria']) {
-      const { error: e } = await admin.from(t).delete().eq('area_id', area);
-      if (e && !/does not exist|column/i.test(e.message)) return falla(e.message);
-    }
-    const { data: listas } = await admin.from('listas').select('id').eq('area_id', area);
-    if (listas?.length) await admin.from('lista_valores').delete().in('lista_id', listas.map((l: any) => l.id));
-    await admin.from('listas').delete().eq('area_id', area);
-    for (const u of usuarios ?? []) {
-      await admin.from('profiles').delete().eq('id', u.id);
-      await admin.auth.admin.deleteUser(u.id);
-    }
-    const { error: e } = await admin.from('areas').delete().eq('id', area);
-    return e ? falla(e.message) : respuesta({ ok: true });
+    // Todo en una transacción (public.eliminar_empresa, migración 025): o se elimina completa o no cambia nada.
+    // Solo procede sin historial (proyectos, actividades o cartera); si tiene, se suspende.
+    const { error: e } = await admin.rpc('eliminar_empresa', { p_area: area });
+    if (e) return falla(e.message);
+    for (const u of usuarios ?? []) await admin.auth.admin.deleteUser(u.id);
+    return respuesta({ ok: true });
   }
 
   if (d.accion === 'usar_empresa') {

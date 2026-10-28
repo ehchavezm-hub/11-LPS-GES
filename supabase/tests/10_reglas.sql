@@ -477,6 +477,26 @@ update proyectos set programa_id = (select id from programas where codigo = 'PG-
 do $$ begin assert (select programa_id from proyectos where codigo = 'A-1.1') = (select id from programas where codigo = 'PG-2'), 'el sub-proyecto no siguió al padre'; end $$;
 reset role;
 
+-- ---------- 025: eliminar una empresa sin historial, en una sola transacción ----------
+reset role;
+insert into areas (nombre) values ('Empresa para borrar');
+select sembrar_area((select id from areas where nombre = 'Empresa para borrar'));
+do $$ begin
+  assert exists (select 1 from lista_valores v join listas l on l.id = v.lista_id
+                  where l.area_id = (select id from areas where nombre = 'Empresa para borrar') and v.protegido), 'la empresa de prueba no tiene valores protegidos';
+end $$;
+select eliminar_empresa((select id from areas where nombre = 'Empresa para borrar'));
+do $$ begin
+  assert not exists (select 1 from areas where nombre = 'Empresa para borrar'), 'no se eliminó la empresa';
+  assert coalesce(current_setting('lpsgt.eliminando_empresa', true), '') <> 'on', 'quedó desactivada la protección de valores';
+end $$;
+select debe_fallar($q$ select eliminar_empresa((select area_id from proyectos limit 1)) $q$, 'proyecto');
+select debe_fallar($q$ delete from lista_valores where codigo = 'completado' $q$, 'protegido');
+set role authenticated;
+select como('admin@x.pe');
+select debe_fallar($q$ select eliminar_empresa(mi_area()) $q$, 'permission denied');
+reset role;
+
 -- 017: las funciones de disparador no se pueden invocar como API
 do $$ begin
   assert not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prorettype = 'trigger'::regtype
