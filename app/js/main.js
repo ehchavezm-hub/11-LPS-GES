@@ -38,7 +38,7 @@ ruta('/config/:seccion', () => import('./views/config.js'), { gestor: true });
 ruta('/mejoras', () => import('./views/mejoras.js'));
 ruta('/ayuda', () => import('./views/ayuda.js'));
 ruta('/admin', () => import('./views/admin-console.js').then(m => ({
-  render(el) { el.innerHTML = ''; m.showAdminConsole(); },
+  render(el) { el.innerHTML = ''; m.showAdminConsole(undefined, el); },
 })), { admin: true });
 
 async function arrancar() {

@@ -7,7 +7,7 @@ import { esc, fmtFechaHora } from '../core/util.js';
 import { ok, error, confirmar, pedirDatos, modal, badge } from '../ui/ui.js';
 
 // ---------- Estado ----------
-let overlay = null;
+let contenedor = null;
 let panelActivo = 'resumen';
 let dejarEscuchar = null;
 
@@ -37,21 +37,15 @@ const LISTAS_INICIALES = [
 ];
 
 // ---------- API pública ----------
-export function showAdminConsole(panelInicial) {
-  if (overlay) { cerrarConsola(); return; }
+export function showAdminConsole(panelInicial, el) {
   panelActivo = panelInicial || 'resumen';
+  contenedor = el;
 
-  overlay = document.createElement('div');
-  overlay.className = 'admin-overlay';
-  overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-label', 'Consola de Administración — LPS-GT');
-  overlay.setAttribute('aria-modal', 'true');
-  overlay.innerHTML = buildShell();
-  document.body.append(overlay);
+  el.innerHTML = buildShell();
 
-  overlay.querySelector('.admin-cerrar').addEventListener('click', cerrarConsola);
-  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarConsola(); });
-  overlay.querySelector('.admin-nav').addEventListener('click', e => {
+  el.querySelector('.admin-cerrar').addEventListener('click', cerrarConsola);
+  el.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarConsola(); });
+  el.querySelector('.admin-nav').addEventListener('click', e => {
     const item = e.target.closest('[data-panel]');
     if (item) navegarA(item.dataset.panel);
   });
@@ -60,16 +54,14 @@ export function showAdminConsole(panelInicial) {
   renderPanel();
 
   dejarEscuchar = on('catalogo', () => { pintarMenu(); });
-  setTimeout(() => overlay?.querySelector('#admin-contenido')?.focus(), 50);
+  setTimeout(() => contenedor?.querySelector('#admin-contenido')?.focus(), 50);
 }
 
 export function cerrarConsola() {
-  overlay?.remove();
-  overlay = null;
   dejarEscuchar?.();
   dejarEscuchar = null;
-  // Redirigir fuera de #/admin para que el botón del sidebar pueda reabrir el panel
-  if (location.hash === '#/admin') location.hash = '#/tablero';
+  contenedor = null;
+  location.hash = '#/tablero';
 }
 
 function buildShell() {
@@ -92,7 +84,7 @@ function buildShell() {
 
 // ---------- Navegación ----------
 function pintarMenu() {
-  const nav = overlay?.querySelector('.admin-nav');
+  const nav = contenedor?.querySelector('.admin-nav');
   if (!nav) return;
   nav.innerHTML = MENU.filter(m => !m.si || m.si()).map(m => {
     if (m.sep) return '<hr class="admin-nav-sep">';
@@ -109,7 +101,7 @@ function navegarA(id) {
 }
 
 async function renderPanel() {
-  const cont = overlay?.querySelector('#admin-contenido');
+  const cont = contenedor?.querySelector('#admin-contenido');
   if (!cont) return;
   cont.innerHTML = '<div class="admin-cargando"><span class="spinner"></span></div>';
   try {
@@ -131,9 +123,9 @@ async function renderPanel() {
   }
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // RESUMEN
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 async function panelResumen(el) {
   let perfiles = [], proyectos = [], delegados = [];
@@ -195,9 +187,9 @@ async function panelResumen(el) {
   el.querySelector('[data-a="ir-proyectos"]')?.addEventListener('click', () => navegarA('proyectos'));
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // USUARIOS Y ROLES
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 async function panelUsuarios(el) {
   let perfiles = [];
@@ -330,7 +322,7 @@ async function restablecerClave(p) {
   if (!si) return;
   try {
     await api.update('profiles', p.id, { debe_cambiar_clave: true });
-    ok(`Nueva contraseña temporal: ${clave}\nComuníquela al usuario.`);
+    ok(`Nueva contraseña temporal: ${clave}\nComúniquela al usuario.`);
   } catch (err) { error(mensajeError(err)); }
 }
 
@@ -371,9 +363,9 @@ function mostrarInvitacion() {
   });
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // ADMINISTRADOR DELEGADO
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 async function panelDelegado(el) {
   let perfiles = [], historial = [];
@@ -469,9 +461,9 @@ async function asignarDelegado(listaLideres, delegadoActual) {
   });
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // PROYECTOS / PROCESOS
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 async function panelProyectos(el) {
   let proyectos = [], perfiles = [];
@@ -637,9 +629,9 @@ async function rechazarProyecto(p) {
   });
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // LISTAS CONFIGURABLES
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 async function panelListas(el) {
   let listas = [];
@@ -813,9 +805,9 @@ function exportarListaCSV(lista) {
   a.click();
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // PARÁMETROS
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 async function panelParametros(el) {
   let params = {};
@@ -880,9 +872,9 @@ async function panelParametros(el) {
   });
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // CALENDARIO
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 async function panelCalendario(el) {
   let semanas = [], feriados = [];
@@ -1032,9 +1024,9 @@ function generarSemanas(anio) {
   return semanas;
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // AUDITORÍA
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 async function panelAuditoria(el) {
   let registros = [];
@@ -1057,9 +1049,9 @@ async function panelAuditoria(el) {
   el.querySelector('[data-a="imprimir"]')?.addEventListener('click', () => imprimirPanel(el, 'Auditoría'));
 }
 
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 // Utilidades compartidas
-// ════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════
 
 function generarClave() {
   const c = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
