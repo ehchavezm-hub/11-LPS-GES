@@ -1,7 +1,7 @@
 // Consola de Administración — LPS-GT (área única)
 // Spec: docs/LPS-GT_Alcance_v0.7.docx sección 6.1-6.2
 import { api, mensajeError } from '../data/api.js';
-import { store, on, esPropietario, esSuperadmin, esAdmin, esGestor, cargarCatalogo, etiqueta, opciones, nombre } from '../core/store.js';
+import { store, on, esSuperadmin, esAdmin, esGestor, cargarCatalogo, etiqueta, opciones, nombre } from '../core/store.js';
 import { ROLES, COLOR_ROL } from '../data/catalogos.js';
 import { esc, fmtFechaHora } from '../core/util.js';
 import { ok, error, confirmar, pedirDatos, modal, badge } from '../ui/ui.js';
@@ -129,9 +129,9 @@ async function renderPanel() {
   }
 }
 
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // RESUMEN
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 
 async function panelResumen(el) {
   let perfiles = [], proyectos = [], delegados = [];
@@ -193,9 +193,9 @@ async function panelResumen(el) {
   el.querySelector('[data-a="ir-proyectos"]')?.addEventListener('click', () => navegarA('proyectos'));
 }
 
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // USUARIOS Y ROLES
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 
 async function panelUsuarios(el) {
   let perfiles = [];
@@ -369,9 +369,9 @@ function mostrarInvitacion() {
   });
 }
 
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // ADMINISTRADOR DELEGADO
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 
 async function panelDelegado(el) {
   let perfiles = [], historial = [];
@@ -467,9 +467,9 @@ async function asignarDelegado(listaLideres, delegadoActual) {
   });
 }
 
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // PROYECTOS / PROCESOS
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 
 async function panelProyectos(el) {
   let proyectos = [], perfiles = [];
@@ -635,9 +635,9 @@ async function rechazarProyecto(p) {
   });
 }
 
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // LISTAS CONFIGURABLES
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 
 async function panelListas(el) {
   let listas = [];
@@ -811,9 +811,9 @@ function exportarListaCSV(lista) {
   a.click();
 }
 
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // PARÁMETROS
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 
 async function panelParametros(el) {
   let params = {};
@@ -878,9 +878,9 @@ async function panelParametros(el) {
   });
 }
 
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // CALENDARIO
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 
 async function panelCalendario(el) {
   let semanas = [], feriados = [];
@@ -1030,9 +1030,9 @@ function generarSemanas(anio) {
   return semanas;
 }
 
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // AUDITORÍA
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 
 async function panelAuditoria(el) {
   let registros = [];
@@ -1055,9 +1055,9 @@ async function panelAuditoria(el) {
   el.querySelector('[data-a="imprimir"]')?.addEventListener('click', () => imprimirPanel(el, 'Auditoría'));
 }
 
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 // Utilidades compartidas
-// ══════════════════════════════════════════════════
+// ════════════════════════════════════════════════
 
 function generarClave() {
   const c = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
