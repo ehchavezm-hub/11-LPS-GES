@@ -1,0 +1,633 @@
+// Consola de Administración — sección PLATAFORMA (administrador de la plataforma: profiles.es_plataforma).
+// Empresas, usuarios, estructura (Empresa → Portafolio → Programa → Proyecto), propietarios, auditoría y reportes
+// de TODAS las empresas. Los datos que cruzan empresas pasan solo por la Edge Function "admin-usuarios":
+// en las pantallas normales cada usuario (también el de la plataforma) ve únicamente la empresa en la que trabaja.
+import { api, mensajeError } from '../data/api.js';
+import { store, cargarCatalogo } from '../core/store.js';
+import { ROLES, COLOR_ROL } from '../data/catalogos.js';
+import { esc, fmtFechaHora } from '../core/util.js';
+import { ok, error, confirmar, pedirDatos, modal, badge } from '../ui/ui.js';
+
+// ---------- Datos de la plataforma ----------
+let datos = null;
+export async function cargarPlataforma() {
+  datos = await api.adminUsuarios('plataforma');
+  return datos;
+}
+const empresa = id => datos.areas.find(a => a.id === id);
+const usuariosDe = id => datos.perfiles.filter(p => p.area_id === id);
+const principalDe = id => usuariosDe(id).find(p => p.es_admin_principal && !p.es_plataforma) || usuariosDe(id).find(p => p.es_admin_principal);
+const proyectosDe = id => datos.proyectos.filter(p => p.area_id === id);
+const lideresDe = proyId => datos.lideres.filter(l => l.proyecto_id === proyId).map(l => datos.perfiles.find(p => p.id === l.usuario_id)).filter(Boolean);
+const nombreCorto = p => p ? (p.email ? p.email.split('@')[0] : p.nombre) : '';
+const codigoEmpresa = a => String(a.id).slice(0, 8);
+const activa = a => a.activa !== false;
+
+const COLOR_EST = { activo: '#2e7d32', propuesto: '#e65100', en_pausa: '#795548', cerrado: '#546E7A', rechazado: '#b71c1c' };
+const TXT_EST = { activo: 'Activo', propuesto: 'Propuesto', en_pausa: 'En pausa', cerrado: 'Cerrado', rechazado: 'Rechazado' };
+
+function cab(titulo, sub, botones = '') {
+  return `<div class="admin-panel-cab"><div><h2>${esc(titulo)}</h2>${sub ? `<p class="admin-sub" style="margin:4px 0 0">${sub}</p>` : ''}</div>
+    <div class="barra-acciones">${botones}</div></div>`;
+}
+
+// Al cambiar algo de la empresa en la que se trabaja, el resto del aplicativo se actualiza
+async function refrescar(areaTocada) {
+  await cargarPlataforma();
+  if (!areaTocada || areaTocada === store.area?.id) await cargarCatalogo().catch(() => {});
+}
+
+// ════════════════════════════════════════════════════════════════
+// RESUMEN DE LA PLATAFORMA
+// ════════════════════════════════════════════════════════════════
+export async function panelResumenPlataforma(el, ctx) {
+  await cargarPlataforma();
+  const act = datos.areas.filter(activa).length;
+  const vivos = datos.proyectos.filter(p => !['cerrado', 'rechazado'].includes(p.estado));
+  const sinAdmin = vivos.filter(p => !lideresDe(p.id).length).length;
+  const usuarios = datos.perfiles.filter(p => p.activo && p.rol !== 'pendiente').length;
+  el.innerHTML = cab('Resumen de la plataforma', 'Todas las empresas que usan este aplicativo.', `<button class="btn btn-sm" data-a="imprimir">🖨 Imprimir</button>`) +
+    `<div class="admin-kpis">
+      ${kpi(act, 'Empresas activas')}${kpi(datos.areas.length - act, 'Suspendidas')}${kpi(usuarios, 'Usuarios activos')}
+      ${kpi(datos.portafolios.length, 'Portafolios')}${kpi(datos.programas.length, 'Programas')}${kpi(vivos.length, 'Proyectos vigentes')}
+      ${kpi(sinAdmin, 'Proyectos sin administrador', sinAdmin ? 'alerta' : '')}
+    </div>
+    <div class="tarjeta admin-tabla-wrap"><table class="simple">
+      <thead><tr><th>EMPRESA</th><th>SUPER ADMIN</th><th class="num">USUARIOS</th><th class="num">PORTAFOLIOS</th><th class="num">PROGRAMAS</th><th class="num">PROYECTOS</th><th>ESTADO</th></tr></thead>
+      <tbody>${datos.areas.map(a => `<tr>
+        <td><b>${esc(a.nombre)}</b>${a.id === datos.mi_area ? ' ' + badge('En uso ahora', '#1565c0') : ''}</td>
+        <td>${esc(nombreCorto(principalDe(a.id)) || '—')}</td>
+        <td class="num">${usuariosDe(a.id).filter(p => p.activo && p.rol !== 'pendiente').length}</td>
+        <td class="num">${datos.portafolios.filter(x => x.area_id === a.id).length}</td>
+        <td class="num">${datos.programas.filter(x => x.area_id === a.id).length}</td>
+        <td class="num">${proyectosDe(a.id).length}</td>
+        <td>${activa(a) ? badge('Activa', '#2e7d32') : badge('Suspendida', '#b71c1c')}</td></tr>`).join('')}</tbody>
+    </table></div>`;
+  el.addEventListener('click', e => { if (e.target.closest('[data-a="imprimir"]')) ctx.imprimir(el, 'Resumen de la plataforma'); });
+}
+const kpi = (n, txt, cls = '') => `<div class="admin-kpi ${cls}"><span class="admin-kpi-num">${n}</span><span class="admin-kpi-txt">${esc(txt)}</span></div>`;
+
+// ════════════════════════════════════════════════════════════════
+// EMPRESAS
+// ════════════════════════════════════════════════════════════════
+export async function panelEmpresas(el, ctx) {
+  await cargarPlataforma();
+  el.innerHTML = cab('Empresas', 'Todas las empresas de la plataforma. Cada empresa es independiente: sus usuarios, proyectos y permisos no se mezclan.',
+    `<button class="btn btn-sm btn-peligro-borde" data-a="eliminar-sel" disabled>Eliminar seleccionadas</button>
+     <button class="btn btn-primario" data-a="nueva">+ Nueva empresa</button>`) +
+    `<div class="admin-filtros">
+      <input class="inp" data-f="q" placeholder="Buscar...">
+      <select class="inp" data-f="estado"><option value="">Estado: todos</option><option value="activa">Activas</option><option value="suspendida">Suspendidas</option></select>
+      <select class="inp" data-f="orden"><option value="creada">Orden: más antiguas primero</option><option value="nombre">Nombre: A → Z</option><option value="nombre-desc">Nombre: Z → A</option><option value="reciente">Más recientes primero</option></select>
+      <span class="flex"></span><span class="nota" data-contador></span>
+    </div>
+    <div class="tarjeta admin-tabla-wrap"><table class="simple tabla-empresas">
+      <thead><tr><th style="width:28px"><input type="checkbox" data-todas aria-label="Seleccionar todas"></th><th>EMPRESA</th><th>SUPER ADMIN</th>
+        <th class="num">USUARIOS</th><th class="num">PROYECTOS</th><th>ESTADO</th><th>CREADA</th><th></th></tr></thead>
+      <tbody></tbody></table></div>`;
+  const tbody = el.querySelector('tbody');
+  const f = k => el.querySelector(`[data-f="${k}"]`).value;
+  const pintar = () => {
+    const q = f('q').trim().toLowerCase();
+    let lista = datos.areas.filter(a => (!q || `${a.nombre} ${codigoEmpresa(a)} ${nombreCorto(principalDe(a.id))}`.toLowerCase().includes(q)) &&
+      (!f('estado') || (f('estado') === 'activa') === activa(a)));
+    const orden = f('orden');
+    if (orden === 'nombre') lista.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    if (orden === 'nombre-desc') lista.sort((a, b) => b.nombre.localeCompare(a.nombre));
+    if (orden === 'reciente') lista.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+    el.querySelector('[data-contador]').textContent = `${lista.length} de ${datos.areas.length}`;
+    tbody.innerHTML = lista.map(a => {
+      const pr = principalDe(a.id), mia = a.id === datos.mi_area;
+      return `<tr data-id="${a.id}">
+        <td><input type="checkbox" data-sel="${a.id}" ${mia ? 'disabled title="Es la empresa en la que está trabajando"' : ''}></td>
+        <td><b>${esc(a.nombre)}</b>${mia ? ' ' + badge('En uso ahora', '#1565c0') : ''}<br><small class="nota">Código ${esc(codigoEmpresa(a))}</small></td>
+        <td>${esc(nombreCorto(pr) || '—')} <button class="btn btn-xs" data-principal="${a.id}">Cambiar</button></td>
+        <td class="num">${usuariosDe(a.id).filter(p => p.activo && p.rol !== 'pendiente').length} <button class="btn btn-xs" data-usuarios="${a.id}">Gestionar</button></td>
+        <td class="num">${proyectosDe(a.id).length}</td>
+        <td>${activa(a) ? badge('Activa', '#2e7d32') : badge('Suspendida', '#b71c1c')}</td>
+        <td>${esc(fmtFechaHora(a.created_at))}</td>
+        <td class="acciones-fila">
+          <button class="btn btn-xs" data-abrir="${a.id}" ${mia ? 'disabled' : ''}>Abrir</button>
+          <button class="btn btn-xs" data-editar="${a.id}">Editar</button>
+          <button class="btn btn-xs" data-estado="${a.id}" ${mia ? 'disabled' : ''}>${activa(a) ? 'Suspender' : 'Activar'}</button>
+          <button class="btn btn-xs btn-peligro-borde" data-eliminar="${a.id}" ${mia ? 'disabled' : ''}>Eliminar</button></td></tr>`;
+    }).join('') || '<tr><td colspan="8" class="nota">Sin empresas con ese filtro.</td></tr>';
+    actualizarSel();
+  };
+  const seleccionadas = () => [...el.querySelectorAll('[data-sel]:checked')].map(c => c.dataset.sel);
+  const actualizarSel = () => {
+    const n = seleccionadas().length;
+    const b = el.querySelector('[data-a="eliminar-sel"]');
+    b.disabled = !n; b.textContent = n ? `Eliminar seleccionadas (${n})` : 'Eliminar seleccionadas';
+  };
+  el.querySelectorAll('[data-f]').forEach(x => x.addEventListener(x.tagName === 'INPUT' ? 'input' : 'change', pintar));
+  el.addEventListener('change', e => {
+    if (e.target.matches('[data-todas]')) el.querySelectorAll('[data-sel]:not(:disabled)').forEach(c => { c.checked = e.target.checked; });
+    if (e.target.matches('[data-sel], [data-todas]')) actualizarSel();
+  });
+  el.addEventListener('click', async e => {
+    const t = e.target.closest('button'); if (!t || t.disabled) return;
+    const a = t.dataset.a, d = t.dataset;
+    try {
+      if (a === 'nueva') { if (await nuevaEmpresa()) { await refrescar(); pintar(); } }
+      if (a === 'eliminar-sel') { if (await eliminarEmpresas(seleccionadas())) { await refrescar(); pintar(); } }
+      if (d.abrir) await abrirEmpresa(empresa(d.abrir));
+      if (d.editar) { if (await editarEmpresa(empresa(d.editar))) { await refrescar(d.editar); pintar(); ctx.repintarCabecera(); } }
+      if (d.estado) { if (await estadoEmpresa(empresa(d.estado))) { await refrescar(); pintar(); } }
+      if (d.eliminar) { if (await eliminarEmpresas([d.eliminar])) { await refrescar(); pintar(); } }
+      if (d.principal) { if (await cambiarPrincipal(empresa(d.principal))) { await refrescar(d.principal); pintar(); } }
+      if (d.usuarios) await gestionarUsuarios(empresa(d.usuarios), () => refrescar(d.usuarios).then(pintar));
+    } catch (err) { error(mensajeError(err)); }
+  });
+  pintar();
+}
+
+async function nuevaEmpresa() {
+  const { semillaEmpresa } = await import('../data/catalogos.js');
+  return pedirDatos({
+    titulo: 'Nueva empresa', texto: 'Crear empresa',
+    antes: 'Se crean la empresa, sus listas y parámetros iniciales, y su primer administrador (super administrador de esa empresa). Deberá cambiar la contraseña en su primer ingreso.',
+    campos: [
+      { name: 'nombre_empresa', label: 'Nombre de la empresa', required: true, full: true },
+      { name: 'descripcion', label: 'Descripción', full: true },
+      { name: 'separador', type: 'separador', label: 'Primer administrador de la empresa' },
+      { name: 'nombre', label: 'Nombre', required: true },
+      { name: 'email', label: 'Correo', type: 'email', required: true },
+      { name: 'clave', label: 'Contraseña temporal (mínimo 8 caracteres)', type: 'password', required: true },
+    ],
+    alGuardar: async d => {
+      await api.adminUsuarios('crear_empresa', { ...d, semilla: semillaEmpresa() });
+      ok(`Empresa "${d.nombre_empresa}" creada. Comparta con ${d.nombre} el enlace del aplicativo, su correo y la contraseña temporal.`);
+    },
+  });
+}
+
+async function editarEmpresa(a) {
+  return pedirDatos({
+    titulo: `Editar empresa: ${a.nombre}`, valores: a,
+    campos: [{ name: 'nombre', label: 'Nombre de la empresa', required: true, full: true }, { name: 'descripcion', label: 'Descripción', full: true }],
+    alGuardar: async d => { await api.adminUsuarios('editar_empresa', { area_id: a.id, ...d }); ok('Empresa actualizada.'); },
+  });
+}
+
+async function estadoEmpresa(a) {
+  const activar = !activa(a);
+  if (!await confirmar(activar ? `¿Activar la empresa "${a.nombre}"? Sus usuarios podrán volver a ingresar.`
+    : `¿Suspender la empresa "${a.nombre}"? Sus usuarios no podrán ingresar. Sus datos se conservan y puede reactivarla cuando quiera.`,
+  { titulo: activar ? 'Activar empresa' : 'Suspender empresa', texto: activar ? 'Activar' : 'Suspender', peligro: !activar })) return false;
+  await api.adminUsuarios('estado_empresa', { area_id: a.id, activa: activar });
+  ok(activar ? 'Empresa activada.' : 'Empresa suspendida.');
+  return true;
+}
+
+async function eliminarEmpresas(ids) {
+  const lista = ids.map(empresa).filter(Boolean);
+  if (!lista.length) return false;
+  const nombres = lista.map(a => `"${a.nombre}"`).join(', ');
+  const d = await pedirDatos({
+    titulo: lista.length > 1 ? `Eliminar ${lista.length} empresas` : 'Eliminar empresa', texto: 'Eliminar definitivamente',
+    antes: `Se eliminarán ${nombres}, con sus usuarios, listas y parámetros. Solo se permite si no tienen proyectos ni actividades;
+      si tienen historial, suspéndalas para conservarlo. Esta acción no se puede deshacer.`,
+    campos: [{ name: 'confirmacion', label: 'Escriba ELIMINAR para confirmar', required: true, full: true }],
+  });
+  if (!d) return false;
+  if (String(d.confirmacion).trim().toUpperCase() !== 'ELIMINAR') { error('Escriba ELIMINAR para confirmar.'); return false; }
+  const fallas = [];
+  for (const a of lista) {
+    try { await api.adminUsuarios('eliminar_empresa', { area_id: a.id }); } catch (e) { fallas.push(`${a.nombre}: ${mensajeError(e)}`); }
+  }
+  if (fallas.length) error(fallas.join('\n')); else ok(lista.length > 1 ? 'Empresas eliminadas.' : 'Empresa eliminada.');
+  return true;
+}
+
+// Trabajar en otra empresa: el aplicativo completo pasa a mostrar sus datos
+export async function abrirEmpresa(a, { volverA = '#/admin' } = {}) {
+  if (!a || a.id === store.area?.id) return;
+  if (!await confirmar(`¿Abrir la empresa "${a.nombre}"? El aplicativo completo (plan, Look Ahead, tablero…) pasará a mostrar los datos de esa empresa.`,
+    { titulo: 'Abrir empresa', texto: 'Abrir' })) return;
+  await api.adminUsuarios('usar_empresa', { area_id: a.id });
+  try { localStorage.removeItem('lpsgt-proyecto'); } catch { /* opcional */ }
+  location.hash = volverA;
+  location.reload();
+}
+
+async function cambiarPrincipal(a) {
+  const candidatos = usuariosDe(a.id).filter(p => p.activo && !p.es_plataforma && p.rol !== 'pendiente');
+  if (!candidatos.length) { error('La empresa no tiene usuarios activos. Agregue uno con "Gestionar".'); return false; }
+  const actual = principalDe(a.id);
+  return pedirDatos({
+    titulo: `Super administrador de ${a.nombre}`, texto: 'Cambiar',
+    antes: 'El super administrador principal administra la empresa y asigna los roles de administrador y delegado.',
+    valores: { usuario_id: actual && !actual.es_plataforma ? actual.id : '' },
+    campos: [{ name: 'usuario_id', label: 'Usuario', type: 'select', required: true, full: true,
+      options: candidatos.map(p => ({ value: p.id, label: `${p.nombre} (${p.email || '—'}) · ${ROLES[p.rol] || p.rol}` })) }],
+    alGuardar: async d => { await api.adminUsuarios('cambiar_principal', { area_id: a.id, usuario_id: d.usuario_id }); ok('Super administrador cambiado.'); },
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+// USUARIOS (de todas las empresas o de una)
+// ════════════════════════════════════════════════════════════════
+export async function panelUsuariosPlataforma(el) {
+  await cargarPlataforma();
+  el.innerHTML = cab('Usuarios de la plataforma', 'Usuarios de todas las empresas. Cada usuario pertenece a una sola empresa.',
+    `<button class="btn btn-primario" data-a="nuevo">+ Nuevo usuario</button>`) +
+    `<div class="admin-filtros">
+      <input class="inp" data-f="q" placeholder="Buscar nombre o correo...">
+      <select class="inp" data-f="empresa"><option value="">Empresa: todas</option>${datos.areas.map(a => `<option value="${a.id}">${esc(a.nombre)}</option>`).join('')}</select>
+      <select class="inp" data-f="rol"><option value="">Rol: todos</option>${Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>
+      <select class="inp" data-f="estado"><option value="">Estado: todos</option><option value="1">Activos</option><option value="0">Inactivos</option></select>
+      <span class="flex"></span><span class="nota" data-contador></span></div>
+    <div class="tarjeta admin-tabla-wrap" data-tabla></div>`;
+  const f = k => el.querySelector(`[data-f="${k}"]`).value;
+  const pintar = () => {
+    const q = f('q').trim().toLowerCase();
+    const lista = datos.perfiles.filter(p => (!q || `${p.nombre} ${p.email}`.toLowerCase().includes(q)) && (!f('empresa') || p.area_id === f('empresa')) &&
+      (!f('rol') || p.rol === f('rol')) && (f('estado') === '' || String(Number(!!p.activo)) === f('estado')))
+      .sort((a, b) => (empresa(a.area_id)?.nombre || '').localeCompare(empresa(b.area_id)?.nombre || '') || (a.nombre || '').localeCompare(b.nombre || ''));
+    el.querySelector('[data-contador]').textContent = `${lista.length} de ${datos.perfiles.length}`;
+    el.querySelector('[data-tabla]').innerHTML = tablaUsuarios(lista, true);
+  };
+  el.querySelectorAll('[data-f]').forEach(x => x.addEventListener(x.tagName === 'INPUT' ? 'input' : 'change', pintar));
+  el.addEventListener('click', async e => {
+    const t = e.target.closest('button'); if (!t) return;
+    try {
+      if (t.dataset.a === 'nuevo') { if (await nuevoUsuario(f('empresa') || datos.mi_area)) { await refrescar(); pintar(); } }
+      if (await accionUsuario(t)) { await refrescar(); pintar(); }
+    } catch (err) { error(mensajeError(err)); }
+  });
+  pintar();
+}
+
+function tablaUsuarios(lista, conEmpresa) {
+  if (!lista.length) return '<p class="nota" style="padding:12px">Sin usuarios.</p>';
+  return `<table class="simple"><thead><tr><th>NOMBRE</th><th>CORREO</th>${conEmpresa ? '<th>EMPRESA</th>' : ''}<th>ROL</th><th>ESTADO</th><th></th></tr></thead>
+    <tbody>${lista.map(p => `<tr>
+      <td><b>${esc(p.nombre || '—')}</b>${p.es_admin_principal && !p.es_plataforma ? ' ' + badge('Principal', '#1A365D') : ''}${p.es_plataforma ? ' ' + badge('Propietario', '#B07AA1') : ''}</td>
+      <td>${esc(p.email || '—')}</td>
+      ${conEmpresa ? `<td>${esc(empresa(p.area_id)?.nombre || '—')}</td>` : ''}
+      <td>${badge(ROLES[p.rol] || p.rol, COLOR_ROL[p.rol])}</td>
+      <td>${p.activo ? badge('Activo', '#2e7d32') : badge('Inactivo', '#888')}</td>
+      <td class="acciones-fila"><button class="btn btn-xs" data-rol="${p.id}">Cambiar rol</button>
+        <button class="btn btn-xs" data-activo="${p.id}">${p.activo ? 'Desactivar' : 'Activar'}</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+async function accionUsuario(t) {
+  const u = datos.perfiles.find(p => p.id === (t.dataset.rol || t.dataset.activo));
+  if (!u) return false;
+  if (t.dataset.rol) {
+    return pedirDatos({
+      titulo: `Rol de ${u.nombre}`, valores: { rol: u.rol },
+      campos: [{ name: 'rol', label: 'Rol', type: 'select', required: true, full: true, options: Object.entries(ROLES).map(([value, label]) => ({ value, label })) }],
+      alGuardar: async d => { await api.adminUsuarios('usuario_plataforma', { usuario_id: u.id, rol: d.rol }); ok('Rol actualizado.'); },
+    });
+  }
+  if (!await confirmar(`¿${u.activo ? 'Desactivar' : 'Activar'} a ${u.nombre}?`, { texto: u.activo ? 'Desactivar' : 'Activar', peligro: u.activo })) return false;
+  await api.adminUsuarios('usuario_plataforma', { usuario_id: u.id, activo: !u.activo });
+  ok(u.activo ? 'Usuario desactivado.' : 'Usuario activado.');
+  return true;
+}
+
+async function nuevoUsuario(areaId) {
+  return pedirDatos({
+    titulo: 'Nuevo usuario', texto: 'Crear',
+    antes: 'Deberá cambiar la contraseña en su primer ingreso.',
+    valores: { area_id: areaId, rol: 'lider' },
+    campos: [
+      { name: 'area_id', label: 'Empresa', type: 'select', required: true, full: true, options: datos.areas.map(a => ({ value: a.id, label: a.nombre })) },
+      { name: 'nombre', label: 'Nombre', required: true },
+      { name: 'email', label: 'Correo', type: 'email', required: true },
+      { name: 'rol', label: 'Rol', type: 'select', required: true, options: Object.entries(ROLES).filter(([k]) => k !== 'pendiente').map(([value, label]) => ({ value, label })) },
+      { name: 'clave', label: 'Contraseña temporal (mínimo 8 caracteres)', type: 'password', required: true },
+    ],
+    alGuardar: async d => { await api.adminUsuarios('crear', d); ok(`Usuario creado en ${empresa(d.area_id)?.nombre || 'la empresa'}.`); },
+  });
+}
+
+async function gestionarUsuarios(a, alCambiar) {
+  const cuerpo = document.createElement('div');
+  const pintar = () => {
+    cuerpo.innerHTML = `<div style="display:flex;margin-bottom:8px"><span class="flex"></span><button class="btn btn-sm btn-primario" data-a="nuevo">+ Nuevo usuario</button></div>
+      ${tablaUsuarios(usuariosDe(a.id), false)}`;
+  };
+  cuerpo.addEventListener('click', async e => {
+    const t = e.target.closest('button'); if (!t) return;
+    try {
+      const cambio = t.dataset.a === 'nuevo' ? await nuevoUsuario(a.id) : await accionUsuario(t);
+      if (cambio) { await refrescar(a.id); pintar(); alCambiar?.(); }
+    } catch (err) { error(mensajeError(err)); }
+  });
+  pintar();
+  modal({ titulo: `Usuarios de ${a.nombre}`, cuerpo, ancho: 860, botones: [{ texto: 'Cerrar' }] });
+}
+
+// ════════════════════════════════════════════════════════════════
+// ESTRUCTURA DE TODAS LAS EMPRESAS: Empresa → Portafolio → Programa → Proyecto
+// ════════════════════════════════════════════════════════════════
+let vistaEstructura = 'tabla';
+const contraidos = new Set();
+
+export async function panelEstructuraTodas(el, ctx) {
+  await cargarPlataforma();
+  const pintarTodo = () => {
+    const vivos = datos.proyectos.filter(p => !['cerrado', 'rechazado'].includes(p.estado));
+    const sinAdmin = vivos.filter(p => !lideresDe(p.id).length).length;
+    el.innerHTML = cab('Estructura de todas las empresas', 'Empresa › Portafolio › Programa › Proyecto. Es la misma estructura que cada empresa ve en «Estructura de la empresa»: lo que cambie aquí se refleja allá.',
+      `<button class="btn" data-nuevo="portafolios">+ Portafolio</button><button class="btn" data-nuevo="programas">+ Programa</button><button class="btn btn-primario" data-nuevo="proyectos">+ Proyecto</button>`) +
+      `<div class="chips-cifras">
+        <span class="chip-cifra"><b>${datos.areas.length}</b> Empresas</span><span class="chip-cifra"><b>${datos.portafolios.length}</b> Portafolios</span>
+        <span class="chip-cifra"><b>${datos.programas.length}</b> Programas</span><span class="chip-cifra"><b>${datos.proyectos.length}</b> Proyectos</span>
+        <span class="chip-cifra ${sinAdmin ? 'alerta' : ''}"><b>${sinAdmin}</b> Proyectos sin administrador</span></div>
+      <div class="pestanas-linea"><button data-vista="tabla" class="${vistaEstructura === 'tabla' ? 'activo' : ''}">Estructura de todas las empresas</button>
+        <button data-vista="arbol" class="${vistaEstructura === 'arbol' ? 'activo' : ''}">Estructura jerárquica</button></div>
+      <div data-cuerpo></div>`;
+    const cuerpo = el.querySelector('[data-cuerpo]');
+    if (vistaEstructura === 'tabla') pintarTabla(cuerpo); else pintarOrganigrama(cuerpo);
+  };
+
+  el.addEventListener('click', async e => {
+    const t = e.target.closest('button, [data-toggle]'); if (!t) return;
+    const d = t.dataset;
+    try {
+      if (d.vista) { vistaEstructura = d.vista; pintarTodo(); return; }
+      if (d.toggle) { contraidos.has(d.toggle) ? contraidos.delete(d.toggle) : contraidos.add(d.toggle); pintarTodo(); return; }
+      if (d.a === 'expandir') { contraidos.clear(); pintarTodo(); return; }
+      if (d.a === 'contraer') { datos.areas.forEach(a => contraidos.add('a' + a.id)); datos.portafolios.forEach(f => contraidos.add('f' + f.id)); datos.programas.forEach(g => contraidos.add('g' + g.id)); pintarTodo(); return; }
+      let cambio = false, area = null;
+      if (d.nuevo) { const r = await editarNodo(d.nuevo, null, { area: d.area, portafolio: d.portafolio, programa: d.programa }); cambio = !!r; area = r?.area_id; }
+      if (d.editar) { const x = datos[d.tabla].find(r => r.id === d.editar); cambio = !!await editarNodo(d.tabla, x, {}); area = x?.area_id; }
+      if (d.eliminar) { const x = datos[d.tabla].find(r => r.id === d.eliminar); cambio = await eliminarNodo(d.tabla, x); area = x?.area_id; }
+      if (d.lideres) { const p = datos.proyectos.find(r => r.id === d.lideres); cambio = !!await miembrosProyecto(p); area = p?.area_id; }
+      if (d.usuarios) { await gestionarUsuarios(empresa(d.usuarios), () => refrescar(d.usuarios).then(pintarTodo)); }
+      if (cambio) { await refrescar(area); pintarTodo(); }
+    } catch (err) { error(mensajeError(err)); }
+  });
+  el.addEventListener('input', e => { if (e.target.matches('[data-buscar]')) filtrarTabla(el); });
+  el.addEventListener('change', e => { if (e.target.matches('[data-mostrar]')) filtrarTabla(el); });
+  pintarTodo();
+}
+
+function pintarTabla(cuerpo) {
+  const filas = [];
+  const fila = (nivel, tipo, x, celdas, clave, hijos) => {
+    const abierto = !contraidos.has(clave);
+    filas.push(`<tr class="est-fila est-${tipo}" data-tipo="${tipo}" data-nivel="${nivel}" data-texto="${esc(celdas.buscar.toLowerCase())}">
+      <td style="padding-left:${8 + nivel * 20}px">${hijos ? `<span class="est-toggle" data-toggle="${clave}" role="button" aria-label="${abierto ? 'Contraer' : 'Expandir'}">${abierto ? '▾' : '▸'}</span>` : '<span class="est-toggle est-sin-hijos"></span>'}
+        ${celdas.nombre}</td>
+      <td>${celdas.tipo}</td><td class="nota">${celdas.codigo}</td><td>${celdas.admin}</td><td class="acciones-fila">${celdas.acciones}</td></tr>`);
+    return abierto;
+  };
+  const filaProyecto = (p, nivel) => {
+    const lid = lideresDe(p.id);
+    fila(nivel, 'proyecto', p, {
+      nombre: `<span class="est-ico">📋</span> <span class="est-n-proy">${esc(p.nombre_corto)}</span> ${p.estado !== 'activo' ? badge(TXT_EST[p.estado] || p.estado, COLOR_EST[p.estado]) : ''}`,
+      tipo: badge('Proyecto', '#E8762B'), codigo: esc(p.codigo || '—'), buscar: `${p.nombre_corto} ${p.codigo} ${lid.map(nombreCorto).join(' ')}`,
+      admin: lid.length ? `${esc(lid.map(nombreCorto).join(', '))} <button class="btn btn-xs" data-lideres="${p.id}">Cambiar</button>`
+        : `${badge('Sin asignar', '#EDC948')} <button class="btn btn-xs btn-azul" data-lideres="${p.id}">Asignar</button>`,
+      acciones: `<button class="btn btn-xs" data-editar="${p.id}" data-tabla="proyectos">Editar</button>
+        <button class="btn btn-xs" data-lideres="${p.id}">Miembros y permisos</button>
+        <button class="btn btn-xs btn-peligro-borde" data-eliminar="${p.id}" data-tabla="proyectos">Eliminar</button>`,
+    }, 'p' + p.id, false);
+  };
+  const filaPrograma = (g, nivel) => {
+    const ps = datos.proyectos.filter(p => p.programa_id === g.id);
+    if (fila(nivel, 'programa', g, {
+      nombre: `<span class="est-ico">📁</span> <span class="est-n-prog">${esc(g.nombre)}</span> ${g.estado === 'inactivo' ? badge('Inactivo', '#888') : ''}`,
+      tipo: badge('Programa', '#8E44AD'), codigo: esc(g.codigo || '—'), buscar: `${g.nombre} ${g.codigo || ''}`,
+      admin: esc(g.responsable_id ? nombreCorto(datos.perfiles.find(u => u.id === g.responsable_id)) : ''),
+      acciones: `<button class="btn btn-xs" data-nuevo="proyectos" data-area="${g.area_id}" data-programa="${g.id}">+ Proyecto</button>
+        <button class="btn btn-xs" data-editar="${g.id}" data-tabla="programas">Editar</button>
+        <button class="btn btn-xs btn-peligro-borde" data-eliminar="${g.id}" data-tabla="programas">Eliminar</button>`,
+    }, 'g' + g.id, ps.length)) ps.forEach(p => filaProyecto(p, nivel + 1));
+  };
+  for (const a of datos.areas) {
+    const pr = principalDe(a.id);
+    const ports = datos.portafolios.filter(f => f.area_id === a.id);
+    const progSueltos = datos.programas.filter(g => g.area_id === a.id && !g.portafolio_id);
+    const proySueltos = proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id);
+    const abierta = fila(0, 'empresa', a, {
+      nombre: `<span class="est-ico">🏢</span> <b>${esc(a.nombre)}</b> ${a.id === datos.mi_area ? badge('En uso ahora', '#1565c0') : ''} ${activa(a) ? '' : badge('Suspendida', '#b71c1c')}`,
+      tipo: badge('Empresa', '#2e7d32'), codigo: esc(codigoEmpresa(a)), buscar: `${a.nombre} ${codigoEmpresa(a)}`,
+      admin: `<small class="nota">Super admin: ${esc(nombreCorto(pr) || '—')}</small>`,
+      acciones: `<button class="btn btn-xs" data-nuevo="portafolios" data-area="${a.id}">+ Portafolio</button>
+        <button class="btn btn-xs" data-nuevo="programas" data-area="${a.id}">+ Programa</button>
+        <button class="btn btn-xs" data-nuevo="proyectos" data-area="${a.id}">+ Proyecto</button>
+        <button class="btn btn-xs" data-usuarios="${a.id}">Usuarios</button>`,
+    }, 'a' + a.id, ports.length + progSueltos.length + proySueltos.length);
+    if (!abierta) continue;
+    for (const f of ports) {
+      const gs = datos.programas.filter(g => g.portafolio_id === f.id);
+      const ps = datos.proyectos.filter(p => p.portafolio_id === f.id && !p.programa_id);
+      if (fila(1, 'portafolio', f, {
+        nombre: `<span class="est-ico">🗂</span> <span class="est-n-port">${esc(f.nombre)}</span> ${f.estado === 'inactivo' ? badge('Inactivo', '#888') : ''}`,
+        tipo: badge('Portafolio', '#1565c0'), codigo: esc(f.codigo || '—'), buscar: `${f.nombre} ${f.codigo || ''}`,
+        admin: esc(f.responsable_id ? nombreCorto(datos.perfiles.find(u => u.id === f.responsable_id)) : ''),
+        acciones: `<button class="btn btn-xs" data-nuevo="programas" data-area="${a.id}" data-portafolio="${f.id}">+ Programa</button>
+          <button class="btn btn-xs" data-nuevo="proyectos" data-area="${a.id}" data-portafolio="${f.id}">+ Proyecto</button>
+          <button class="btn btn-xs" data-editar="${f.id}" data-tabla="portafolios">Editar</button>
+          <button class="btn btn-xs btn-peligro-borde" data-eliminar="${f.id}" data-tabla="portafolios">Eliminar</button>`,
+      }, 'f' + f.id, gs.length + ps.length)) { gs.forEach(g => filaPrograma(g, 2)); ps.forEach(p => filaProyecto(p, 2)); }
+    }
+    progSueltos.forEach(g => filaPrograma(g, 1));
+    proySueltos.forEach(p => filaProyecto(p, 1));
+  }
+  cuerpo.innerHTML = `<div class="admin-filtros">
+      <input class="inp" data-buscar placeholder="Buscar en la estructura..." style="width:260px">
+      <select class="inp" data-mostrar><option value="">Mostrar: todo</option><option value="empresa">Solo empresas</option><option value="portafolio">Hasta portafolios</option>
+        <option value="programa">Hasta programas</option><option value="sinadmin">Proyectos sin administrador</option></select>
+      <button class="btn btn-sm" data-a="expandir">Expandir todo</button><button class="btn btn-sm" data-a="contraer">Contraer todo</button></div>
+    <div class="tarjeta admin-tabla-wrap"><table class="simple tabla-estructura">
+      <thead><tr><th>NOMBRE</th><th>TIPO</th><th>CÓDIGO</th><th>ADMINISTRADOR</th><th></th></tr></thead><tbody>${filas.join('')}</tbody></table></div>`;
+}
+
+function filtrarTabla(el) {
+  const q = (el.querySelector('[data-buscar]')?.value || '').trim().toLowerCase();
+  const m = el.querySelector('[data-mostrar]')?.value || '';
+  const orden = ['empresa', 'portafolio', 'programa', 'proyecto'];
+  el.querySelectorAll('.est-fila').forEach(tr => {
+    let ver = !q || tr.dataset.texto.includes(q);
+    if (m === 'sinadmin') ver = ver && tr.dataset.tipo === 'proyecto' && !!tr.querySelector('.btn-azul');
+    else if (m) ver = ver && orden.indexOf(tr.dataset.tipo) <= orden.indexOf(m);
+    tr.style.display = ver ? '' : 'none';
+  });
+}
+
+// Organigrama (como el lienzo «Estructura de Proyectos»): cajas por nivel unidas con líneas
+function pintarOrganigrama(cuerpo) {
+  const caja = (tipo, titulo, sub) => `<div class="org-caja org-${tipo}"><b>${esc(titulo)}</b><small>${esc(sub)}</small></div>`;
+  const nodo = (htmlCaja, hijos) => `<li>${htmlCaja}${hijos.length ? `<ul>${hijos.join('')}</ul>` : ''}</li>`;
+  const proy = p => nodo(caja('proyecto', p.nombre_corto, `Proyecto${lideresDe(p.id).length ? ' · ' + lideresDe(p.id).map(nombreCorto).join(', ') : ''}`), []);
+  const prog = g => nodo(caja('programa', g.nombre, 'Programa'), datos.proyectos.filter(p => p.programa_id === g.id).map(proy));
+  const arboles = datos.areas.map(a => {
+    const hijos = [
+      ...datos.portafolios.filter(f => f.area_id === a.id).map(f => nodo(caja('portafolio', f.nombre, 'Portafolio'), [
+        ...datos.programas.filter(g => g.portafolio_id === f.id).map(prog),
+        ...datos.proyectos.filter(p => p.portafolio_id === f.id && !p.programa_id).map(proy)])),
+      ...datos.programas.filter(g => g.area_id === a.id && !g.portafolio_id).map(prog),
+      ...proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id).map(proy),
+    ];
+    return `<div class="org-arbol"><ul>${nodo(caja('empresa', a.nombre, 'Empresa'), hijos)}</ul></div>`;
+  });
+  cuerpo.innerHTML = `<p class="nota">Desplácese horizontalmente para ver toda la estructura. Las cajas naranjas son proyectos; bajo cada uno, su administrador.</p>
+    <div class="org-lienzo">${arboles.join('')}</div>`;
+}
+
+// ---------- Altas, ediciones y bajas (pasan por el servidor: pueden ser de cualquier empresa) ----------
+async function editarNodo(tabla, x, { area, portafolio, programa }) {
+  const areaId = x?.area_id || area;
+  const campos = [];
+  if (!areaId) campos.push({ name: 'area_id', label: 'Empresa', type: 'select', required: true, full: true, options: datos.areas.map(a => ({ value: a.id, label: a.nombre })) });
+  const opcPort = id => datos.portafolios.filter(f => (!id || f.area_id === id) && f.estado !== 'inactivo').map(f => ({ value: f.id, label: areaId ? f.nombre : `${empresa(f.area_id)?.nombre} › ${f.nombre}` }));
+  const opcProg = id => datos.programas.filter(g => (!id || g.area_id === id) && g.estado !== 'inactivo').map(g => {
+    const f = datos.portafolios.find(z => z.id === g.portafolio_id);
+    return { value: g.id, label: [areaId ? '' : empresa(g.area_id)?.nombre, f?.nombre, g.nombre].filter(Boolean).join(' › ') };
+  });
+  const responsables = id => datos.perfiles.filter(p => (!id || p.area_id === id) && p.activo && p.rol !== 'pendiente').map(p => ({ value: p.id, label: `${p.nombre} (${nombreCorto(p)})` }));
+  if (tabla === 'proyectos') {
+    campos.push({ name: 'codigo', label: 'Código', required: true }, { name: 'nombre_corto', label: 'Nombre corto (menú)', required: true },
+      { name: 'nombre_completo', label: 'Nombre completo', full: true },
+      { name: 'portafolio_id', label: 'Portafolio', type: 'select', options: opcPort(areaId) },
+      { name: 'programa_id', label: 'Programa (define el portafolio)', type: 'select', options: opcProg(areaId) },
+      { name: 'estado', label: 'Estado', type: 'select', required: true, options: Object.entries(TXT_EST).map(([value, label]) => ({ value, label })) },
+      { name: 'fecha_inicio', label: 'Inicio previsto', type: 'date' }, { name: 'fecha_fin', label: 'Fin previsto', type: 'date' });
+  } else {
+    campos.push({ name: 'codigo', label: 'Código' }, { name: 'nombre', label: 'Nombre', required: true });
+    if (tabla === 'programas') campos.push({ name: 'portafolio_id', label: 'Portafolio', type: 'select', options: opcPort(areaId) });
+    campos.push({ name: 'responsable_id', label: 'Responsable', type: 'select', options: responsables(areaId) },
+      { name: 'estado', label: 'Estado', type: 'select', required: true, options: [{ value: 'activo', label: 'Activo' }, { value: 'inactivo', label: 'Inactivo' }] },
+      { name: 'descripcion', label: 'Descripción', type: 'textarea', full: true });
+  }
+  const que = { portafolios: 'portafolio', programas: 'programa', proyectos: 'proyecto' }[tabla];
+  let creado = null;
+  const r = await pedirDatos({
+    titulo: x ? `Editar ${que}: ${x.nombre || x.nombre_corto}` : `Nuevo ${que}${areaId ? ' en ' + (empresa(areaId)?.nombre || '') : ''}`,
+    valores: x || { estado: 'activo', portafolio_id: portafolio || '', programa_id: programa || '' },
+    campos,
+    alGuardar: async d => {
+      const area_id = areaId || d.area_id;
+      // Un programa o portafolio elegido debe ser de la misma empresa
+      for (const [k, t] of [['portafolio_id', 'portafolios'], ['programa_id', 'programas']]) {
+        if (d[k] && datos[t].find(z => z.id === d[k])?.area_id !== area_id) throw new Error(`El ${k === 'portafolio_id' ? 'portafolio' : 'programa'} elegido es de otra empresa.`);
+      }
+      const { area_id: _, ...resto } = d;
+      const res = await api.adminUsuarios('estructura', { tabla, id: x?.id, area_id, datos: resto });
+      creado = res.registro;
+      ok(`${que[0].toUpperCase() + que.slice(1)} guardado.`);
+    },
+  });
+  return r ? (creado || x) : null;
+}
+
+async function eliminarNodo(tabla, x) {
+  if (!x) return false;
+  const que = { portafolios: 'el portafolio', programas: 'el programa', proyectos: 'el proyecto' }[tabla];
+  const aviso = tabla === 'proyectos' ? 'Solo se puede si no tiene actividades; si tiene historial, ciérrelo.'
+    : 'Sus programas y proyectos no se eliminan: quedan sin ' + (tabla === 'portafolios' ? 'portafolio.' : 'programa.');
+  if (!await confirmar(`¿Eliminar ${que} "${x.nombre || x.nombre_corto}"? ${aviso}`, { titulo: 'Eliminar', texto: 'Eliminar', peligro: true })) return false;
+  await api.adminUsuarios('estructura', { tabla, op: 'eliminar', id: x.id });
+  ok('Eliminado.');
+  return true;
+}
+
+// Administrador y miembros del proyecto = sus líderes (los permisos de cada uno los da su rol en la Matriz de permisos)
+async function miembrosProyecto(p) {
+  if (!p) return null;
+  const actuales = lideresDe(p.id).map(u => u.id);
+  const candidatos = usuariosDe(p.area_id).filter(u => u.activo && u.rol !== 'pendiente');
+  return pedirDatos({
+    titulo: `Miembros de ${p.nombre_corto}`, texto: 'Guardar',
+    antes: `Empresa: <b>${esc(empresa(p.area_id)?.nombre || '')}</b>. Los usuarios marcados administran el proyecto (líderes). Lo que cada uno puede hacer lo define su rol en «Matriz de permisos».`,
+    valores: { usuarios: actuales },
+    campos: [{ name: 'usuarios', label: 'Líderes / administradores del proyecto', type: 'multiselect', full: true,
+      options: candidatos.map(u => ({ value: u.id, label: `${u.nombre} · ${ROLES[u.rol] || u.rol}` })) }],
+    alGuardar: async d => { await api.adminUsuarios('lideres', { proyecto_id: p.id, usuario_ids: d.usuarios || [] }); ok('Miembros actualizados.'); },
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+// PROPIETARIOS DE LA PLATAFORMA
+// ════════════════════════════════════════════════════════════════
+export async function panelPropietarios(el) {
+  await cargarPlataforma();
+  const pintar = () => {
+    const props = datos.perfiles.filter(p => p.es_plataforma);
+    el.innerHTML = cab('Propietarios de la plataforma', 'Administran todas las empresas: las crean, suspenden y eliminan, y ven su estructura. Debe haber al menos uno.',
+      `<button class="btn btn-primario" data-a="agregar">+ Agregar propietario</button>`) +
+      `<div class="tarjeta admin-tabla-wrap"><table class="simple"><thead><tr><th>NOMBRE</th><th>CORREO</th><th>TRABAJANDO EN</th><th></th></tr></thead>
+        <tbody>${props.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.id === store.usuario.id ? ' ' + badge('Usted', '#1565c0') : ''}</td><td>${esc(p.email || '—')}</td>
+          <td>${esc(empresa(p.area_id)?.nombre || '—')}</td>
+          <td><button class="btn btn-xs btn-peligro-borde" data-quitar="${p.id}" ${p.id === store.usuario.id || props.length <= 1 ? 'disabled' : ''}>Quitar</button></td></tr>`).join('')}</tbody></table></div>`;
+  };
+  el.addEventListener('click', async e => {
+    const t = e.target.closest('button'); if (!t || t.disabled) return;
+    try {
+      if (t.dataset.a === 'agregar') {
+        const r = await pedirDatos({
+          titulo: 'Agregar propietario', texto: 'Agregar',
+          antes: 'Tendrá acceso a la administración de TODAS las empresas. Asígnelo solo a personas de plena confianza.',
+          campos: [{ name: 'usuario_id', label: 'Usuario', type: 'select', required: true, full: true,
+            options: datos.perfiles.filter(p => !p.es_plataforma && p.activo).map(p => ({ value: p.id, label: `${p.nombre} (${p.email || '—'}) · ${empresa(p.area_id)?.nombre || ''}` })) }],
+          alGuardar: async d => { await api.adminUsuarios('propietario', { usuario_id: d.usuario_id, es: true }); ok('Propietario agregado.'); },
+        });
+        if (r) { await refrescar(); pintar(); }
+      }
+      if (t.dataset.quitar) {
+        const p = datos.perfiles.find(x => x.id === t.dataset.quitar);
+        if (await confirmar(`¿Quitar a ${p.nombre} como propietario de la plataforma? Seguirá como usuario de su empresa.`, { texto: 'Quitar', peligro: true })) {
+          await api.adminUsuarios('propietario', { usuario_id: p.id, es: false }); ok('Propietario quitado.'); await refrescar(); pintar();
+        }
+      }
+    } catch (err) { error(mensajeError(err)); }
+  });
+  pintar();
+}
+
+// ════════════════════════════════════════════════════════════════
+// AUDITORÍA Y REPORTES DE LA PLATAFORMA
+// ════════════════════════════════════════════════════════════════
+export async function panelAuditoriaPlataforma(el) {
+  await cargarPlataforma();
+  el.innerHTML = cab('Auditoría de la plataforma', 'Últimos 300 cambios registrados.') +
+    `<div class="admin-filtros"><select class="inp" data-f="empresa"><option value="">Empresa: todas</option>${datos.areas.map(a => `<option value="${a.id}">${esc(a.nombre)}</option>`).join('')}</select></div>
+    <div class="tarjeta admin-tabla-wrap" data-tabla><div class="admin-cargando"><span class="spinner"></span></div></div>`;
+  const pintar = async () => {
+    const cont = el.querySelector('[data-tabla]');
+    try {
+      const { registros } = await api.adminUsuarios('auditoria_plataforma', { area_id: el.querySelector('[data-f="empresa"]').value || undefined });
+      const quien = id => datos.perfiles.find(p => p.id === id)?.nombre || '—';
+      cont.innerHTML = registros.length ? `<table class="simple"><thead><tr><th>FECHA</th><th>EMPRESA</th><th>USUARIO</th><th>TABLA</th><th>ACCIÓN</th><th>CAMBIOS</th></tr></thead>
+        <tbody>${registros.map(r => `<tr><td>${esc(fmtFechaHora(r.created_at))}</td><td>${esc(empresa(r.area_id)?.nombre || '—')}</td><td>${esc(quien(r.usuario_id))}</td>
+          <td>${esc(r.tabla)}</td><td>${esc(r.accion)}</td><td><small>${esc(Object.keys(r.cambios || {}).slice(0, 6).join(', '))}</small></td></tr>`).join('')}</tbody></table>`
+        : '<p class="nota" style="padding:12px">Sin registros.</p>';
+    } catch (err) { cont.innerHTML = `<div class="aviso error">${esc(mensajeError(err))}</div>`; }
+  };
+  el.querySelector('[data-f="empresa"]').addEventListener('change', pintar);
+  pintar();
+}
+
+export async function panelReportesPlataforma(el, ctx) {
+  await cargarPlataforma();
+  const filas = datos.areas.map(a => {
+    const ps = proyectosDe(a.id);
+    const cuenta = est => ps.filter(p => p.estado === est).length;
+    return [a.nombre, activa(a) ? 'Activa' : 'Suspendida', usuariosDe(a.id).filter(p => p.activo && p.rol !== 'pendiente').length,
+      datos.portafolios.filter(x => x.area_id === a.id).length, datos.programas.filter(x => x.area_id === a.id).length,
+      cuenta('activo'), cuenta('propuesto'), cuenta('en_pausa'), cuenta('cerrado'), ps.filter(p => !['cerrado', 'rechazado'].includes(p.estado) && !lideresDe(p.id).length).length];
+  });
+  const cabs = ['Empresa', 'Estado', 'Usuarios activos', 'Portafolios', 'Programas', 'Proyectos activos', 'Propuestos', 'En pausa', 'Cerrados', 'Sin administrador'];
+  el.innerHTML = cab('Reportes de la plataforma', 'Cifras por empresa.',
+    `<button class="btn btn-sm" data-a="excel">⬇ Excel</button><button class="btn btn-sm" data-a="imprimir">🖨 Imprimir</button>`) +
+    `<div class="tarjeta admin-tabla-wrap"><table class="simple"><thead><tr>${cabs.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>
+      <tbody>${filas.map(f => `<tr>${f.map((v, i) => `<td${i > 1 ? ' class="num"' : ''}>${esc(String(v))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  el.addEventListener('click', async e => {
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    if (a === 'imprimir') ctx.imprimir(el, 'Reportes de la plataforma');
+    if (a === 'excel') {
+      const XLSX = window.XLSX;
+      if (!XLSX) return error('La librería de Excel no está disponible.');
+      const libro = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([cabs, ...filas]), 'Empresas');
+      XLSX.writeFile(libro, 'Plataforma_empresas.xlsx');
+    }
+  });
+}

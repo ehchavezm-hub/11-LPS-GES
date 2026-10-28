@@ -439,6 +439,29 @@ select como('admin@x.pe');
 do $$ begin assert (select count(*) from areas) >= 2, 'el administrador de la plataforma no ve las empresas'; end $$;
 reset role;
 
+-- ---------- 023: Portafolio → Programa → Proyecto, aislados por empresa ----------
+set role authenticated;
+select como('admin@x.pe');
+insert into portafolios (area_id, codigo, nombre) values (mi_area(), 'PF-1', 'Portafolio Uno');
+insert into programas (area_id, portafolio_id, codigo, nombre) values (mi_area(), (select id from portafolios where codigo = 'PF-1'), 'PG-1', 'Programa Uno');
+update proyectos set programa_id = (select id from programas where codigo = 'PG-1'), portafolio_id = (select id from portafolios where codigo = 'PF-1') where codigo = 'A-1';
+select como('lider3@x.pe');
+do $$ begin assert (select count(*) from portafolios) = 1 and (select count(*) from programas) = 1, 'el líder no ve la estructura de su empresa'; end $$;
+select debe_fallar($q$ insert into portafolios (area_id, nombre) values (mi_area(), 'No') $q$, 'row-level security');
+update programas set nombre = 'X' where codigo = 'PG-1';                               -- RLS: el líder no modifica
+select como('otra@x.pe');
+do $$ begin assert (select count(*) from portafolios) = 0 and (select count(*) from programas) = 0, 'otra empresa ve portafolios ajenos'; end $$;
+insert into portafolios (area_id, codigo, nombre) values (mi_area(), 'PF-OTRA', 'De la otra empresa');
+reset role;
+do $$ begin assert (select nombre from programas where codigo = 'PG-1') = 'Programa Uno', 'el líder modificó un programa'; end $$;
+-- No se mezclan empresas: un programa no puede colgar de un portafolio de otra empresa
+do $$ begin
+  begin
+    update programas set portafolio_id = (select id from portafolios where codigo = 'PF-OTRA') where codigo = 'PG-1';
+    raise exception 'aceptó un portafolio de otra empresa';
+  exception when raise_exception then if sqlerrm not like 'El portafolio no pertenece%' then raise; end if; end;
+end $$;
+
 -- 017: las funciones de disparador no se pueden invocar como API
 do $$ begin
   assert not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prorettype = 'trigger'::regtype

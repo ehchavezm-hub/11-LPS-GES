@@ -92,8 +92,8 @@ export function crearAdaptadorDemo() {
     if (accion === 'empresas') {
       return { empresas: tabla('areas').map(a => {
         const ps = tabla('profiles').filter(p => p.area_id === a.id && !p.eliminado);
-        const pr = ps.find(p => p.es_admin_principal);
-        return { ...clon(a), activa: a.activa !== false, usuarios: ps.filter(p => p.activo && p.rol !== 'pendiente').length,
+        const pr = ps.find(p => p.es_admin_principal && !p.es_plataforma) || ps.find(p => p.es_admin_principal);
+        return { ...clon(a), codigo: String(a.id).slice(0, 8), activa: a.activa !== false, usuarios: ps.filter(p => p.activo && p.rol !== 'pendiente').length,
           proyectos: tabla('proyectos').filter(p => p.area_id === a.id).length, administrador: pr ? `${pr.nombre} (${pr.email})` : '', mia: a.id === yo.area_id };
       }) };
     }
@@ -124,6 +124,107 @@ export function crearAdaptadorDemo() {
     tabla('profiles').push(p);
     guardar();
     return { area_id: area.id, usuario_id: p.id };
+  }
+  // Emula las acciones de la consola de plataforma de "admin-usuarios"
+  const CAMPOS_EST = {
+    portafolios: ['codigo', 'nombre', 'descripcion', 'responsable_id', 'estado'],
+    programas: ['codigo', 'nombre', 'descripcion', 'responsable_id', 'estado', 'portafolio_id'],
+    proyectos: ['codigo', 'nombre_corto', 'nombre_completo', 'estado', 'portafolio_id', 'programa_id', 'gerencia_id', 'fase_id', 'pais_id', 'fecha_inicio', 'fecha_fin', 'observaciones'],
+  };
+  async function plataformaDemo(accion, d, yo) {
+    const ahora = new Date().toISOString();
+    const area = String(d.area_id || '');
+    const existe = id => tabla('areas').some(a => a.id === id);
+    if (accion === 'plataforma') {
+      return clon({ areas: tabla('areas').map(a => ({ ...a, activa: a.activa !== false })), perfiles: tabla('profiles').filter(p => !p.eliminado),
+        portafolios: tabla('portafolios'), programas: tabla('programas'), proyectos: tabla('proyectos'), lideres: tabla('proyecto_lideres'), mi_area: yo.area_id });
+    }
+    if (accion === 'editar_empresa') {
+      const nombre = String(d.nombre || '').trim();
+      if (!nombre) throw new Error('Indique el nombre de la empresa.');
+      if (tabla('areas').some(a => a.id !== area && a.nombre.toLowerCase() === nombre.toLowerCase())) throw new Error('Ya existe una empresa con ese nombre.');
+      Object.assign(tabla('areas').find(a => a.id === area) || {}, { nombre, descripcion: d.descripcion || null, updated_at: ahora });
+      guardar(); return { ok: true };
+    }
+    if (accion === 'eliminar_empresa') {
+      if (area === yo.area_id) throw new Error('No puede eliminar la empresa en la que está trabajando. Abra otra empresa primero.');
+      for (const [t, texto] of [['proyectos', 'proyectos'], ['actividades', 'actividades'], ['cartera', 'registros de cartera']]) {
+        const n = tabla(t).filter(x => x.area_id === area).length;
+        if (n) throw new Error(`La empresa tiene ${n} ${texto}. Para conservar su historial, suspéndala en lugar de eliminarla (o elimine antes sus proyectos).`);
+      }
+      if (tabla('profiles').some(p => p.area_id === area && p.es_plataforma)) throw new Error('Un administrador de la plataforma está trabajando en esa empresa. Que abra otra empresa primero.');
+      const listas = tabla('listas').filter(l => l.area_id === area).map(l => l.id);
+      db.lista_valores = tabla('lista_valores').filter(v => !listas.includes(v.lista_id));
+      for (const t of ['programas', 'portafolios', 'vistas', 'permisos', 'parametros', 'listas', 'profiles']) db[t] = tabla(t).filter(x => x.area_id !== area);
+      db.areas = tabla('areas').filter(a => a.id !== area);
+      guardar(); return { ok: true };
+    }
+    if (accion === 'usar_empresa') {
+      if (!existe(area)) throw new Error('Empresa no encontrada.');
+      perfil(yo.id).area_id = area; guardar(); return { ok: true };
+    }
+    if (accion === 'cambiar_principal') {
+      const nuevo = perfil(String(d.usuario_id || ''));
+      if (!nuevo || nuevo.area_id !== area) throw new Error('El usuario no pertenece a esa empresa.');
+      tabla('profiles').filter(p => p.area_id === area && !p.es_plataforma && p.id !== nuevo.id).forEach(p => { p.es_admin_principal = false; });
+      Object.assign(nuevo, { es_admin_principal: true, rol: 'superadmin', activo: true });
+      guardar(); return { ok: true };
+    }
+    if (accion === 'estructura') {
+      const t = String(d.tabla || '');
+      if (!CAMPOS_EST[t]) throw new Error('Tabla no válida.');
+      if (d.op === 'eliminar') {
+        if (t === 'proyectos') {
+          const n = tabla('actividades').filter(a => a.proyecto_id === d.id).length;
+          if (n) throw new Error(`El proyecto tiene ${n} actividades: ciérrelo en lugar de eliminarlo para conservar su historial.`);
+          db.proyecto_lideres = tabla('proyecto_lideres').filter(l => l.proyecto_id !== d.id);
+        }
+        if (t === 'portafolios') { tabla('programas').forEach(g => { if (g.portafolio_id === d.id) g.portafolio_id = null; }); tabla('proyectos').forEach(p => { if (p.portafolio_id === d.id) p.portafolio_id = null; }); }
+        if (t === 'programas') tabla('proyectos').forEach(p => { if (p.programa_id === d.id) p.programa_id = null; });
+        db[t] = tabla(t).filter(x => x.id !== d.id);
+        guardar(); return { ok: true };
+      }
+      const datos = {};
+      for (const k of CAMPOS_EST[t]) if (k in (d.datos || {})) datos[k] = d.datos[k] === '' ? null : d.datos[k];
+      if (t === 'proyectos' && datos.programa_id) { const g = tabla('programas').find(x => x.id === datos.programa_id); if (g?.portafolio_id) datos.portafolio_id = g.portafolio_id; }
+      if (d.id) { const x = tabla(t).find(r => r.id === d.id); Object.assign(x, datos, { updated_at: ahora }); guardar(); return { registro: clon(x) }; }
+      if (!existe(area)) throw new Error('Empresa no encontrada.');
+      if (t === 'proyectos') {
+        if (!datos.codigo || !datos.nombre_corto) throw new Error('Indique el código y el nombre del proyecto.');
+        if (tabla('proyectos').some(p => p.area_id === area && p.codigo === datos.codigo)) throw new Error('Ya existe un proyecto con ese código en la empresa.');
+        datos.estado ??= 'activo'; datos.created_by = yo.id; datos.extra = {};
+      } else { if (!datos.nombre) throw new Error('Indique el nombre.'); datos.estado ??= 'activo'; }
+      const x = { id: crypto.randomUUID(), area_id: area, ...datos, created_at: ahora, updated_at: ahora };
+      tabla(t).push(x); guardar(); return { registro: clon(x) };
+    }
+    if (accion === 'lideres') {
+      const p = tabla('proyectos').find(x => x.id === d.proyecto_id);
+      if (!p) throw new Error('Proyecto no encontrado.');
+      db.proyecto_lideres = tabla('proyecto_lideres').filter(l => l.proyecto_id !== p.id);
+      for (const u of d.usuario_ids || []) if (perfil(u)?.area_id === p.area_id) db.proyecto_lideres.push({ id: crypto.randomUUID(), proyecto_id: p.id, usuario_id: u });
+      guardar(); return { ok: true };
+    }
+    if (accion === 'propietario') {
+      if (!d.es) {
+        if (d.usuario_id === yo.id) throw new Error('No puede quitarse a sí mismo. Otro propietario debe hacerlo.');
+        if (tabla('profiles').filter(p => p.es_plataforma).length <= 1) throw new Error('Debe quedar al menos un propietario de la plataforma.');
+      }
+      perfil(d.usuario_id).es_plataforma = !!d.es; guardar(); return { ok: true };
+    }
+    if (accion === 'usuario_plataforma') {
+      const u = perfil(String(d.usuario_id || ''));
+      if (!u) throw new Error('Usuario no encontrado.');
+      if (d.rol !== undefined) {
+        if (u.es_admin_principal && d.rol !== 'superadmin') throw new Error('El administrador principal de una empresa es super administrador. Cambie antes el principal.');
+        u.rol = d.rol;
+      }
+      if (d.activo !== undefined) { if (u.id === yo.id && !d.activo) throw new Error('No puede desactivarse a sí mismo.'); u.activo = !!d.activo; }
+      guardar(); return { ok: true };
+    }
+    if (accion === 'auditoria_plataforma') {
+      return { registros: clon(tabla('auditoria').filter(r => !area || r.area_id === area).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 300)) };
+    }
+    return empresasDemo(accion, d, yo);
   }
   async function eliminarUsuarioDemo(id) {
     db = cargar();
@@ -385,13 +486,18 @@ export function crearAdaptadorDemo() {
       const yo = perfil();
       if (!yo || !GESTORES.includes(yo.rol)) throw new Error('No tiene permiso para gestionar usuarios.');
       if (['empresas', 'crear_empresa', 'estado_empresa'].includes(accion)) return empresasDemo(accion, d, yo);
+      if (['plataforma', 'editar_empresa', 'eliminar_empresa', 'usar_empresa', 'cambiar_principal', 'estructura', 'lideres', 'propietario',
+        'usuario_plataforma', 'auditoria_plataforma'].includes(accion)) {
+        if (!yo.es_plataforma) throw new Error('Solo el administrador de la plataforma gestiona empresas.');
+        return plataformaDemo(accion, d, yo);
+      }
       if (String(d.clave || '').length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
       if (accion === 'crear') {
         const email = String(d.email || '').trim().toLowerCase();
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Correo no válido.');
         if (tabla('profiles').some(p => p.email === email)) throw new Error('Ya existe un usuario con ese correo.');
         if (GESTORES.includes(d.rol) && !esSuper(yo)) throw new Error('Solo el super administrador asigna los roles de super administrador, administrador y delegado.');
-        const [p] = await api.insert('profiles', { area_id: yo.area_id, email, nombre: String(d.nombre || '').trim(), rol: d.rol || 'lider',
+        const [p] = await api.insert('profiles', { area_id: yo.es_plataforma && d.area_id ? d.area_id : yo.area_id, email, nombre: String(d.nombre || '').trim(), rol: d.rol || 'lider',
           codigo: d.codigo || null, cargo_id: d.cargo_id || null, gerencia_ids: d.gerencia_ids || [], horas_dia: d.horas_dia === '' || d.horas_dia == null ? null : Number(d.horas_dia),
           activo: true, es_admin_principal: false, debe_cambiar_clave: true, tour_visto: false });
         return { id: p.id };

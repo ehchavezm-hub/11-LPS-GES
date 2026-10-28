@@ -293,6 +293,12 @@ export async function nuevoCETServicio({ proyectoId = null } = {}) {
 /** Alta de proyecto: crea (administrador, delegado o líder con "agregar_proyecto") o propone. */
 export async function formularioProyecto(p = null) {
   const crea = puedeAgregarProyecto();
+  // Jerarquía de la empresa: Portafolio → Programa → Proyecto (ambos opcionales)
+  const [portafolios, programas] = await Promise.all([
+    api.list('portafolios', { eq: { area_id: store.area.id }, order: [['nombre', true]] }).catch(() => []),
+    api.list('programas', { eq: { area_id: store.area.id }, order: [['nombre', true]] }).catch(() => []),
+  ]);
+  const nomPort = id => portafolios.find(x => x.id === id)?.nombre;
   const d = await pedirDatos({
     titulo: p ? 'Editar proyecto' : crea ? 'Nuevo proyecto' : 'Proponer proyecto', texto: p ? 'Guardar' : crea ? 'Crear' : 'Enviar propuesta',
     antes: !crea && !p ? 'El proyecto quedará "Propuesto" hasta que el administrador lo apruebe. Mientras tanto ya puede registrar actividades en él.' : '',
@@ -304,12 +310,20 @@ export async function formularioProyecto(p = null) {
       { name: 'gerencia_id', label: 'Gerencia', type: 'select', required: true, options: opciones('gerencias') },
       { name: 'fase_id', label: 'Fase', type: 'select', options: opciones('fases') },
       { name: 'pais_id', label: 'País', type: 'select', options: opciones('paises') },
+      { name: 'portafolio_id', label: 'Portafolio', type: 'select',
+        options: portafolios.filter(x => x.estado !== 'inactivo' || x.id === p?.portafolio_id).map(x => ({ value: x.id, label: x.nombre })) },
+      { name: 'programa_id', label: 'Programa', type: 'select',
+        options: programas.filter(x => x.estado !== 'inactivo' || x.id === p?.programa_id)
+          .map(x => ({ value: x.id, label: nomPort(x.portafolio_id) ? `${nomPort(x.portafolio_id)} › ${x.nombre}` : x.nombre })) },
       { name: 'fecha_inicio', label: 'Inicio previsto', type: 'date' },
       { name: 'fecha_fin', label: 'Fin previsto', type: 'date' },
       { name: 'observaciones', label: 'Observaciones', type: 'textarea' },
     ],
     alGuardar: async v => {
-      const datos = v;
+      const datos = { ...v, portafolio_id: v.portafolio_id || null, programa_id: v.programa_id || null };
+      // El programa define su portafolio
+      const prog = programas.find(x => x.id === datos.programa_id);
+      if (prog?.portafolio_id) datos.portafolio_id = prog.portafolio_id;
       if (store.proyectos.some(x => x.codigo === datos.codigo && x.id !== p?.id)) throw new Error('Ya existe un proyecto con ese código.');
       let reg;
       if (p) reg = await api.update('proyectos', p.id, datos);

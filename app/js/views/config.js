@@ -35,6 +35,12 @@ export async function render(el, { seccion, query }) {
   const f = { empresas: store.usuario?.es_plataforma ? empresas : null, usuarios, listas, parametros, permisos, columnas, importar: importarVista, respaldo, auditoria }[seccion];
   if (f) await f(cont, query?.get('lista') || undefined); else cont.textContent = 'Sección no encontrada.';
 }
+/** Secciones de Configuración que también se muestran dentro de la consola de Administración. */
+export async function seccionConfig(nombre, el) {
+  destruir();
+  const f = { empresas: store.usuario?.es_plataforma ? empresas : null, usuarios, listas, parametros, permisos, auditoria }[nombre];
+  if (f) await f(el); else el.textContent = 'Sección no disponible.';
+}
 export function destruir() { desmontarOrg?.(); grilla?.destruir(); grilla = null; dejarCatalogo?.(); dejarCatalogo = null; catalogoProyectos?.destruir(); catalogoProyectos = null; }
 let catalogoProyectos = null;
 let desmontarOrg = null;        // organigrama del equipo (Usuarios y roles)   // módulo de Proyectos cuando se muestra dentro de Listas
