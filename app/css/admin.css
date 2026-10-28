@@ -424,3 +424,5 @@
 .org-subproyecto { background: #1f2f5c; border-color: #1A365D; color: #fff; }
 .admin-quien { border: 1px solid #cfe0ea; background: #f3f9fc; border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; }
 .admin-quien > .nota { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
+.org-caja[role="button"] { cursor: pointer; transition: box-shadow .15s, transform .15s; }
+.org-caja[role="button"]:hover, .org-caja[role="button"]:focus-visible { box-shadow: 0 0 0 2px #0b6f86, 0 4px 10px rgba(0,0,0,.12); transform: translateY(-1px); outline: none; }

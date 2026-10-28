@@ -366,7 +366,7 @@ export async function panelEstructuraTodas(el, ctx) {
   };
 
   el.addEventListener('click', async e => {
-    const t = e.target.closest('button, [data-toggle]'); if (!t) return;
+    const t = e.target.closest('button, [data-toggle], .org-caja'); if (!t) return;
     const d = t.dataset;
     try {
       if (d.vista) { vistaEstructura = d.vista; pintarTodo(); return; }
@@ -378,10 +378,12 @@ export async function panelEstructuraTodas(el, ctx) {
       if (d.editar) { const x = datos[d.tabla].find(r => r.id === d.editar); cambio = !!await editarNodo(d.tabla, x, {}); area = x?.area_id; }
       if (d.eliminar) { const x = datos[d.tabla].find(r => r.id === d.eliminar); cambio = await eliminarNodo(d.tabla, x); area = x?.area_id; }
       if (d.lideres) { const p = datos.proyectos.find(r => r.id === d.lideres); cambio = !!await miembrosProyecto(p); area = p?.area_id; }
+      if (d.editarEmpresa) { const a = empresa(d.editarEmpresa); cambio = !!await editarEmpresa(a); area = a?.id; if (cambio) ctx.repintarCabecera(); }
       if (d.usuarios) { await gestionarUsuarios(empresa(d.usuarios), () => refrescar(d.usuarios).then(pintarTodo)); }
       if (cambio) { await refrescar(area); pintarTodo(); }
     } catch (err) { error(mensajeError(err)); }
   });
+  el.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.org-caja')) e.target.click(); });
   el.addEventListener('input', e => { if (e.target.matches('[data-buscar]')) filtrarTabla(el); });
   el.addEventListener('change', e => { if (e.target.matches('[data-mostrar]')) filtrarTabla(el); });
   pintarTodo();
@@ -476,23 +478,26 @@ function filtrarTabla(el) {
 
 // Organigrama (como el lienzo «Estructura de Proyectos»): cajas por nivel unidas con líneas
 function pintarOrganigrama(cuerpo) {
-  const caja = (tipo, titulo, sub) => `<div class="org-caja org-${tipo}"><b>${esc(titulo)}</b><small>${esc(sub)}</small></div>`;
+  // Cada tarjeta se edita con un clic sobre ella (pedido 14)
+  const TABLA = { portafolio: 'portafolios', programa: 'programas', proyecto: 'proyectos', subproyecto: 'proyectos' };
+  const caja = (tipo, titulo, sub, id) => `<div class="org-caja org-${tipo}" role="button" tabindex="0" title="Clic para editar"
+      ${tipo === 'empresa' ? `data-editar-empresa="${id}"` : `data-editar="${id}" data-tabla="${TABLA[tipo]}"`}><b>${esc(titulo)}</b><small>${esc(sub)}</small></div>`;
   const nodo = (htmlCaja, hijos) => `<li>${htmlCaja}${hijos.length ? `<ul>${hijos.join('')}</ul>` : ''}</li>`;
-  const sub = p => nodo(caja('subproyecto', p.nombre_corto, 'Sub-proyecto'), []);
-  const proy = p => nodo(caja('proyecto', p.nombre_corto, `Proyecto${lideresDe(p.id).length ? ' · ' + lideresDe(p.id).map(nombreCorto).join(', ') : ''}`), subDe(p).map(sub));
+  const sub = p => nodo(caja('subproyecto', p.nombre_corto, 'Sub-proyecto', p.id), []);
+  const proy = p => nodo(caja('proyecto', p.nombre_corto, `Proyecto${lideresDe(p.id).length ? ' · ' + lideresDe(p.id).map(nombreCorto).join(', ') : ''}`, p.id), subDe(p).map(sub));
   const raiz = arr => arr.filter(p => !p.padre_id);
-  const prog = g => nodo(caja('programa', g.nombre, 'Programa'), raiz(datos.proyectos.filter(p => p.programa_id === g.id)).map(proy));
+  const prog = g => nodo(caja('programa', g.nombre, 'Programa', g.id), raiz(datos.proyectos.filter(p => p.programa_id === g.id)).map(proy));
   const arboles = datos.areas.map(a => {
     const hijos = [
-      ...datos.portafolios.filter(f => f.area_id === a.id).map(f => nodo(caja('portafolio', f.nombre, 'Portafolio'), [
+      ...datos.portafolios.filter(f => f.area_id === a.id).map(f => nodo(caja('portafolio', f.nombre, 'Portafolio', f.id), [
         ...datos.programas.filter(g => g.portafolio_id === f.id).map(prog),
         ...raiz(datos.proyectos.filter(p => p.portafolio_id === f.id && !p.programa_id)).map(proy)])),
       ...datos.programas.filter(g => g.area_id === a.id && !g.portafolio_id).map(prog),
       ...raiz(proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id)).map(proy),
     ];
-    return `<div class="org-arbol"><ul>${nodo(caja('empresa', a.nombre, 'Empresa'), hijos)}</ul></div>`;
+    return `<div class="org-arbol"><ul>${nodo(caja('empresa', a.nombre, 'Empresa', a.id), hijos)}</ul></div>`;
   });
-  cuerpo.innerHTML = `<p class="nota">Desplácese horizontalmente para ver toda la estructura. Las cajas naranjas son proyectos (con su administrador) y las azul oscuro, sus sub-proyectos, donde se registra el LPS.</p>
+  cuerpo.innerHTML = `<p class="nota">Haga clic en una tarjeta para editarla. Desplácese horizontalmente para ver toda la estructura. Las cajas naranjas son proyectos (con su administrador) y las azul oscuro, sus sub-proyectos, donde se registra el LPS.</p>
     <div class="org-lienzo">${arboles.join('')}</div>`;
 }
 
