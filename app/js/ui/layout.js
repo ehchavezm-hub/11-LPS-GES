@@ -1,10 +1,10 @@
 // Estructura general: cabecera, navegación lateral y menú de proyectos (6.3), notificaciones y usuario. v1.1
-import { api, modoDemo, mensajeError } from '../data/api.js';
-import { store, on, esGestor, esStaff, esAdmin, puede, seleccionarProyecto, misProyectos, etiqueta, cargarCatalogo, rol } from '../core/store.js';
+import { api, modoDemo } from '../data/api.js';
+import { store, on, esGestor, esStaff, esAdmin, puede, seleccionarProyecto, cargarCatalogo, rol } from '../core/store.js';
 import { ROLES } from '../data/catalogos.js';
-import { esc, html, normalizar, agrupar, fmtFechaHora } from '../core/util.js';
+import { esc, html, normalizar, fmtFechaHora } from '../core/util.js';
 import { ir } from '../core/router.js';
-import { pedirDatos, ok, error, arrastrable } from './ui.js';
+import { pedirDatos, ok, arrastrable } from './ui.js';
 
 export const NAV = [
   { grupo: 'Administración' },
@@ -26,7 +26,6 @@ export const NAV = [
   { ruta: '/ayuda', ico: '❔', texto: 'Ayuda', si: () => true },
 ];
 
-let pestanaProy = localStorage.getItem('lpsgt-pestana-proy') || '';
 let filtroProy = '';
 
 export function montarLayout(raiz, { alSalir }) {
@@ -51,9 +50,6 @@ export function montarLayout(raiz, { alSalir }) {
       <section class="menu-proy" aria-label="Menú de proyectos">
         <div class="menu-proy-cab"><h3>Proyectos</h3>
           ${esGestor() || puede('crear_cartera') ? `<button class="btn btn-sm btn-primario btn-agregar-proy" data-a="nuevo-proy" title="Agregar un proyecto nuevo (lo verá todo el equipo)">＋ ${esGestor() ? 'Agregar' : 'Proponer'}</button>` : ''}</div>
-        <div class="pestanas" role="tablist">
-          ${esStaff() ? '<button data-p="mis">Mis</button>' : ''}<button data-p="todos">Todos</button><button data-p="fav">★ Favoritos</button>
-        </div>
         <input type="search" placeholder="Buscar código o nombre…" aria-label="Buscar proyecto">
         <div class="proy-lista"></div>
       </section>
@@ -61,8 +57,6 @@ export function montarLayout(raiz, { alSalir }) {
     <main class="contenido" id="contenido" tabindex="-1"></main>
   </div>`);
   raiz.append(app);
-  if (!pestanaProy) pestanaProy = esGestor() || !misProyectos().length ? 'todos' : 'mis';
-  if (!esStaff() && pestanaProy === 'mis') pestanaProy = 'todos';
 
   pintarNav();
   pintarProyectos();
@@ -73,25 +67,7 @@ export function montarLayout(raiz, { alSalir }) {
   on('proyecto', () => pintarProyectos());
 
   app.querySelector('.menu-proy input').addEventListener('input', e => { filtroProy = e.target.value; pintarProyectos(); });
-  app.querySelector('.pestanas').addEventListener('click', e => {
-    const p = e.target.closest('[data-p]')?.dataset.p;
-    if (!p) return;
-    pestanaProy = p;
-    localStorage.setItem('lpsgt-pestana-proy', p);
-    pintarProyectos();
-  });
-  app.querySelector('.proy-lista').addEventListener('click', async e => {
-    const est = e.target.closest('.estrella');
-    if (est) {
-      e.stopPropagation();
-      const id = est.dataset.id;
-      try {
-        if (store.favoritos.has(id)) { await api.removeWhere('proyecto_favoritos', { eq: { usuario_id: u.id, proyecto_id: id } }); store.favoritos.delete(id); }
-        else { await api.insert('proyecto_favoritos', { usuario_id: u.id, proyecto_id: id }); store.favoritos.add(id); }
-      } catch (err) { error(mensajeError(err)); }
-      pintarProyectos();
-      return;
-    }
+  app.querySelector('.proy-lista').addEventListener('click', e => {
     const r = e.target.closest('[data-rama]');
     if (r && (r.dataset.rama !== 'empresa' || e.target.closest('[data-solo-rama]'))) { alternarRama(r.dataset.rama); return; }
     const it = e.target.closest('.proy-item, .arbol-emp');
@@ -194,22 +170,18 @@ function alternarRama(clave) {
 function pintarProyectos() {
   const cont = document.querySelector('.proy-lista');
   if (!cont) return;
-  document.querySelectorAll('.pestanas [data-p]').forEach(b => b.classList.toggle('activo', b.dataset.p === pestanaProy));
   let lista = store.proyectos.filter(p => p.estado === 'activo' || (p.estado === 'propuesto' && esStaff()));
-  if (pestanaProy === 'mis') lista = misProyectos().filter(p => ['activo', 'propuesto'].includes(p.estado));
-  if (pestanaProy === 'fav') lista = lista.filter(p => store.favoritos.has(p.id));
   const f = normalizar(filtroProy);
   if (f) lista = lista.filter(p => normalizar(p.codigo + ' ' + p.nombre_corto + ' ' + (p.nombre_completo || '')).includes(f));
-  // Con búsqueda o en Mis / Favoritos solo se muestran las ramas que tienen proyectos (y se abren)
-  const soloConProyectos = !!f || pestanaProy !== 'todos';
+  // Con búsqueda solo se muestran las ramas que tienen proyectos (y se abren)
+  const soloConProyectos = !!f;
   const abierta = clave => soloConProyectos || !contraidosProy.has(clave);
   const portafolios = (store.portafolios || []).filter(x => x.estado !== 'inactivo');
   const programas = (store.programas || []).filter(x => x.estado !== 'inactivo');
   const idsPort = new Set(portafolios.map(x => x.id)), idsProg = new Set(programas.map(x => x.id));
 
   const item = (p, nivel) => `<div class="proy-item arbol-n${nivel}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto}`)}">
-      <span class="arbol-ico">📋</span><span class="nom">${esc(p.nombre_corto)}${p.estado === 'propuesto' ? ' ⏳' : ''}</span>
-      <button class="estrella${store.favoritos.has(p.id) ? ' si' : ''}" data-id="${p.id}" title="Favorito" aria-label="Marcar favorito">★</button></div>`;
+      <span class="arbol-ico">📋</span><span class="nom">${esc(p.nombre_corto)}${p.estado === 'propuesto' ? ' ⏳' : ''}</span></div>`;
   const rama = (clave, nivel, ico, nombre, codigo, n, hijos, clase) => {
     if (soloConProyectos && !n) return '';
     const ab = abierta(clave);
@@ -234,7 +206,7 @@ function pintarProyectos() {
   cont.innerHTML = `<div class="arbol-rama arbol-n0 arbol-emp proy-todos${!store.proyectoSel ? ' activo' : ''}" data-rama="empresa" data-id="" role="button" aria-expanded="${abiertaEmp}"
       title="Todos los proyectos de ${esc(empresa)}"><span class="arbol-flecha" data-solo-rama>${abiertaEmp ? '▾' : '▸'}</span><span class="arbol-ico">🏢</span>
       <span class="nom">${esc(empresa)} <small>· todos (${lista.length})</small></span></div>` +
-    (abiertaEmp ? (cuerpo || `<p class="nota" style="padding:8px">${pestanaProy === 'mis' ? 'No tiene proyectos asignados. Use la pestaña "Todos".' : pestanaProy === 'fav' ? 'Marque proyectos con ★ para verlos aquí.' : f ? 'Sin resultados.' : 'Sin proyectos.'}</p>`) : '');
+    (abiertaEmp ? (cuerpo || `<p class="nota" style="padding:8px">${f ? 'Sin resultados.' : 'Sin proyectos.'}</p>`) : '');
 }
 
 async function cargarNotificaciones() {
