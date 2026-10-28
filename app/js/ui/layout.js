@@ -1,12 +1,13 @@
 // Estructura general: cabecera, navegación lateral y menú de proyectos (6.3), notificaciones y usuario.
 import { api, modoDemo, mensajeError } from '../data/api.js';
-import { store, on, esGestor, esStaff, puede, seleccionarProyecto, misProyectos, etiqueta, cargarCatalogo, rol } from '../core/store.js';
+import { store, on, esGestor, esStaff, esAdmin, puede, seleccionarProyecto, misProyectos, etiqueta, cargarCatalogo, rol } from '../core/store.js';
 import { ROLES } from '../data/catalogos.js';
 import { esc, html, normalizar, agrupar, fmtFechaHora } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { pedirDatos, ok, error, arrastrable } from './ui.js';
 
 export const NAV = [
+  { ruta: '/admin', ico: '⚙', texto: 'Administración', si: esAdmin, prefijo: '/admin' },
   { grupo: 'Planificación' },
   { ruta: '/plan', ico: '📅', texto: 'Plan semanal', si: esStaff },
   { ruta: '/lookahead', ico: '🔭', texto: 'Look Ahead', si: esStaff },
@@ -17,7 +18,8 @@ export const NAV = [
   { ruta: '/reunion', ico: '👥', texto: 'Reunión semanal', si: esStaff },
   { ruta: '/equipo', ico: '🧭', texto: 'Equipo y capacidad', si: esStaff },
   { ruta: '/reportes', ico: '🖨', texto: 'Reportes', si: () => esStaff() || puede('ver_indicadores') },
-  { grupo: 'Sistema' },
+  { grupo: 'Más' },
+  { ruta: '/config/usuarios', ico: '⚙', texto: 'Configuración', si: esGestor, prefijo: '/config' },
   { ruta: '/plantillas', ico: '🧩', texto: 'Plantillas', si: esStaff },
   { ruta: '/mejoras', ico: '💡', texto: 'Mejoras del aplicativo', si: () => true },
   { ruta: '/ayuda', ico: '❔', texto: 'Ayuda', si: () => true },
@@ -45,7 +47,6 @@ export function montarLayout(raiz, { alSalir }) {
     </header>
     <aside class="lateral"><div class="lateral-tirador" title="Arrastre para cambiar el ancho del menú (doble clic: ancho normal)"></div>
       <nav class="nav" aria-label="Navegación principal"></nav>
-      ${esGestor() ? '<button class="nav-admin-btn" data-a="admin" title="Consola de Administración"><span class="ico">⚙</span><span class="txt">Administración</span></button>' : ''}
       <section class="menu-proy" aria-label="Menú de proyectos">
         <div class="menu-proy-cab"><h3>Proyectos</h3>
           ${esGestor() || puede('crear_cartera') ? `<button class="btn btn-sm btn-primario btn-agregar-proy" data-a="nuevo-proy" title="Agregar un proyecto nuevo (lo verá todo el equipo)">＋ ${esGestor() ? 'Agregar' : 'Proponer'}</button>` : ''}</div>
@@ -110,10 +111,8 @@ export function montarLayout(raiz, { alSalir }) {
     if (a === 'actualizar') location.reload();
     if (a === 'actualizar-menu') menuActualizar();
     if (a === 'ayuda') import('../views/ayuda.js').then(m => m.iniciarRecorrido(true));
-    if (a === 'admin') import('../views/admin-console.js').then(m => m.showAdminConsole());
   });
   app.querySelector('[data-a="nuevo-proy"]')?.addEventListener('click', () => import('../views/proyectos.js').then(m => m.formularioProyecto()));
-  app.querySelector('[data-a="admin"]')?.addEventListener('click', () => import('../views/admin-console.js').then(m => m.showAdminConsole()));
 
   // Confirmación tras "Vaciar caché y volver a cargar"
   try {

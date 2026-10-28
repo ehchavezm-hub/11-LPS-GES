@@ -140,7 +140,6 @@ export const PERMISOS_INICIALES = {
 // El orden define cómo se muestran en listas y en la matriz de permisos.
 // "lider" conserva su código interno; desde la versión 1.1 se muestra como "Líder de especialidad".
 export const ROLES = {
-  propietario: 'Propietario de plataforma',
   superadmin: 'Super administrador',
   admin: 'Administrador',
   delegado: 'Administrador delegado',
@@ -151,4 +150,4 @@ export const ROLES = {
 
 /** Roles que planifican: tienen plan semanal, Look Ahead y PAC (equivale a public.rol_planifica). */
 export const PLANIFICADORES = ['lider'];
-export const COLOR_ROL = { propietario: '#6A1B9A', superadmin: '#1A365D', admin: '#E8762B', delegado: '#4E79A7', lider: '#59A14F', consulta: '#76B7B2', pendiente: '#BAB0AC' };
+export const COLOR_ROL = { superadmin: '#1A365D', admin: '#E8762B', delegado: '#4E79A7', lider: '#59A14F', consulta: '#76B7B2', pendiente: '#BAB0AC' };

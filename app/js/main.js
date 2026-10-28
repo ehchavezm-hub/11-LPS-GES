@@ -37,6 +37,7 @@ ruta('/reportes', () => import('./views/reportes.js'));
 ruta('/config/:seccion', () => import('./views/config.js'), { gestor: true });
 ruta('/mejoras', () => import('./views/mejoras.js'));
 ruta('/ayuda', () => import('./views/ayuda.js'));
+ruta('/admin', () => import('./views/admin-console.js').then(m => ({ render(el) { el.innerHTML = ''; m.showAdminConsole(); } })), { admin: true });
 
 async function arrancar() {
   iniciarMonitoreo();
@@ -81,6 +82,7 @@ async function arrancar() {
     guardia: r => {
       if (r.staff && !esStaff()) { location.hash = '#/tablero'; return false; }
       if (r.gestor && !['superadmin', 'admin', 'delegado'].includes(store.usuario.rol)) { location.hash = '#/plan'; return false; }
+      if (r.admin && !['propietario', 'superadmin', 'admin'].includes(store.usuario.rol) && !store.usuario.es_propietario) { location.hash = '#/tablero'; return false; }
       return true;
     },
   });
