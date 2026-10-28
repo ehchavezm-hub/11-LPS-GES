@@ -56,7 +56,7 @@ export async function panelResumenPlataforma(el, ctx) {
       <thead><tr><th>EMPRESA</th><th>SUPER ADMIN</th><th class="num">USUARIOS</th><th class="num">PORTAFOLIOS</th><th class="num">PROGRAMAS</th><th class="num">PROYECTOS</th><th>ESTADO</th></tr></thead>
       <tbody>${datos.areas.map(a => `<tr>
         <td><b>${esc(a.nombre)}</b>${a.id === datos.mi_area ? ' ' + badge('En uso ahora', '#1565c0') : ''}</td>
-        <td>${esc(nombreCorto(principalDe(a.id)) || '—')}</td>
+        <td>${esc(principalDe(a.id) && !principalDe(a.id).es_plataforma ? nombreCorto(principalDe(a.id)) : 'Propietarios')}</td>
         <td class="num">${usuariosDe(a.id).filter(p => p.activo && p.rol !== 'pendiente').length}</td>
         <td class="num">${datos.portafolios.filter(x => x.area_id === a.id).length}</td>
         <td class="num">${datos.programas.filter(x => x.area_id === a.id).length}</td>
@@ -101,7 +101,7 @@ export async function panelEmpresas(el, ctx) {
       return `<tr data-id="${a.id}">
         <td><input type="checkbox" data-sel="${a.id}" ${mia ? 'disabled title="Es la empresa en la que está trabajando"' : ''}></td>
         <td><b>${esc(a.nombre)}</b>${mia ? ' ' + badge('En uso ahora', '#1565c0') : ''}<br><small class="nota">Código ${esc(codigoEmpresa(a))}</small></td>
-        <td>${esc(nombreCorto(pr) || '—')} <button class="btn btn-xs" data-principal="${a.id}">Cambiar</button></td>
+        <td>${pr && !pr.es_plataforma ? esc(nombreCorto(pr)) : badge('Propietarios', '#B07AA1')} <button class="btn btn-xs" data-principal="${a.id}">Cambiar</button></td>
         <td class="num">${usuariosDe(a.id).filter(p => p.activo && p.rol !== 'pendiente').length} <button class="btn btn-xs" data-usuarios="${a.id}">Gestionar</button></td>
         <td class="num">${proyectosDe(a.id).length}</td>
         <td>${activa(a) ? badge('Activa', '#2e7d32') : badge('Suspendida', '#b71c1c')}</td>
@@ -146,18 +146,15 @@ async function nuevaEmpresa() {
   const { semillaEmpresa } = await import('../data/catalogos.js');
   return pedirDatos({
     titulo: 'Nueva empresa', texto: 'Crear empresa',
-    antes: 'Se crean la empresa, sus listas y parámetros iniciales, y su primer administrador (super administrador de esa empresa). Deberá cambiar la contraseña en su primer ingreso.',
+    antes: 'Se crea con sus listas, parámetros y permisos iniciales. Usted y los demás propietarios de la plataforma la administran por defecto: ' +
+      'para trabajar en ella use «Abrir». Después puede agregarle usuarios con «Gestionar» y, si quiere, designar su super administrador con «Cambiar».',
     campos: [
       { name: 'nombre_empresa', label: 'Nombre de la empresa', required: true, full: true },
       { name: 'descripcion', label: 'Descripción', full: true },
-      { name: 'separador', type: 'separador', label: 'Primer administrador de la empresa' },
-      { name: 'nombre', label: 'Nombre', required: true },
-      { name: 'email', label: 'Correo', type: 'email', required: true },
-      { name: 'clave', label: 'Contraseña temporal (mínimo 8 caracteres)', type: 'password', required: true },
     ],
     alGuardar: async d => {
       await api.adminUsuarios('crear_empresa', { ...d, semilla: semillaEmpresa() });
-      ok(`Empresa "${d.nombre_empresa}" creada. Comparta con ${d.nombre} el enlace del aplicativo, su correo y la contraseña temporal.`);
+      ok(`Empresa "${d.nombre_empresa}" creada.`);
     },
   });
 }
@@ -213,7 +210,7 @@ export async function abrirEmpresa(a, { volverA = '#/admin' } = {}) {
 
 async function cambiarPrincipal(a) {
   const candidatos = usuariosDe(a.id).filter(p => p.activo && !p.es_plataforma && p.rol !== 'pendiente');
-  if (!candidatos.length) { error('La empresa no tiene usuarios activos. Agregue uno con "Gestionar".'); return false; }
+  if (!candidatos.length) { error('La empresa todavía no tiene usuarios: la administran los propietarios. Agregue usuarios con «Gestionar» y luego designe aquí su super administrador.'); return false; }
   const actual = principalDe(a.id);
   return pedirDatos({
     titulo: `Super administrador de ${a.nombre}`, texto: 'Cambiar',
@@ -408,7 +405,7 @@ function pintarTabla(cuerpo) {
     const abierta = fila(0, 'empresa', a, {
       nombre: `<span class="est-ico">🏢</span> <b>${esc(a.nombre)}</b> ${a.id === datos.mi_area ? badge('En uso ahora', '#1565c0') : ''} ${activa(a) ? '' : badge('Suspendida', '#b71c1c')}`,
       tipo: badge('Empresa', '#2e7d32'), codigo: esc(codigoEmpresa(a)), buscar: `${a.nombre} ${codigoEmpresa(a)}`,
-      admin: `<small class="nota">Super admin: ${esc(nombreCorto(pr) || '—')}</small>`,
+      admin: `<small class="nota">Super admin: ${esc(pr && !pr.es_plataforma ? nombreCorto(pr) : 'propietarios')}</small>`,
       acciones: `<button class="btn btn-xs" data-nuevo="portafolios" data-area="${a.id}">+ Portafolio</button>
         <button class="btn btn-xs" data-nuevo="programas" data-area="${a.id}">+ Programa</button>
         <button class="btn btn-xs" data-nuevo="proyectos" data-area="${a.id}">+ Proyecto</button>

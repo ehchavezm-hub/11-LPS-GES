@@ -14,6 +14,8 @@ export const store = {
   permisos: {},          // rol → { accion → bool }
   perfiles: [],
   proyectos: [],
+  portafolios: [],
+  programas: [],
   proyectoLideres: [],
   favoritos: new Set(),
   columnas: [],
@@ -36,7 +38,7 @@ export async function cargarPerfil(userId) {
 
 export async function cargarCatalogo() {
   const u = store.usuario;
-  const [areas, listas, valores, params, permisos, perfiles, proyectos, lideres, favs, columnas] = await Promise.all([
+  const [areas, listas, valores, params, permisos, perfiles, proyectos, lideres, favs, columnas, portafolios, programas] = await Promise.all([
     api.list('areas', { eq: { id: u.area_id } }),
     api.list('listas', {}),
     api.list('lista_valores', { order: [['orden', true]] }),
@@ -47,6 +49,9 @@ export async function cargarCatalogo() {
     u.rol === 'consulta' ? Promise.resolve([]) : api.list('proyecto_lideres', {}),
     api.list('proyecto_favoritos', { eq: { usuario_id: u.id } }),
     api.list('columnas_personalizadas', { eq: { area_id: u.area_id }, order: [['orden', true]] }),
+    // Jerarquía de la empresa (menú de proyectos en árbol): Portafolio → Programa → Proyecto
+    api.list('portafolios', { eq: { area_id: u.area_id }, order: [['nombre', true]] }).catch(() => []),
+    api.list('programas', { eq: { area_id: u.area_id }, order: [['nombre', true]] }).catch(() => []),
   ]);
   store.area = areas[0] || null;
   api.fijarArea?.(store.area?.id);
@@ -71,6 +76,8 @@ export async function cargarCatalogo() {
   store.proyectoLideres = lideres;
   store.favoritos = new Set(favs.map(f => f.proyecto_id));
   store.columnas = columnas;
+  store.portafolios = portafolios;
+  store.programas = programas;
   if (store.proyectoSel && !proyectos.some(p => p.id === store.proyectoSel)) seleccionarProyecto('');
   emit('catalogo');
 }

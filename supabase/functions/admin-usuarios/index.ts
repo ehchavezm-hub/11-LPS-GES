@@ -4,7 +4,7 @@
 //   - accion "clave": restablecer la contraseña de un usuario.
 // Y al administrador de la plataforma (profiles.es_plataforma, pedido 113):
 //   - accion "empresas": lista de empresas con sus cifras.
-//   - accion "crear_empresa": empresa nueva con sus listas iniciales y su primer administrador.
+//   - accion "crear_empresa": empresa nueva con sus listas, parámetros y permisos iniciales (la administran los propietarios).
 //   - accion "estado_empresa": activar o desactivar una empresa.
 //   - acciones de la consola de plataforma: "plataforma" (datos de todas las empresas), "editar_empresa",
 //     "eliminar_empresa" (solo sin historial), "usar_empresa" (trabajar en otra empresa), "cambiar_principal",
@@ -153,7 +153,7 @@ async function atender(req: Request): Promise<Response> {
 
 // ---------- Empresas (administrador de la plataforma) ----------
 // deno-lint-ignore no-explicit-any
-async function empresas(admin: any, yo: any, d: any, clave: string): Promise<Response> {
+async function empresas(admin: any, yo: any, d: any, _clave: string): Promise<Response> {
   const otras = ['plataforma', 'editar_empresa', 'eliminar_empresa', 'usar_empresa', 'cambiar_principal', 'estructura', 'lideres',
     'propietario', 'usuario_plataforma', 'auditoria_plataforma'];
   if (otras.includes(d.accion)) return await plataforma(admin, yo, d);
@@ -179,43 +179,22 @@ async function empresas(admin: any, yo: any, d: any, clave: string): Promise<Res
     return e ? falla(e.message) : respuesta({ ok: true });
   }
 
-  // crear_empresa
+  // crear_empresa: la crea un propietario de la plataforma. Los propietarios la administran por defecto; no se crea
+  // ningún usuario (después se agregan con «Gestionar» y, si se quiere, se designa su super administrador).
   const nombreEmpresa = String(d.nombre_empresa ?? '').trim();
-  const email = String(d.email ?? '').trim().toLowerCase();
-  const nombre = String(d.nombre ?? '').trim();
   if (!nombreEmpresa) return falla('Indique el nombre de la empresa.');
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return falla('Correo no válido.');
-  if (!nombre) return falla('Indique el nombre del administrador.');
-  if (clave.length < 8) return falla('La contraseña debe tener al menos 8 caracteres.');
   const { data: existe } = await admin.from('areas').select('id').ilike('nombre', nombreEmpresa).maybeSingle();
   if (existe) return falla('Ya existe una empresa con ese nombre.');
 
   const { data: area, error: eArea } = await admin.from('areas').insert({ nombre: nombreEmpresa, descripcion: d.descripcion || null }).select().single();
   if (eArea) return falla(eArea.message);
-  const deshacer = async (msg: string, usuario?: string) => {
-    if (usuario) await admin.auth.admin.deleteUser(usuario);
-    await admin.from('parametros').delete().eq('area_id', area.id);
-    await admin.from('permisos').delete().eq('area_id', area.id);
-    await admin.from('listas').delete().eq('area_id', area.id);
-    await admin.from('areas').delete().eq('id', area.id);
-    return falla(msg);
-  };
+  // Listas, parámetros y permisos iniciales en una sola transacción: si algo falla no queda nada a medias
   const { error: eSemilla } = await admin.rpc('inicializar_empresa', { p_area: area.id, p_semilla: d.semilla ?? {} });
-  if (eSemilla) return await deshacer(eSemilla.message);
-
-  const { data: creado, error: eCrear } = await admin.auth.admin.createUser({
-    email, password: clave, email_confirm: true, user_metadata: { nombre },
-    app_metadata: { creado_por: yo.id, area_id: area.id },
-  });
-  if (eCrear) return await deshacer(/already|registered|exists/i.test(eCrear.message) ? 'Ya existe un usuario con ese correo.' : eCrear.message);
-  const id = creado.user.id;
-  // Primer usuario de la empresa: super administrador principal (el disparador de alta no conoce todavía la empresa)
-  const { error: ePerfil } = await admin.from('profiles').update({
-    area_id: area.id, nombre, rol: 'superadmin', es_admin_principal: true, activo: true, debe_cambiar_clave: true,
-  }).eq('id', id);
-  if (ePerfil) return await deshacer(ePerfil.message, id);
-  await admin.from('notificaciones').delete().eq('tipo', 'usuario_nuevo').eq('texto', `Nuevo usuario por aprobar: ${email}`);
-  return respuesta({ area_id: area.id, usuario_id: id });
+  if (eSemilla) {
+    await admin.from('areas').delete().eq('id', area.id);
+    return falla(eSemilla.message);
+  }
+  return respuesta({ area_id: area.id });
 }
 
 // ---------- Consola de plataforma: datos y estructura de todas las empresas ----------

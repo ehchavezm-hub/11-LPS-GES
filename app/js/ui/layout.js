@@ -92,7 +92,9 @@ export function montarLayout(raiz, { alSalir }) {
       pintarProyectos();
       return;
     }
-    const it = e.target.closest('.proy-item');
+    const r = e.target.closest('[data-rama]');
+    if (r && (r.dataset.rama !== 'empresa' || e.target.closest('[data-solo-rama]'))) { alternarRama(r.dataset.rama); return; }
+    const it = e.target.closest('.proy-item, .arbol-emp');
     if (it) {
       seleccionarProyecto(it.dataset.id);
       document.body.classList.remove('menu-abierto');
@@ -128,7 +130,7 @@ export function montarLayout(raiz, { alSalir }) {
     if (ev.fila?.usuario_id === u.id || ev.anterior?.usuario_id === u.id) cargarNotificaciones();
   });
   const recargar = debounceCatalogo();
-  api.subscribe(['lista_valores', 'proyectos'], () => recargar());
+  api.subscribe(['lista_valores', 'proyectos', 'portafolios', 'programas'], () => recargar());
   return app.querySelector('#contenido');
 }
 
@@ -180,6 +182,15 @@ function pintarNav() {
   nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => document.body.classList.remove('menu-abierto')));
 }
 
+// Ramas contraídas del árbol de proyectos (por computadora)
+const contraidosProy = (() => { try { return new Set(JSON.parse(localStorage.getItem('lpsgt-arbol-proy') || '[]')); } catch { return new Set(); } })();
+function alternarRama(clave) {
+  contraidosProy.has(clave) ? contraidosProy.delete(clave) : contraidosProy.add(clave);
+  try { localStorage.setItem('lpsgt-arbol-proy', JSON.stringify([...contraidosProy])); } catch { /* opcional */ }
+  pintarProyectos();
+}
+
+// Menú de proyectos en árbol: Empresa → Portafolio → Programa → Proyecto
 function pintarProyectos() {
   const cont = document.querySelector('.proy-lista');
   if (!cont) return;
@@ -189,14 +200,41 @@ function pintarProyectos() {
   if (pestanaProy === 'fav') lista = lista.filter(p => store.favoritos.has(p.id));
   const f = normalizar(filtroProy);
   if (f) lista = lista.filter(p => normalizar(p.codigo + ' ' + p.nombre_corto + ' ' + (p.nombre_completo || '')).includes(f));
-  const grupos = agrupar(lista, p => etiqueta(p.gerencia_id) || 'Sin gerencia');
-  const item = p => `<div class="proy-item${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(p.nombre_completo || p.nombre_corto)}">
-      <span class="cod">${esc(p.codigo)}</span><span class="nom">${esc(p.nombre_corto)}${p.estado === 'propuesto' ? ' ⏳' : ''}</span>
+  // Con búsqueda o en Mis / Favoritos solo se muestran las ramas que tienen proyectos (y se abren)
+  const soloConProyectos = !!f || pestanaProy !== 'todos';
+  const abierta = clave => soloConProyectos || !contraidosProy.has(clave);
+  const portafolios = (store.portafolios || []).filter(x => x.estado !== 'inactivo');
+  const programas = (store.programas || []).filter(x => x.estado !== 'inactivo');
+  const idsPort = new Set(portafolios.map(x => x.id)), idsProg = new Set(programas.map(x => x.id));
+
+  const item = (p, nivel) => `<div class="proy-item arbol-n${nivel}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto}`)}">
+      <span class="arbol-ico">📋</span><span class="nom">${esc(p.nombre_corto)}${p.estado === 'propuesto' ? ' ⏳' : ''}</span>
       <button class="estrella${store.favoritos.has(p.id) ? ' si' : ''}" data-id="${p.id}" title="Favorito" aria-label="Marcar favorito">★</button></div>`;
-  cont.innerHTML = `<div class="proy-item proy-todos${!store.proyectoSel ? ' activo' : ''}" data-id=""><span class="nom">Todos los proyectos</span></div>` +
-    ([...grupos.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([g, arr]) =>
-      `<div class="proy-grupo">${esc(g)}</div>${arr.map(item).join('')}`).join('') ||
-      `<p class="nota" style="padding:8px">${pestanaProy === 'mis' ? 'No tiene proyectos asignados. Use la pestaña "Todos".' : pestanaProy === 'fav' ? 'Marque proyectos con ★ para verlos aquí.' : 'Sin proyectos.'}</p>`);
+  const rama = (clave, nivel, ico, nombre, codigo, n, hijos, clase) => {
+    if (soloConProyectos && !n) return '';
+    const ab = abierta(clave);
+    return `<div class="arbol-rama arbol-n${nivel} ${clase}" data-rama="${clave}" role="button" aria-expanded="${ab}" title="${esc(nombre)}">
+        <span class="arbol-flecha">${ab ? '▾' : '▸'}</span><span class="arbol-ico">${ico}</span>
+        <span class="nom">${esc(nombre)} <small>(${n})</small></span><span class="cod">${esc(codigo || '')}</span></div>
+      ${ab ? (hijos || `<div class="arbol-vacio arbol-n${nivel + 1}">Sin contenido</div>`) : ''}`;
+  };
+  const deProg = g => lista.filter(p => p.programa_id === g.id);
+  const ramaProg = (g, nivel) => { const ps = deProg(g); return rama('g' + g.id, nivel, '📁', g.nombre, g.codigo, ps.length, ps.map(p => item(p, nivel + 1)).join(''), 'arbol-prog'); };
+  const ramasPort = portafolios.map(fp => {
+    const gs = programas.filter(g => g.portafolio_id === fp.id);
+    const directos = lista.filter(p => p.portafolio_id === fp.id && !idsProg.has(p.programa_id));
+    const n = gs.reduce((s, g) => s + deProg(g).length, 0) + directos.length;
+    return rama('f' + fp.id, 1, '🗂', fp.nombre, fp.codigo, n, gs.map(g => ramaProg(g, 2)).join('') + directos.map(p => item(p, 2)).join(''), 'arbol-port');
+  }).join('');
+  const progSueltos = programas.filter(g => !idsPort.has(g.portafolio_id)).map(g => ramaProg(g, 1)).join('');
+  const sueltos = lista.filter(p => !idsPort.has(p.portafolio_id) && !idsProg.has(p.programa_id)).map(p => item(p, 1)).join('');
+  const cuerpo = ramasPort + progSueltos + sueltos;
+  const empresa = store.area?.nombre || 'Empresa';
+  const abiertaEmp = abierta('empresa');
+  cont.innerHTML = `<div class="arbol-rama arbol-n0 arbol-emp proy-todos${!store.proyectoSel ? ' activo' : ''}" data-rama="empresa" data-id="" role="button" aria-expanded="${abiertaEmp}"
+      title="Todos los proyectos de ${esc(empresa)}"><span class="arbol-flecha" data-solo-rama>${abiertaEmp ? '▾' : '▸'}</span><span class="arbol-ico">🏢</span>
+      <span class="nom">${esc(empresa)} <small>· todos (${lista.length})</small></span></div>` +
+    (abiertaEmp ? (cuerpo || `<p class="nota" style="padding:8px">${pestanaProy === 'mis' ? 'No tiene proyectos asignados. Use la pestaña "Todos".' : pestanaProy === 'fav' ? 'Marque proyectos con ★ para verlos aquí.' : f ? 'Sin resultados.' : 'Sin proyectos.'}</p>`) : '');
 }
 
 async function cargarNotificaciones() {

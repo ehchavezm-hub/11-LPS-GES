@@ -103,12 +103,9 @@ export function crearAdaptadorDemo() {
       if (a) { a.activa = !!d.activa; guardar(); }
       return { ok: true };
     }
-    const nombreEmpresa = String(d.nombre_empresa || '').trim(), email = String(d.email || '').trim().toLowerCase();
+    const nombreEmpresa = String(d.nombre_empresa || '').trim();
     if (!nombreEmpresa) throw new Error('Indique el nombre de la empresa.');
     if (tabla('areas').some(a => a.nombre.toLowerCase() === nombreEmpresa.toLowerCase())) throw new Error('Ya existe una empresa con ese nombre.');
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Correo no válido.');
-    if (tabla('profiles').some(p => p.email === email)) throw new Error('Ya existe un usuario con ese correo.');
-    if (String(d.clave || '').length < 8) throw new Error('La contraseña debe tener al menos 8 caracteres.');
     const area = { id: crypto.randomUUID(), nombre: nombreEmpresa, descripcion: d.descripcion || null, activa: true, created_at: ahora, updated_at: ahora };
     tabla('areas').push(area);
     for (const l of d.semilla?.listas || []) {
@@ -119,11 +116,8 @@ export function crearAdaptadorDemo() {
     }
     for (const [clave, valor] of Object.entries(d.semilla?.parametros || {})) tabla('parametros').push({ id: crypto.randomUUID(), area_id: area.id, clave, valor, updated_at: ahora });
     for (const x of d.semilla?.permisos || []) tabla('permisos').push({ id: crypto.randomUUID(), area_id: area.id, rol: x.rol, accion: x.accion, permitido: !!x.permitido });
-    const p = { id: crypto.randomUUID(), area_id: area.id, email, nombre: String(d.nombre || '').trim(), rol: 'superadmin', activo: true,
-      es_admin_principal: true, es_plataforma: false, debe_cambiar_clave: true, tour_visto: false, gerencia_ids: [], created_at: ahora, updated_at: ahora };
-    tabla('profiles').push(p);
     guardar();
-    return { area_id: area.id, usuario_id: p.id };
+    return { area_id: area.id };
   }
   // Emula las acciones de la consola de plataforma de "admin-usuarios"
   const CAMPOS_EST = {
