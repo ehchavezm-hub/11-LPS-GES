@@ -507,37 +507,47 @@ async function editarNodo(tabla, x, { area, portafolio, programa, padre }) {
   const padreId = x?.padre_id || padre || '';
   const padreP = padreId && datos.proyectos.find(z => z.id === padreId);
   const campos = [];
-  if (!areaId) campos.push({ name: 'area_id', label: 'Empresa', type: 'select', required: true, full: true, options: datos.areas.map(a => ({ value: a.id, label: a.nombre })) });
-  const opcPort = id => datos.portafolios.filter(f => (!id || f.area_id === id) && f.estado !== 'inactivo').map(f => ({ value: f.id, label: areaId ? f.nombre : `${empresa(f.area_id)?.nombre} › ${f.nombre}` }));
+  // Empresa: al crear sin empresa elegida y, en un proyecto (no sub-proyecto), también al editar para moverlo (pedido 15)
+  const eligeEmpresa = !areaId || (tabla === 'proyectos' && x && !padreP);
+  if (eligeEmpresa) campos.push({ name: 'area_id', label: 'Empresa', type: 'select', required: true, full: true, options: datos.areas.map(a => ({ value: a.id, label: a.nombre })) });
+  const opcPort = id => datos.portafolios.filter(f => (!id || f.area_id === id) && f.estado !== 'inactivo').map(f => ({ value: f.id, label: f.nombre }));
   const opcProg = id => datos.programas.filter(g => (!id || g.area_id === id) && g.estado !== 'inactivo').map(g => {
     const f = datos.portafolios.find(z => z.id === g.portafolio_id);
-    return { value: g.id, label: [areaId ? '' : empresa(g.area_id)?.nombre, f?.nombre, g.nombre].filter(Boolean).join(' › ') };
+    return { value: g.id, label: [f?.nombre, g.nombre].filter(Boolean).join(' › ') };
   });
   const responsables = id => datos.perfiles.filter(p => (!id || p.area_id === id) && p.activo && p.rol !== 'pendiente').map(p => ({ value: p.id, label: `${p.nombre} (${nombreCorto(p)})` }));
   if (tabla === 'proyectos') {
     campos.push({ name: 'codigo', label: 'Código', required: true }, { name: 'nombre_corto', label: 'Nombre corto (menú)', required: true },
       { name: 'nombre_completo', label: 'Nombre completo', full: true },
       // Un sub-proyecto hereda el portafolio y el programa de su proyecto
-      ...(padreP ? [] : [{ name: 'portafolio_id', label: 'Portafolio', type: 'select', options: opcPort(areaId) },
-        { name: 'programa_id', label: 'Programa (define el portafolio)', type: 'select', options: opcProg(areaId) }]),
+      ...(padreP ? [] : [{ name: 'portafolio_id', label: 'Portafolio', type: 'select', options: opcPort(eligeEmpresa ? null : areaId) },
+        { name: 'programa_id', label: 'Programa (define el portafolio)', type: 'select', options: opcProg(eligeEmpresa ? null : areaId) }]),
       { name: 'estado', label: 'Estado', type: 'select', required: true, options: Object.entries(TXT_EST).map(([value, label]) => ({ value, label })) },
       { name: 'fecha_inicio', label: 'Inicio previsto', type: 'date' }, { name: 'fecha_fin', label: 'Fin previsto', type: 'date' });
   } else {
     campos.push({ name: 'codigo', label: 'Código' }, { name: 'nombre', label: 'Nombre', required: true });
-    if (tabla === 'programas') campos.push({ name: 'portafolio_id', label: 'Portafolio', type: 'select', options: opcPort(areaId) });
-    campos.push({ name: 'responsable_id', label: 'Responsable', type: 'select', options: responsables(areaId) },
+    if (tabla === 'programas') campos.push({ name: 'portafolio_id', label: 'Portafolio', type: 'select', options: opcPort(eligeEmpresa ? null : areaId) });
+    campos.push({ name: 'responsable_id', label: 'Responsable', type: 'select', options: responsables(eligeEmpresa ? null : areaId) },
       { name: 'estado', label: 'Estado', type: 'select', required: true, options: [{ value: 'activo', label: 'Activo' }, { value: 'inactivo', label: 'Inactivo' }] },
       { name: 'descripcion', label: 'Descripción', type: 'textarea', full: true });
   }
   const que = { portafolios: 'portafolio', programas: 'programa', proyectos: padreP ? 'sub-proyecto' : 'proyecto' }[tabla];
-  let creado = null;
-  const r = await pedirDatos({
+  let creado = null, mueveA = null;
+  const promesa = pedirDatos({
     titulo: x ? `Editar ${que}: ${x.nombre || x.nombre_corto}` : padreP ? `Nuevo sub-proyecto de ${padreP.nombre_corto}` : `Nuevo ${que}${areaId ? ' en ' + (empresa(areaId)?.nombre || '') : ''}`,
     antes: padreP ? 'El sub-proyecto hereda el portafolio, el programa y los líderes de su proyecto. El Look Ahead y el Plan semanal se registran en él.' : '',
     valores: x || { estado: 'activo', portafolio_id: portafolio || '', programa_id: programa || '' },
     campos,
     alGuardar: async d => {
-      const area_id = areaId || d.area_id;
+      const area_id = d.area_id || areaId;
+      const mueve = x && tabla === 'proyectos' && area_id !== x.area_id;
+      mueveA = mueve ? area_id : null;
+      if (mueve) {
+        const subs = subDe(x).length;
+        if (!await confirmar(`¿Mover "${x.nombre_corto}"${subs ? ` y sus ${subs} sub-proyecto(s)` : ''} a la empresa "${empresa(area_id)?.nombre}"? ` +
+          'Se quitan su gerencia, fase, país y líderes (son de la empresa actual) para elegirlos en la nueva. Solo se puede si todavía no tiene actividades, restricciones ni cartera.',
+        { titulo: 'Mover a otra empresa', texto: 'Mover' })) throw new Error('No se movió el proyecto.');
+      }
       // Un programa o portafolio elegido debe ser de la misma empresa
       for (const [k, t] of [['portafolio_id', 'portafolios'], ['programa_id', 'programas']]) {
         if (d[k] && datos[t].find(z => z.id === d[k])?.area_id !== area_id) throw new Error(`El ${k === 'portafolio_id' ? 'portafolio' : 'programa'} elegido es de otra empresa.`);
@@ -546,10 +556,31 @@ async function editarNodo(tabla, x, { area, portafolio, programa, padre }) {
       if (padreP) resto.padre_id = padreP.id;
       const res = await api.adminUsuarios('estructura', { tabla, id: x?.id, area_id, datos: resto });
       creado = res.registro;
-      ok(`${que[0].toUpperCase() + que.slice(1)} guardado.`);
+      ok(mueveA ? `Proyecto movido a ${empresa(mueveA)?.nombre}.` : `${que[0].toUpperCase() + que.slice(1)} guardado.`);
     },
   });
+  if (eligeEmpresa) filtrarPorEmpresa();
+  const r = await promesa;
   return r ? (creado || x) : null;
+}
+
+// En el formulario: portafolios, programas y responsables solo de la empresa elegida
+function filtrarPorEmpresa() {
+  const form = [...document.querySelectorAll('.modal')].pop();
+  const selEmp = form?.querySelector('[name="area_id"]');
+  if (!selEmp) return;
+  const areaDe = (campo, id) => campo === 'responsable_id' ? datos.perfiles.find(p => p.id === id)?.area_id
+    : datos[campo === 'portafolio_id' ? 'portafolios' : 'programas'].find(z => z.id === id)?.area_id;
+  const aplicar = () => {
+    for (const campo of ['portafolio_id', 'programa_id', 'responsable_id']) {
+      const sel = form.querySelector(`[name="${campo}"]`);
+      if (!sel) continue;
+      for (const o of sel.options) if (o.value) o.hidden = o.disabled = areaDe(campo, o.value) !== selEmp.value;
+      if (sel.selectedOptions[0]?.hidden) sel.value = '';
+    }
+  };
+  selEmp.addEventListener('change', aplicar);
+  aplicar();
 }
 
 async function eliminarNodo(tabla, x) {

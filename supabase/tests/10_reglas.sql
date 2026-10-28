@@ -519,6 +519,24 @@ select como('admin@x.pe');
 select debe_fallar($q$ select eliminar_empresa(mi_area()) $q$, 'permission denied');
 reset role;
 
+-- ---------- Pedido 15: mover un proyecto con sub-proyectos a otra empresa (misma secuencia que admin-usuarios) ----------
+reset role;
+insert into areas (nombre) values ('Destino');
+insert into portafolios (area_id, codigo, nombre) select id, 'PF-D', 'Portafolio destino' from areas where nombre = 'Destino';
+insert into proyectos (area_id, codigo, nombre_corto, estado, portafolio_id)
+  select area_id, 'MV-1', 'A mover', 'activo', id from portafolios where codigo = 'PF-1';
+insert into proyectos (area_id, codigo, nombre_corto, estado, padre_id) select area_id, 'MV-1.1', 'Sub a mover', 'activo', id from proyectos where codigo = 'MV-1';
+update proyectos set padre_id = null where codigo = 'MV-1.1';
+update proyectos set area_id = (select id from areas where nombre = 'Destino'), gerencia_id = null, cet_id = null, fase_id = null, pais_id = null, tipo_id = null,
+  padre_id = null, programa_id = null, portafolio_id = (select id from portafolios where codigo = 'PF-D') where codigo = 'MV-1';
+update proyectos set area_id = (select id from areas where nombre = 'Destino'), gerencia_id = null, padre_id = (select id from proyectos where codigo = 'MV-1'),
+  portafolio_id = (select portafolio_id from proyectos where codigo = 'MV-1'), programa_id = null where codigo = 'MV-1.1';
+do $$ begin
+  assert (select count(*) from proyectos p join areas a on a.id = p.area_id where a.nombre = 'Destino' and p.codigo in ('MV-1', 'MV-1.1')) = 2, 'no se movieron';
+  assert (select padre_id from proyectos where codigo = 'MV-1.1') = (select id from proyectos where codigo = 'MV-1'), 'el sub-proyecto perdió su padre';
+  assert (select portafolio_id from proyectos where codigo = 'MV-1.1') = (select id from portafolios where codigo = 'PF-D'), 'el sub-proyecto no tomó el portafolio de destino';
+end $$;
+
 -- 017: las funciones de disparador no se pueden invocar como API
 do $$ begin
   assert not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prorettype = 'trigger'::regtype

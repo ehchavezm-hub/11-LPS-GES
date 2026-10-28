@@ -156,6 +156,8 @@ Estado de cada observación al 25/10/2026.
 | 128 (a10) | Empresas: mostrar nombre y correo del administrador; «Administrador» (propietario) separado de «Super administrador» (de la empresa, crea portafolios y hacia abajo) | ✅ Columnas ADMINISTRADOR (propietarios, con nombre y correo) y SUPER ADMINISTRADOR (Sin asignar → Asignar / Cambiar); el formulario «Nueva empresa» muestra quién será su administrador | `adm10.js` | ✅ |
 | 129 (a11) | Administración: quitar Listas configurables, Parámetros y Calendario (solo aplican a los sub-proyectos) | ✅ Retirados del menú de Administración; Listas y Parámetros siguen en Configuración | Humo sin errores | ✅ |
 | 130 (14) | Organigrama: editar cada tarjeta con un clic sobre ella | ✅ Empresa, portafolio, programa, proyecto y sub-proyecto abren su formulario (también con Enter); tras guardar se queda en el organigrama | `tarjeta.js` | ✅ |
+| 131 (15) | Al editar un proyecto (tarjeta) elegir su empresa | ✅ Campo Empresa en el formulario; portafolio, programa y responsable se filtran por la empresa elegida. Mover lleva sus sub-proyectos y quita lo que es de la empresa anterior (gerencia, fase, país, líderes); solo si aún no tiene actividades, restricciones ni cartera (si tiene, se explica y no se mueve). admin-usuarios v7 | `mover.js`; prueba de base de datos de traslado | ✅ |
+| 132 (16) | Administración: quitar Usuarios y roles, Administrador delegado y Matriz de permisos (son de los sub-proyectos) | ✅ Retirados del menú de Administración; siguen sin cambios en Configuración | Humo sin errores | ✅ |
 
 ## Lo que encontró la reconfirmación
 

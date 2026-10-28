@@ -194,6 +194,27 @@ export function crearAdaptadorDemo() {
         if (padre.padre_id) throw new Error('Un sub-proyecto no puede tener sub-proyectos.');
         datos.portafolio_id = padre.portafolio_id ?? null; datos.programa_id = padre.programa_id ?? null;
       }
+      if (d.id && t === 'proyectos' && area) {
+        // Emula el traslado de un proyecto (y sus sub-proyectos) a otra empresa
+        const actual = tabla('proyectos').find(r => r.id === d.id);
+        if (actual && actual.area_id !== area) {
+          if (actual.padre_id) throw new Error('Un sub-proyecto se mueve junto con su proyecto: mueva el proyecto.');
+          const subs = tabla('proyectos').filter(r => r.padre_id === actual.id);
+          const ids = new Set([actual.id, ...subs.map(r => r.id)]);
+          for (const [tt, texto] of [['actividades', 'actividades'], ['restricciones', 'restricciones'], ['cartera', 'registros de cartera']]) {
+            const n = tabla(tt).filter(r => ids.has(r.proyecto_id)).length;
+            if (n) throw new Error(`No se puede mover: el proyecto${subs.length ? ' o sus sub-proyectos' : ''} ya tiene ${n} ${texto} en esta empresa. Mantenga su historial aquí o cree el proyecto en la otra empresa.`);
+          }
+          const rep = tabla('proyectos').filter(r => r.area_id === area && [actual, ...subs].some(x => x.codigo === r.codigo));
+          if (rep.length) throw new Error(`En la empresa de destino ya existe el código ${rep.map(r => r.codigo).join(', ')}. Cámbielo antes de mover.`);
+          db.proyecto_lideres = tabla('proyecto_lideres').filter(r => !ids.has(r.proyecto_id));
+          db.proyecto_favoritos = tabla('proyecto_favoritos').filter(r => !ids.has(r.proyecto_id));
+          const limpio = { area_id: area, gerencia_id: null, cet_id: null, fase_id: null, pais_id: null, tipo_id: null, updated_at: ahora };
+          Object.assign(actual, datos, limpio);
+          subs.forEach(r => Object.assign(r, limpio, { portafolio_id: actual.portafolio_id ?? null, programa_id: actual.programa_id ?? null }));
+          guardar(); return { registro: clon(actual) };
+        }
+      }
       if (d.id) { const x = tabla(t).find(r => r.id === d.id); Object.assign(x, datos, { updated_at: ahora }); guardar(); return { registro: clon(x) }; }
       if (!existe(area)) throw new Error('Empresa no encontrada.');
       if (t === 'proyectos') {

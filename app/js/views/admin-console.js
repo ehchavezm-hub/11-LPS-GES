@@ -28,10 +28,7 @@ const MENU_PLATAFORMA = [
 const MENU = [
   { id: 'resumen',       ico: '📊', texto: 'Resumen',                 si: esAdmin },
   { sep: true },
-  { id: 'usuarios',      ico: '👤', texto: 'Usuarios y roles',        si: esAdmin },
-  { id: 'delegado',      ico: '🔄', texto: 'Administrador delegado',  si: esSuperadmin },
-  { id: 'permisos',      ico: '🔐', texto: 'Matriz de permisos',      si: esAdmin },
-  { sep: true },
+  // Usuarios y roles, Administrador delegado y Matriz de permisos son de los sub-proyectos: quedan en Configuración (pedido 16)
   { id: 'estructura',    ico: '🌐', texto: 'Estructura de la empresa', si: esAdmin },
   { id: 'portafolios',   ico: '🗂', texto: 'Portafolios',             si: esAdmin },
   { id: 'programas',     ico: '📁', texto: 'Programas',               si: esAdmin },

@@ -206,6 +206,45 @@ const CAMPOS: Record<string, string[]> = {
     'pais_id', 'fecha_inicio', 'fecha_fin', 'observaciones'],
 };
 
+// Mueve un proyecto y sus sub-proyectos a otra empresa. Solo si aún no tienen trabajo registrado: sus listas (gerencia,
+// fase, país…) y sus líderes son de la empresa de origen, así que se quitan para elegirlos en la nueva.
+// Devuelve una respuesta de error, o null si lo movió.
+// deno-lint-ignore no-explicit-any
+async function moverProyecto(admin: any, actual: any, area: string, datos: Record<string, unknown>): Promise<Response | null> {
+  if (actual.padre_id) return falla('Un sub-proyecto se mueve junto con su proyecto: mueva el proyecto.');
+  const { data: destino } = await admin.from('areas').select('id').eq('id', area).maybeSingle();
+  if (!destino) return falla('Empresa no encontrada.', 404);
+  const { data: subs } = await admin.from('proyectos').select('id, codigo').eq('padre_id', actual.id);
+  const ids = [actual.id, ...(subs ?? []).map((x: any) => x.id)];
+  for (const [t, texto] of [['actividades', 'actividades'], ['restricciones', 'restricciones'], ['cartera', 'registros de cartera']]) {
+    const { count } = await admin.from(t).select('id', { count: 'exact', head: true }).in('proyecto_id', ids);
+    if (count) return falla(`No se puede mover: el proyecto${subs?.length ? ' o sus sub-proyectos' : ''} ya tiene ${count} ${texto} en esta empresa. Mantenga su historial aquí o cree el proyecto en la otra empresa.`);
+  }
+  const codigos = [actual.codigo, ...(subs ?? []).map((x: any) => x.codigo)];
+  const { data: rep } = await admin.from('proyectos').select('codigo').eq('area_id', area).in('codigo', codigos);
+  if (rep?.length) return falla(`En la empresa de destino ya existe el código ${rep.map((x: any) => x.codigo).join(', ')}. Cámbielo antes de mover.`);
+  // Lo que pertenece a la empresa de origen
+  await admin.from('proyecto_lideres').delete().in('proyecto_id', ids);
+  await admin.from('proyecto_favoritos').delete().in('proyecto_id', ids);
+  await admin.from('plantilla_items').update({ proyecto_id: null }).in('proyecto_id', ids);
+  const limpio = { area_id: area, gerencia_id: null, cet_id: null, fase_id: null, pais_id: null, tipo_id: null };
+  // Los sub-proyectos se separan un momento y se vuelven a unir ya en la nueva empresa
+  if (subs?.length) await admin.from('proyectos').update({ padre_id: null }).in('id', subs.map((x: any) => x.id));
+  const { error: e1 } = await admin.from('proyectos').update({ ...datos, ...limpio, padre_id: null }).eq('id', actual.id);
+  if (e1) {
+    if (subs?.length) await admin.from('proyectos').update({ padre_id: actual.id }).in('id', subs.map((x: any) => x.id));
+    return falla(e1.message);
+  }
+  const { data: padre } = await admin.from('proyectos').select('portafolio_id, programa_id').eq('id', actual.id).single();
+  if (subs?.length) {
+    const { error: e2 } = await admin.from('proyectos').update({ ...limpio, padre_id: actual.id, portafolio_id: padre.portafolio_id, programa_id: padre.programa_id })
+      .in('id', subs.map((x: any) => x.id));
+    if (e2) return falla(e2.message);
+  }
+  await admin.from('hitos').update({ area_id: area }).in('proyecto_id', ids);
+  return null;
+}
+
 // deno-lint-ignore no-explicit-any
 async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
   const area = String(d.area_id ?? '');
@@ -285,6 +324,16 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
     if (tabla === 'proyectos' && datos.programa_id) {
       const { data: g } = await admin.from('programas').select('portafolio_id').eq('id', datos.programa_id).maybeSingle();
       if (g?.portafolio_id) datos.portafolio_id = g.portafolio_id;
+    }
+    if (d.id && tabla === 'proyectos' && area) {
+      // Mover un proyecto (con sus sub-proyectos) a otra empresa (pedido 15)
+      const { data: actual } = await admin.from('proyectos').select('id, area_id, padre_id, codigo').eq('id', String(d.id)).maybeSingle();
+      if (actual && actual.area_id !== area) {
+        const r = await moverProyecto(admin, actual, area, datos);
+        if (r) return r;
+        const { data: x } = await admin.from('proyectos').select('*').eq('id', actual.id).single();
+        return respuesta({ registro: x });
+      }
     }
     if (d.id) {
       const { data: x, error: e } = await admin.from(tabla).update(datos).eq('id', String(d.id)).select().single();
