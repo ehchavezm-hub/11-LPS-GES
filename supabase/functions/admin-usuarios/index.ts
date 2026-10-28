@@ -1,4 +1,4 @@
-// LPS-GT · Edge Function "admin-usuarios"
+// LPS-GES · Edge Function "admin-usuarios"
 // Permite al administrador (o a quien tenga el permiso "gestionar_usuarios"):
 //   - accion "crear": crear un usuario con contraseña temporal y rol asignado.
 //   - accion "clave": restablecer la contraseña de un usuario.
@@ -41,7 +41,7 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Vary': 'Origin',
 };
-const ROLES = ['resp_equipo', 'lider', 'resp_proceso', 'resp_actividad', 'consulta', 'delegado', 'admin', 'superadmin', 'pendiente'];
+const ROLES = ['lider', 'consulta', 'delegado', 'admin', 'superadmin', 'pendiente'];   // matriz PPT v5 (migración 021)
 const GESTORES = ['superadmin', 'admin', 'delegado'];
 
 const respuesta = (cuerpo: unknown, status = 200) =>
