@@ -117,7 +117,8 @@ async function repintarCabecera() {
   if (!migas) return;
   let empresas = [{ id: store.area?.id, nombre: store.area?.nombre || 'Empresa' }];
   if (esPlataforma()) {
-    try { empresas = (await api.adminUsuarios('empresas')).empresas || empresas; } catch { /* se muestra solo la propia */ }
+    // Las mismas empresas que usan los paneles de la plataforma (una sola descarga)
+    try { empresas = plat.empresasEnMemoria() || (await plat.cargarPlataforma()).areas || empresas; } catch { /* se muestra solo la propia */ }
   }
   const proyectos = (store.proyectos || []).filter(p => !['cerrado', 'rechazado'].includes(p.estado));
   migas.innerHTML = `${esPlataforma() ? `<button class="admin-miga-plat${panelActivo.startsWith('p-') ? ' activo' : ''}" data-a="plataforma">Plataforma</button><span class="admin-miga-sep">›</span>` : ''}

@@ -160,6 +160,7 @@ Estado de cada observación al 25/10/2026.
 | 132 (16) | Administración: quitar Usuarios y roles, Administrador delegado y Matriz de permisos (son de los sub-proyectos) | ✅ Retirados del menú de Administración; siguen sin cambios en Configuración | Humo sin errores | ✅ |
 | 133 (17) | La observación 15 aún no funcionaba | ✅ Se probó antes de que terminara de publicarse; con Ctrl+F5 aparece el campo Empresa. Puente Demo Río Azul ya se movió a JJC | Captura del usuario | ✅ |
 | 134 (18) | Eliminar proyectos | ✅ 🗑 en cada tarjeta del organigrama (y Eliminar en la tabla). Sin trabajo registrado: una confirmación. Con historial o sub-proyectos: muestra cuánto se borra y pide escribir su nombre (migración 026, una sola transacción, solo desde el servidor). admin-usuarios v8 | `borrar.js`; pruebas de base de datos 026 | ⏳ Con historial: falta aplicar 026 en Supabase |
+| 135 (19) | Todo está muy lento comparado con el otro aplicativo | ⏳ Diagnóstico: no es GitHub. Ambos aplicativos tienen su base en EE. UU. (este en us-east-1, el otro en us-east-2), así que la región no explica la diferencia. La consola de Administración volvía a descargar todas las empresas en cada clic: ahora las guarda en memoria (8 llamadas al servidor → 0 al recorrer 8 paneles). Pendiente: 14 reglas de la base sin optimizar e índices (requiere aplicar SQL en Supabase) | `llamadas.js` | Parcial |
 
 ## Lo que encontró la reconfirmación
 

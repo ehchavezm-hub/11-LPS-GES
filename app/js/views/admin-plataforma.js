@@ -9,11 +9,17 @@ import { esc, fmtFechaHora } from '../core/util.js';
 import { ok, error, confirmar, pedirDatos, modal, badge } from '../ui/ui.js';
 
 // ---------- Datos de la plataforma ----------
-let datos = null;
-export async function cargarPlataforma() {
-  datos = await api.adminUsuarios('plataforma');
-  return datos;
+// Se guardan en memoria mientras la consola está abierta: cada panel los reutiliza y solo se vuelven a pedir
+// al servidor después de un cambio (o pasado un minuto). Antes cada clic los descargaba de nuevo (pedido 19).
+let datos = null, cargadosEn = 0, enCurso = null;
+export async function cargarPlataforma({ forzar = false } = {}) {
+  if (!forzar && datos && Date.now() - cargadosEn < 60000) return datos;
+  if (!forzar && enCurso) return enCurso;
+  enCurso = api.adminUsuarios('plataforma').then(d => { datos = d; cargadosEn = Date.now(); return d; }).finally(() => { enCurso = null; });
+  return enCurso;
 }
+/** Empresas ya cargadas (para la barra superior), sin volver a pedirlas. */
+export function empresasEnMemoria() { return datos?.areas || null; }
 const empresa = id => datos.areas.find(a => a.id === id);
 const usuariosDe = id => datos.perfiles.filter(p => p.area_id === id);
 const principalDe = id => usuariosDe(id).find(p => p.es_admin_principal && !p.es_plataforma) || usuariosDe(id).find(p => p.es_admin_principal);
@@ -46,7 +52,7 @@ function cab(titulo, sub, botones = '') {
 
 // Al cambiar algo de la empresa en la que se trabaja, el resto del aplicativo se actualiza
 async function refrescar(areaTocada) {
-  await cargarPlataforma();
+  await cargarPlataforma({ forzar: true });
   if (!areaTocada || areaTocada === store.area?.id) await cargarCatalogo().catch(() => {});
 }
 
