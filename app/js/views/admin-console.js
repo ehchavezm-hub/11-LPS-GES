@@ -1,8 +1,5 @@
-// Consola de Administración — overlay position:fixed z-index:1500
-// Estructura idéntica al módulo de administración de ECM-Project:
-//   Barra superior: ⚙ Administración > [Plataforma] > EMPRESA selector > PROYECTO selector > X
-//   Sidebar PLATAFORMA: Resumen, Empresas, Estructura de todas las empresas, Propietarios, Auditoría, Reportes
-//   Sidebar EMPRESA: Usuarios, Datos de empresa, Permisos, Portafolios, Programas, Proyectos, Configuración
+// Consola de Administración — LPS-GT (área única)
+// Spec: docs/LPS-GT_Alcance_v0.7.docx sección 6.1-6.2
 import { api, mensajeError } from '../data/api.js';
 import { store, on, esPropietario, esSuperadmin, esAdmin, esGestor, cargarCatalogo, etiqueta, opciones, nombre } from '../core/store.js';
 import { ROLES, COLOR_ROL } from '../data/catalogos.js';
@@ -12,47 +9,42 @@ import { ok, error, confirmar, pedirDatos, modal, badge } from '../ui/ui.js';
 // ---------- Estado ----------
 let overlay = null;
 let panelActivo = 'resumen';
-let contextoEmpresa = null;
-let todasEmpresas = [];
 let dejarEscuchar = null;
 
 // ---------- Menú ----------
-const MENU_PLATAFORMA = [
-  { id: 'resumen',     ico: '📊', texto: 'Resumen' },
-  { id: 'plat-emp',    ico: '🏢', texto: 'Empresas' },
-  { id: 'plat-struct', ico: '🌐', texto: 'Estructura de todas las empresas' },
-  { id: 'plat-prop',   ico: '👑', texto: 'Propietarios' },
-  { id: 'plat-audit',  ico: '📋', texto: 'Auditoría' },
-  { id: 'plat-rep',    ico: '📄', texto: 'Reportes' },
+const MENU = [
+  { id: 'resumen',       ico: '📊', texto: 'Resumen',                 si: esAdmin },
+  { sep: true },
+  { id: 'usuarios',      ico: '👤', texto: 'Usuarios y roles',        si: esAdmin },
+  { id: 'delegado',      ico: '🔄', texto: 'Administrador delegado',  si: esSuperadmin },
+  { sep: true },
+  { id: 'proyectos',     ico: '📌', texto: 'Proyectos / Procesos',    si: esAdmin },
+  { sep: true },
+  { id: 'listas',        ico: '📋', texto: 'Listas configurables',    si: esAdmin },
+  { id: 'parametros',    ico: '🔧', texto: 'Parámetros',              si: esAdmin },
+  { id: 'calendario',    ico: '📅', texto: 'Calendario',              si: esAdmin },
+  { sep: true },
+  { id: 'auditoria',     ico: '🕑', texto: 'Auditoría',               si: esAdmin },
 ];
 
-const MENU_EMPRESA = [
-  { id: 'emp-usuarios',    ico: '👤', texto: 'Usuarios y roles',     si: esGestor },
-  { id: 'emp-area',        ico: '🏢', texto: 'Datos de la empresa',  si: esAdmin },
-  { id: 'emp-permisos',    ico: '🔐', texto: 'Matriz de permisos',   si: esAdmin },
-  { sep: true },
-  { id: 'str-portafolios', ico: '🗂', texto: 'Portafolios',          si: esGestor },
-  { id: 'str-programas',   ico: '📁', texto: 'Programas',            si: esGestor },
-  { id: 'str-proyectos',   ico: '📌', texto: 'Proyectos',            si: esGestor },
-  { sep: true },
-  { id: 'cfg-listas',      ico: '📋', texto: 'Listas',               si: esAdmin },
-  { id: 'cfg-parametros',  ico: '🔧', texto: 'Parámetros',           si: esAdmin },
-  { id: 'cfg-columnas',    ico: '▥',  texto: 'Columnas',             si: esAdmin },
-  { id: 'cfg-importar',    ico: '⬆', texto: 'Importar Excel',       si: esAdmin },
-  { id: 'cfg-respaldo',    ico: '💾', texto: 'Respaldo',             si: esSuperadmin },
-  { id: 'cfg-auditoria',   ico: '🕑', texto: 'Auditoría',            si: esAdmin },
+// Listas iniciales según spec sección 6.2
+const LISTAS_INICIALES = [
+  'Gerencias', 'CET', 'Servicios/Entregables', 'Categorías de servicio',
+  'Tipos de proyecto', 'Fases', 'Estados de proyecto', 'Tipos de actividad',
+  'Estados de Look Ahead', 'Estados de compromiso', 'CNC',
+  'Tipos de restricción', 'Estados de restricción', 'Criticidad',
+  'Tipos de cartera', 'Estados de cartera', 'Ubicaciones', 'Países',
 ];
 
 // ---------- API pública ----------
 export function showAdminConsole(panelInicial) {
   if (overlay) { cerrarConsola(); return; }
-  panelActivo = panelInicial || (esPropietario() ? 'resumen' : 'emp-usuarios');
-  contextoEmpresa = store.area;
+  panelActivo = panelInicial || 'resumen';
 
   overlay = document.createElement('div');
   overlay.className = 'admin-overlay';
   overlay.setAttribute('role', 'dialog');
-  overlay.setAttribute('aria-label', 'Consola de Administración');
+  overlay.setAttribute('aria-label', 'Consola de Administración — LPS-GT');
   overlay.setAttribute('aria-modal', 'true');
   overlay.innerHTML = buildShell();
   document.body.append(overlay);
@@ -64,18 +56,10 @@ export function showAdminConsole(panelInicial) {
     if (item) navegarA(item.dataset.panel);
   });
 
-  if (esPropietario()) {
-    cargarEmpresas().then(() => {
-      actualizarSelectores();
-      pintarMenu();
-      renderPanel();
-    });
-  } else {
-    pintarMenu();
-    renderPanel();
-  }
+  pintarMenu();
+  renderPanel();
 
-  dejarEscuchar = on('catalogo', () => { pintarMenu(); renderPanel(); });
+  dejarEscuchar = on('catalogo', () => { pintarMenu(); });
   setTimeout(() => overlay?.querySelector('#admin-contenido')?.focus(), 50);
 }
 
@@ -90,22 +74,11 @@ function buildShell() {
   return `<div class="admin-inner">
     <div class="admin-topbar">
       <span class="admin-topbar-ico">⚙</span>
-      <span class="admin-topbar-titulo">Administración</span>
-      ${esPropietario() ? `
-        <span class="admin-topbar-sep"></span>
-        <span class="admin-topbar-pill">Plataforma</span>
-        <span class="admin-topbar-arrow">›</span>
-        <span class="admin-topbar-label">EMPRESA</span>
-        <select class="admin-topbar-sel" id="sel-empresa"><option>Cargando...</option></select>
-        <span class="admin-topbar-arrow">›</span>
-        <span class="admin-topbar-label">PROYECTO</span>
-        <select class="admin-topbar-sel" id="sel-proyecto"><option value="">Elegir proyecto...</option></select>
-      ` : ''}
+      <span class="admin-topbar-titulo">Administración — LPS-GT</span>
       <button class="admin-cerrar" title="Cerrar (Esc)" aria-label="Cerrar">✕</button>
     </div>
     <div class="admin-body">
       <aside class="admin-lateral">
-        ${esPropietario() ? '<div class="admin-nav-grupo">PLATAFORMA</div>' : ''}
         <nav class="admin-nav" aria-label="Navegación de administración"></nav>
       </aside>
       <main class="admin-contenido" id="admin-contenido" tabindex="-1">
@@ -115,41 +88,11 @@ function buildShell() {
   </div>`;
 }
 
-async function cargarEmpresas() {
-  try { todasEmpresas = await api.list('areas', { order: [['nombre', true]] }); } catch { todasEmpresas = []; }
-}
-
-function actualizarSelectores() {
-  const sel = overlay?.querySelector('#sel-empresa');
-  const selP = overlay?.querySelector('#sel-proyecto');
-  if (!sel) return;
-  sel.innerHTML = todasEmpresas.map(e =>
-    `<option value="${e.id}"${e.id === contextoEmpresa?.id ? ' selected' : ''}>${esc(e.nombre)}</option>`
-  ).join('');
-  sel.onchange = async () => {
-    contextoEmpresa = todasEmpresas.find(e => e.id === sel.value) || null;
-    actualizarProyectos();
-    renderPanel();
-  };
-  actualizarProyectos();
-}
-
-function actualizarProyectos() {
-  const sel = overlay?.querySelector('#sel-proyecto');
-  if (!sel) return;
-  const proyectos = contextoEmpresa
-    ? store.proyectos.filter(p => p.area_id === contextoEmpresa.id)
-    : store.proyectos;
-  sel.innerHTML = '<option value="">Elegir proyecto...</option>' +
-    proyectos.map(p => `<option value="${p.id}">${esc(p.codigo + ' · ' + p.nombre_corto)}</option>`).join('');
-}
-
 // ---------- Navegación ----------
 function pintarMenu() {
   const nav = overlay?.querySelector('.admin-nav');
   if (!nav) return;
-  const menu = esPropietario() ? MENU_PLATAFORMA : MENU_EMPRESA.filter(m => !m.si || m.si());
-  nav.innerHTML = menu.map(m => {
+  nav.innerHTML = MENU.filter(m => !m.si || m.si()).map(m => {
     if (m.sep) return '<hr class="admin-nav-sep">';
     return `<button class="admin-item${panelActivo === m.id ? ' activo' : ''}" data-panel="${m.id}">
       <span class="admin-ico">${m.ico}</span><span class="admin-txt">${esc(m.texto)}</span>
@@ -169,24 +112,14 @@ async function renderPanel() {
   cont.innerHTML = '<div class="admin-cargando"><span class="spinner"></span></div>';
   try {
     const mapa = {
-      'resumen':        panelResumen,
-      'plat-emp':       panelEmpresas,
-      'plat-struct':    panelEstructura,
-      'plat-prop':      panelPropietarios,
-      'plat-audit':     panelAuditoria,
-      'plat-rep':       panelReportes,
-      'emp-usuarios':   panelUsuarios,
-      'emp-area':       panelAreaEmpresa,
-      'emp-permisos':   c => configSeccion(c, 'permisos'),
-      'str-portafolios':panelPortafolios,
-      'str-programas':  panelProgramas,
-      'str-proyectos':  panelProyectos,
-      'cfg-listas':     c => configSeccion(c, 'listas'),
-      'cfg-parametros': c => configSeccion(c, 'parametros'),
-      'cfg-columnas':   c => configSeccion(c, 'columnas'),
-      'cfg-importar':   c => configSeccion(c, 'importar'),
-      'cfg-respaldo':   c => configSeccion(c, 'respaldo'),
-      'cfg-auditoria':  c => configSeccion(c, 'auditoria'),
+      'resumen':    panelResumen,
+      'usuarios':   panelUsuarios,
+      'delegado':   panelDelegado,
+      'proyectos':  panelProyectos,
+      'listas':     panelListas,
+      'parametros': panelParametros,
+      'calendario': panelCalendario,
+      'auditoria':  panelAuditoria,
     };
     const fn = mapa[panelActivo];
     if (fn) await fn(cont);
@@ -196,443 +129,131 @@ async function renderPanel() {
   }
 }
 
-async function configSeccion(cont, seccion) {
-  const m = await import('./config.js');
-  await m.render(cont, { seccion, query: new URLSearchParams() });
-}
-
 // ══════════════════════════════════════════════════
-// PLATAFORMA
+// RESUMEN
 // ══════════════════════════════════════════════════
 
 async function panelResumen(el) {
-  await cargarEmpresas();
-  let totalUsuarios = 0, totalProyectos = 0;
+  let perfiles = [], proyectos = [], delegados = [];
   try {
-    const [u, p] = await Promise.all([api.list('profiles', {}), api.list('proyectos', {})]);
-    totalUsuarios = u.length;
-    totalProyectos = p.length;
-  } catch { /* */ }
-  const act = todasEmpresas.filter(e => e.activo !== false).length;
-
-  el.innerHTML = cab('Resumen de plataforma', [btn('🖨 Imprimir / PDF A4', 'imprimir')]) +
-  `<div class="admin-kpis">
-    <div class="admin-kpi"><span class="admin-kpi-num">${act}</span><span class="admin-kpi-txt">Empresas activas</span></div>
-    <div class="admin-kpi"><span class="admin-kpi-num">${todasEmpresas.length - act}</span><span class="admin-kpi-txt">Suspendidas</span></div>
-    <div class="admin-kpi"><span class="admin-kpi-num">${totalUsuarios}</span><span class="admin-kpi-txt">Usuarios registrados</span></div>
-    <div class="admin-kpi"><span class="admin-kpi-num">${totalProyectos}</span><span class="admin-kpi-txt">Proyectos</span></div>
-  </div>
-  <h3 style="margin:20px 0 10px">Actividad reciente</h3>
-  <div class="aviso info">Sin registros de auditoría disponibles.</div>`;
-
-  el.querySelector('[data-a="imprimir"]')?.addEventListener('click', () => imprimirPanel(el, 'Resumen de plataforma'));
-}
-
-async function panelEmpresas(el) {
-  await cargarEmpresas();
-
-  el.innerHTML = cab('Empresas', [
-    btn('Eliminar seleccionadas', 'eliminar-sel', 'btn-peligro'),
-    btn('+ Nueva empresa', 'nuevo', 'btn-primario'),
-  ]) + `<p class="admin-sub">Todas las empresas de la plataforma. Cada empresa es independiente: sus usuarios, proyectos y permisos no se mezclan.</p>
-  <div class="admin-filtros">
-    <input class="inp" id="buscar-emp" placeholder="Buscar..." style="width:200px">
-    <select class="inp" id="fil-estado">
-      <option value="">Estado: todos</option>
-      <option value="activa">Activa</option>
-      <option value="suspendida">Suspendida</option>
-    </select>
-  </div>
-  <div class="tarjeta admin-tabla-wrap">
-    <table class="simple" id="tabla-empresas">
-      <thead><tr>
-        <th style="width:32px"><input type="checkbox" id="chk-all"></th>
-        <th>EMPRESA</th><th>SUPER ADMIN</th><th>USUARIOS</th><th>PROYECTOS</th><th>ESTADO</th><th>CREADA</th><th></th>
-      </tr></thead>
-      <tbody>${todasEmpresas.map(e => `<tr data-id="${e.id}">
-        <td><input type="checkbox" class="chk-emp"></td>
-        <td><b>${esc(e.nombre)}</b><br><small style="color:var(--gris-txt)">Código ${esc(e.codigo || '—')}</small>
-          ${contextoEmpresa?.id === e.id ? ' ' + badge('En uso ahora', '#1565c0') : ''}</td>
-        <td>${esc(e.superadmin_nombre || '—')} <button class="btn btn-xs" data-cambiar-sa="${e.id}">Cambiar</button></td>
-        <td>— <button class="btn btn-xs" data-gestionar="${e.id}">Gestionar</button></td>
-        <td>—</td>
-        <td>${badge(e.activo !== false ? 'Activa' : 'Suspendida', e.activo !== false ? '#2e7d32' : '#888')}</td>
-        <td>${e.created_at ? fmtFechaHora(e.created_at) : '—'}</td>
-        <td>
-          <button class="btn btn-xs" data-abrir="${e.id}">Abrir</button>
-          <button class="btn btn-xs btn-warn" data-suspender="${e.id}">${e.activo !== false ? 'Suspender' : 'Activar'}</button>
-          <button class="btn btn-xs btn-peligro" data-eliminar="${e.id}">Eliminar</button>
-        </td>
-      </tr>`).join('')}</tbody>
-    </table>
-    <div style="text-align:right;padding:8px;color:var(--gris-txt);font-size:.85em">${todasEmpresas.length} de ${todasEmpresas.length}</div>
-  </div>`;
-
-  overlay.querySelector('#chk-all')?.addEventListener('change', e => {
-    el.querySelectorAll('.chk-emp').forEach(c => c.checked = e.target.checked);
-  });
-  el.querySelector('#buscar-emp')?.addEventListener('input', e => {
-    const q = e.target.value.toLowerCase();
-    el.querySelectorAll('#tabla-empresas tbody tr').forEach(tr => {
-      tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-  });
-
-  el.addEventListener('click', async e => {
-    const a = e.target.closest('[data-a]')?.dataset.a;
-    const idAbrir = e.target.closest('[data-abrir]')?.dataset.abrir;
-    const idSusp = e.target.closest('[data-suspender]')?.dataset.suspender;
-    const idElim = e.target.closest('[data-eliminar]')?.dataset.eliminar;
-    const idSa = e.target.closest('[data-cambiar-sa]')?.dataset.cambiarSa;
-    const idGest = e.target.closest('[data-gestionar]')?.dataset.gestionar;
-    if (a === 'nuevo') { await editarEmpresa(null); await cargarEmpresas(); await renderPanel(); }
-    if (idAbrir) abrirEmpresa(todasEmpresas.find(x => x.id === idAbrir));
-    if (idSusp) { await suspenderEmpresa(todasEmpresas.find(x => x.id === idSusp)); await cargarEmpresas(); await renderPanel(); }
-    if (idElim) { await eliminarEmpresa(todasEmpresas.find(x => x.id === idElim)); await cargarEmpresas(); await renderPanel(); }
-    if (idSa) { await cambiarSuperAdmin(todasEmpresas.find(x => x.id === idSa)); }
-    if (idGest) gestionarUsuariosEmpresa(todasEmpresas.find(x => x.id === idGest));
-  });
-}
-
-async function editarEmpresa(e) {
-  await pedirDatos({
-    titulo: e ? `Editar: ${e.nombre}` : 'Nueva empresa',
-    valores: e || {},
-    campos: [
-      { name: 'nombre', label: 'Nombre de la empresa', required: true },
-      { name: 'codigo', label: 'Código corto' },
-      { name: 'descripcion', label: 'Descripción' },
-      { name: 'pais', label: 'País' },
-      { name: 'zona_horaria', label: 'Zona horaria (ej: America/Lima)' },
-    ],
-    alGuardar: async d => {
-      if (e) await api.update('areas', e.id, d);
-      else await api.insert('areas', d);
-      ok(e ? 'Empresa actualizada.' : 'Empresa creada.');
-    },
-  });
-}
-
-function abrirEmpresa(e) {
-  if (!e) return;
-  contextoEmpresa = e;
-  actualizarSelectores();
-  navegarA('emp-usuarios');
-}
-
-async function suspenderEmpresa(e) {
-  if (!e) return;
-  const activar = e.activo === false;
-  const si = await confirmar(`¿${activar ? 'Activar' : 'Suspender'} la empresa "${e.nombre}"?`,
-    { titulo: activar ? 'Activar' : 'Suspender', texto: activar ? 'Activar' : 'Suspender', peligro: !activar });
-  if (!si) return;
-  try { await api.update('areas', e.id, { activo: activar }); ok(`Empresa ${activar ? 'activada' : 'suspendida'}.`); }
-  catch (err) { error(mensajeError(err)); }
-}
-
-async function eliminarEmpresa(e) {
-  if (!e) return;
-  const si = await confirmar(`¿Eliminar la empresa "${e.nombre}"? Se eliminarán todos sus datos.`,
-    { titulo: 'Eliminar empresa', texto: 'Eliminar definitivamente', peligro: true });
-  if (!si) return;
-  try { await api.removeWhere('areas', { eq: { id: e.id } }); ok('Empresa eliminada.'); }
-  catch (err) { error(mensajeError(err)); }
-}
-
-async function cambiarSuperAdmin(empresa) {
-  if (!empresa) return;
-  let perfiles = [];
-  try { perfiles = await api.list('profiles', { eq: { area_id: empresa.id, activo: true }, order: [['nombre', true]] }); } catch { /* */ }
-  await pedirDatos({
-    titulo: `Super admin de: ${empresa.nombre}`,
-    campos: [{ name: 'sa_id', label: 'Nuevo super administrador', type: 'select', required: true,
-      opciones: perfiles.map(p => ({ value: p.id, label: `${p.nombre} (${p.email || p.codigo || '?'})` })) }],
-    alGuardar: async d => {
-      await api.update('profiles', d.sa_id, { rol: 'superadmin', es_admin_principal: true });
-      ok('Super administrador asignado.');
-    },
-  });
-}
-
-function gestionarUsuariosEmpresa(empresa) {
-  if (!empresa) return;
-  contextoEmpresa = empresa;
-  actualizarSelectores();
-  navegarA('emp-usuarios');
-}
-
-async function panelEstructura(el) {
-  await cargarEmpresas();
-  let portafolios = [], programas = [], proyectos = [];
-  try {
-    [portafolios, programas, proyectos] = await Promise.all([
-      api.list('portafolios', { order: [['nombre', true]] }),
-      api.list('programas', { order: [['nombre', true]] }),
-      api.list('proyectos', { order: [['codigo', true]] }),
+    [perfiles, proyectos] = await Promise.all([
+      api.list('profiles', { eq: { activo: true } }),
+      api.list('proyectos', {}),
     ]);
-  } catch { /* */ }
+    delegados = perfiles.filter(p => p.rol === 'delegado');
+  } catch { /* sin datos aún */ }
 
-  const sinAdmin = proyectos.filter(p => !p.admin_id).length;
-  const colorTipo = { empresa: '#1A365D', portafolio: '#E8762B', programa: '#4E79A7', proyecto: '#59A14F' };
+  const activos = proyectos.filter(p => p.estado === 'activo').length;
+  const propuestos = proyectos.filter(p => p.estado === 'propuesto').length;
 
-  const filaProyecto = (p, indent) => `<tr class="struct-row">
-    <td style="padding-left:${indent}px"><span class="struct-ico">📌</span> ${esc(p.nombre_corto)}</td>
-    <td>${badge('Proyecto', colorTipo.proyecto)}</td>
-    <td><small>${esc(p.codigo || '—')}</small></td>
-    <td>${p.admin_id ? `${esc(nombre(p.admin_id))} <button class="btn btn-xs" data-cambiar-admin="${p.id}">Cambiar</button>`
-      : `<span style="color:var(--rojo)">Sin asignar</span> <button class="btn btn-xs" data-cambiar-admin="${p.id}">Asignar</button>`}</td>
-    <td><button class="btn btn-xs" data-editar-proy="${p.id}">Editar</button>
-        <button class="btn btn-xs" data-miembros-proy="${p.id}">Miembros y permisos</button>
-        <button class="btn btn-xs btn-peligro" data-del-proy="${p.id}">Eliminar</button></td>
-  </tr>`;
+  const delegadoActual = delegados[0];
+  const rolLabel = r => ROLES[r] || r;
+  const contPorRol = Object.fromEntries(['superadmin', 'admin', 'delegado', 'lider', 'consulta'].map(r =>
+    [r, perfiles.filter(p => p.rol === r).length]
+  ));
 
-  el.innerHTML = cab('Estructura de todas las empresas', [
-    btn('+ Portafolio', 'nuevo-port'),
-    btn('+ Programa', 'nuevo-prog'),
-    btn('+ Proyecto', 'nuevo-proy', 'btn-primario'),
-  ]) + `<p class="admin-sub">Empresa › Portafolio › Programa › Proyecto. Lo que cambies aquí se refleja en el lienzo de proyectos.</p>
-  <div class="admin-chips">
-    <span class="chip">${todasEmpresas.length} Empresa${todasEmpresas.length !== 1 ? 's' : ''}</span>
-    <span class="chip">${portafolios.length} Portafolio${portafolios.length !== 1 ? 's' : ''}</span>
-    <span class="chip">${programas.length} Programa${programas.length !== 1 ? 's' : ''}</span>
-    <span class="chip">${proyectos.length} Proyecto${proyectos.length !== 1 ? 's' : ''}</span>
-    ${sinAdmin ? `<span class="chip chip-warn">${sinAdmin} Proyectos sin administrador</span>` : ''}
+  el.innerHTML = cab('Resumen del área', [btn('🖨 Imprimir', 'imprimir')]) +
+  `<div class="admin-kpis">
+    <div class="admin-kpi"><span class="admin-kpi-num">${perfiles.length}</span><span class="admin-kpi-txt">Usuarios activos</span></div>
+    <div class="admin-kpi"><span class="admin-kpi-num">${activos}</span><span class="admin-kpi-txt">Proyectos activos</span></div>
+    <div class="admin-kpi"><span class="admin-kpi-num">${propuestos}</span><span class="admin-kpi-txt">Por aprobar</span></div>
+    <div class="admin-kpi"><span class="admin-kpi-num">${proyectos.length - activos - propuestos}</span><span class="admin-kpi-txt">En pausa / cerrados</span></div>
   </div>
-  <div class="admin-filtros">
-    <input class="inp" id="buscar-struct" placeholder="Buscar en la estructura..." style="width:260px">
-    <button class="btn btn-sm" id="btn-expandir">Expandir todo</button>
-    <button class="btn btn-sm" id="btn-contraer">Contraer todo</button>
-  </div>
-  <div class="tarjeta admin-tabla-wrap">
-    <table class="simple struct-tabla">
-      <thead><tr><th>NOMBRE</th><th>TIPO</th><th>CÓDIGO</th><th>ADMINISTRADOR</th><th></th></tr></thead>
-      <tbody>${todasEmpresas.map(empresa => {
-        const emPorts = portafolios.filter(p => p.area_id === empresa.id);
-        const emProysSinPort = proyectos.filter(p => p.area_id === empresa.id && !p.portafolio_id && !p.programa_id);
-        return `<tr class="struct-row struct-empresa">
-          <td><b>${esc(empresa.nombre)}</b></td>
-          <td>${badge('Empresa', colorTipo.empresa)}</td>
-          <td><small>${esc(empresa.codigo || '—')}</small></td>
-          <td><span style="color:var(--gris-txt);font-size:.85em">Super admin: ver Usuarios</span></td>
-          <td>
-            <button class="btn btn-xs" data-add-port="${empresa.id}">+ Portafolio</button>
-            <button class="btn btn-xs" data-add-prog="${empresa.id}">+ Programa</button>
-            <button class="btn btn-xs" data-add-proy="${empresa.id}">+ Proyecto</button>
-            <button class="btn btn-xs" data-usuarios="${empresa.id}">Usuarios</button>
-          </td>
-        </tr>
-        ${emPorts.map(port => {
-          const portProgs = programas.filter(g => g.portafolio_id === port.id);
-          const portProysSinProg = proyectos.filter(p => p.portafolio_id === port.id && !p.programa_id);
-          return `<tr class="struct-row struct-portafolio">
-            <td style="padding-left:28px">🗂 ${esc(port.nombre)}</td>
-            <td>${badge('Portafolio', colorTipo.portafolio)}</td>
-            <td><small>${esc(port.codigo || '—')}</small></td>
-            <td>—</td>
-            <td>
-              <button class="btn btn-xs" data-add-prog-port="${port.id}">+ Programa</button>
-              <button class="btn btn-xs" data-add-proy-port="${port.id}">+ Proyecto</button>
-              <button class="btn btn-xs" data-edit-port="${port.id}">Editar</button>
-              <button class="btn btn-xs btn-peligro" data-del-port="${port.id}">Eliminar</button>
-            </td>
-          </tr>
-          ${portProgs.map(prog => `<tr class="struct-row struct-programa">
-            <td style="padding-left:52px">📁 ${esc(prog.nombre)}</td>
-            <td>${badge('Programa', colorTipo.programa)}</td>
-            <td><small>${esc(prog.codigo || '—')}</small></td>
-            <td>—</td>
-            <td>
-              <button class="btn btn-xs" data-add-proy-prog="${prog.id}">+ Proyecto</button>
-              <button class="btn btn-xs" data-edit-prog="${prog.id}">Editar</button>
-              <button class="btn btn-xs btn-peligro" data-del-prog="${prog.id}">Eliminar</button>
-            </td>
-          </tr>
-          ${proyectos.filter(p => p.programa_id === prog.id).map(p => filaProyecto(p, 76)).join('')}
-          `).join('')}
-          ${portProysSinProg.map(p => filaProyecto(p, 52)).join('')}
-          `;
-        }).join('')}
-        ${emProysSinPort.map(p => filaProyecto(p, 28)).join('')}
-        `;
-      }).join('')}</tbody>
-    </table>
-  </div>`;
-
-  el.querySelector('#btn-expandir')?.addEventListener('click', () => {/* expandir */ });
-  el.querySelector('#btn-contraer')?.addEventListener('click', () => {/* contraer */ });
-  el.querySelector('#buscar-struct')?.addEventListener('input', e => {
-    const q = e.target.value.toLowerCase();
-    el.querySelectorAll('.struct-tabla tbody tr').forEach(tr => {
-      tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
-  });
-
-  el.addEventListener('click', async ev => {
-    const addPort = ev.target.closest('[data-add-port]')?.dataset.addPort;
-    const addProg = ev.target.closest('[data-add-prog]')?.dataset.addProg;
-    const addProgPort = ev.target.closest('[data-add-prog-port]')?.dataset.addProgPort;
-    const editPort = ev.target.closest('[data-edit-port]')?.dataset.editPort;
-    const delPort = ev.target.closest('[data-del-port]')?.dataset.delPort;
-    const editProg = ev.target.closest('[data-edit-prog]')?.dataset.editProg;
-    const delProg = ev.target.closest('[data-del-prog]')?.dataset.delProg;
-    const usrs = ev.target.closest('[data-usuarios]')?.dataset.usuarios;
-    if (addPort) { await editarPortafolio(null, addPort); await renderPanel(); }
-    if (addProg) { await editarPrograma(null, null, addProg, []); await renderPanel(); }
-    if (addProgPort) { await editarPrograma(null, addProgPort, null, []); await renderPanel(); }
-    if (editPort) { const p = portafolios.find(x => x.id === editPort); await editarPortafolio(p, p?.area_id); await renderPanel(); }
-    if (delPort) { await eliminarReg('portafolios', portafolios.find(x => x.id === delPort)); await renderPanel(); }
-    if (editProg) { const p = programas.find(x => x.id === editProg); await editarPrograma(p, p?.portafolio_id, p?.area_id, portafolios.filter(x => x.area_id === p?.area_id)); await renderPanel(); }
-    if (delProg) { await eliminarReg('programas', programas.find(x => x.id === delProg)); await renderPanel(); }
-    if (usrs) gestionarUsuariosEmpresa(todasEmpresas.find(x => x.id === usrs));
-  });
-}
-
-async function panelPropietarios(el) {
-  let propietarios = [];
-  try { propietarios = await api.list('profiles', { eq: { es_propietario: true }, order: [['nombre', true]] }); } catch { /* */ }
-
-  el.innerHTML = cab('Propietarios', [btn('+ Designar co-propietario', 'nuevo', 'btn-primario')]) +
-  `<p class="admin-sub">El propietario controla toda la plataforma. El co-propietario lo reemplaza en su ausencia, con los mismos permisos.</p>
-  <div class="tarjeta admin-tabla-wrap" style="margin-top:16px">
-    <table class="simple"><thead><tr><th>PERSONA</th><th>ROL</th><th></th></tr></thead>
-    <tbody>${propietarios.map(p => `<tr>
-      <td><span class="avatar-ico" style="background:${COLOR_ROL.propietario}">${esc((p.nombre || '?')[0].toUpperCase())}</span>
-        <b>${esc(p.nombre)}</b><br><small>${esc(p.email || '')}</small></td>
-      <td>${badge(p.id === store.usuario?.id ? 'Propietario' : 'Co-propietario', COLOR_ROL.propietario)}</td>
-      <td>${p.id !== store.usuario?.id
-        ? `<button class="btn btn-xs btn-peligro" data-revocar="${p.id}">Revocar</button>` : ''}</td>
-    </tr>`).join('')}</tbody></table>
-    <div style="padding:8px;text-align:right;color:var(--gris-txt);font-size:.85em">${propietarios.length} de ${propietarios.length}</div>
-  </div>`;
-
-  el.addEventListener('click', async e => {
-    const a = e.target.closest('[data-a]')?.dataset.a;
-    const idRev = e.target.closest('[data-revocar]')?.dataset.revocar;
-    if (a === 'nuevo') { await asignarCoPropietario(); await renderPanel(); }
-    if (idRev) { await revocarPropietario(propietarios.find(p => p.id === idRev)); await renderPanel(); }
-  });
-}
-
-async function asignarCoPropietario() {
-  let perfiles = [];
-  try { perfiles = await api.list('profiles', { eq: { activo: true }, order: [['nombre', true]] }); } catch { /* */ }
-  await pedirDatos({
-    titulo: 'Designar co-propietario de plataforma',
-    campos: [{ name: 'usuario_id', label: 'Usuario', type: 'select', required: true,
-      opciones: perfiles.filter(p => !p.es_propietario).map(p => ({ value: p.id, label: `${p.nombre} (${p.email || p.codigo || '?'})` })) }],
-    alGuardar: async d => { await api.update('profiles', d.usuario_id, { es_propietario: true }); ok('Co-propietario designado.'); },
-  });
-}
-
-async function revocarPropietario(p) {
-  if (!p) return;
-  const si = await confirmar(`¿Revocar acceso de propietario a ${p.nombre}?`,
-    { titulo: 'Revocar', texto: 'Revocar', peligro: true });
-  if (!si) return;
-  try { await api.update('profiles', p.id, { es_propietario: false }); ok('Revocado.'); }
-  catch (e) { error(mensajeError(e)); }
-}
-
-async function panelAuditoria(el) {
-  let registros = [];
-  try { registros = await api.list('auditoria', { order: [['created_at', false]], limit: 100 }); } catch { /* */ }
-
-  el.innerHTML = cab('Auditoría', [btn('🖨 Imprimir', 'imprimir')]) +
-  `<p class="admin-sub">Registro de acciones realizadas en la plataforma.</p>` +
-  (!registros.length
-    ? '<div class="aviso info" style="margin-top:12px">Sin registros de auditoría. Asegúrese de que exista la tabla <code>auditoria</code> en la base de datos.</div>'
-    : tabla(['Fecha', 'Usuario', 'Empresa', 'Acción', 'Detalle'],
-        registros.map(r => [fmtFechaHora(r.created_at), esc(r.usuario_nombre || '—'), esc(r.empresa_nombre || '—'),
-          `<code>${esc(r.accion || '—')}</code>`, esc(r.detalle || '—')])));
-
-  el.querySelector('[data-a="imprimir"]')?.addEventListener('click', () => imprimirPanel(el, 'Auditoría'));
-}
-
-async function panelReportes(el) {
-  const reportes = [
-    { id: 'resumen', ico: '📊', nombre: 'Resumen de plataforma' },
-    { id: 'lista-emp', ico: '🏢', nombre: 'Lista de empresas' },
-    { id: 'actividad', ico: '📋', nombre: 'Actividad reciente' },
-  ];
-  let rActivo = reportes[0];
-
-  const renderPrev = async () => {
-    const prev = el.querySelector('#reporte-preview');
-    if (!prev) return;
-    await cargarEmpresas();
-    if (rActivo.id === 'resumen') {
-      const act = todasEmpresas.filter(e => e.activo !== false).length;
-      prev.innerHTML = `<div style="text-align:center;padding:16px">
-        <h2 style="margin-bottom:4px">Resumen de plataforma</h2>
-        <p style="color:var(--gris-txt);font-size:.85em">Plataforma · ${new Date().toLocaleString('es-PE')}</p>
-        <div class="admin-kpis" style="margin:16px 0">
-          <div class="admin-kpi"><span class="admin-kpi-num">${act}</span><span class="admin-kpi-txt">Empresas activas</span></div>
-          <div class="admin-kpi"><span class="admin-kpi-num">${todasEmpresas.length - act}</span><span class="admin-kpi-txt">Suspendidas</span></div>
-        </div>
-      </div>`;
-    } else if (rActivo.id === 'lista-emp') {
-      prev.innerHTML = tabla(['Empresa', 'Código', 'Estado', 'Creada'],
-        todasEmpresas.map(e => [esc(e.nombre), esc(e.codigo || '—'),
-          e.activo !== false ? 'Activa' : 'Suspendida', e.created_at ? fmtFechaHora(e.created_at) : '—']));
-    } else {
-      prev.innerHTML = '<p style="padding:16px;color:var(--gris-txt)">Sin registros de actividad.</p>';
-    }
-  };
-
-  el.innerHTML = cab('Reportes', [btn('🖨 Imprimir / PDF A4', 'imprimir', 'btn-primario')]) +
-  `<p class="admin-sub">Selecciona un reporte para ver su vista previa e imprimirlo en PDF.</p>
-  <div style="display:flex;gap:16px;margin-top:12px">
-    <div style="width:220px;flex-shrink:0">
-      ${reportes.map(r => `<button class="admin-rep-btn${rActivo.id === r.id ? ' activo' : ''}" data-rep="${r.id}">${r.ico} ${esc(r.nombre)}</button>`).join('')}
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px">
+    <div class="tarjeta" style="flex:1;min-width:260px;padding:16px">
+      <h3 style="margin:0 0 10px">Usuarios por rol</h3>
+      <table class="simple">
+        <thead><tr><th>Rol</th><th>Cantidad</th></tr></thead>
+        <tbody>
+          ${Object.entries(contPorRol).map(([r, c]) => `<tr>
+            <td>${badge(rolLabel(r), COLOR_ROL[r] || '#888')}</td>
+            <td><b>${c}</b></td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
     </div>
-    <div class="tarjeta" style="flex:1;min-height:400px;padding:16px" id="reporte-preview">
-      <div class="admin-cargando"><span class="spinner"></span></div>
+    <div class="tarjeta" style="flex:1;min-width:260px;padding:16px">
+      <h3 style="margin:0 0 10px">Administrador delegado actual</h3>
+      ${delegadoActual
+        ? `<p><b>${esc(delegadoActual.nombre)}</b><br>
+           <small style="color:var(--gris-txt)">${esc(delegadoActual.email || delegadoActual.codigo || '')}</small></p>
+           <button class="btn btn-sm" data-a="ir-delegado">Gestionar delegación →</button>`
+        : `<p style="color:var(--gris-txt)">Sin delegado asignado.</p>
+           <button class="btn btn-sm btn-primario" data-a="ir-delegado">Asignar delegado →</button>`}
     </div>
+    ${propuestos ? `<div class="tarjeta" style="flex:1;min-width:260px;padding:16px;border-left:3px solid var(--naranja)">
+      <h3 style="margin:0 0 10px">⚠ Proyectos por aprobar</h3>
+      <p>${propuestos} proyecto(s) propuesto(s) esperan aprobación.</p>
+      <button class="btn btn-sm btn-primario" data-a="ir-proyectos">Ver proyectos →</button>
+    </div>` : ''}
   </div>`;
 
-  await renderPrev();
-  el.querySelectorAll('[data-rep]').forEach(b => b.addEventListener('click', async () => {
-    rActivo = reportes.find(r => r.id === b.dataset.rep) || rActivo;
-    el.querySelectorAll('[data-rep]').forEach(x => x.classList.toggle('activo', x === b));
-    await renderPrev();
-  }));
-  el.querySelector('[data-a="imprimir"]')?.addEventListener('click', () => {
-    const prev = el.querySelector('#reporte-preview');
-    if (prev) {
-      const fake = { querySelector: s => prev.querySelector(s), innerHTML: prev.innerHTML };
-      imprimirPanel(fake, rActivo.nombre);
-    }
-  });
+  el.querySelector('[data-a="imprimir"]')?.addEventListener('click', () => imprimirPanel(el, 'Resumen del área'));
+  el.querySelector('[data-a="ir-delegado"]')?.addEventListener('click', () => navegarA('delegado'));
+  el.querySelector('[data-a="ir-proyectos"]')?.addEventListener('click', () => navegarA('proyectos'));
 }
 
 // ══════════════════════════════════════════════════
-// EMPRESA
+// USUARIOS Y ROLES
 // ══════════════════════════════════════════════════
 
 async function panelUsuarios(el) {
-  const areaId = contextoEmpresa?.id || store.area?.id;
-  const perfiles = areaId
-    ? (await api.list('profiles', { eq: { area_id: areaId }, order: [['nombre', true]] })).filter(p => !p.eliminado)
-    : [];
+  let perfiles = [];
+  try {
+    perfiles = (await api.list('profiles', { order: [['nombre', true]] })).filter(p => !p.eliminado);
+  } catch { /* */ }
   const pendientes = perfiles.filter(p => p.rol === 'pendiente' && p.activo);
 
   el.innerHTML = cab('Usuarios y roles', [
     btn('+ Nuevo usuario', 'nuevo', 'btn-primario'),
     btn('✉ Invitar', 'invitar'),
     btn('🖨 Imprimir', 'imprimir'),
-  ]) + (pendientes.length ? `<div class="aviso warn" style="margin-bottom:12px"><b>${pendientes.length} usuario(s) esperan aprobación.</b> Asígneles un rol.</div>` : '') +
+  ]) +
+  (pendientes.length ? `<div class="aviso warn" style="margin-bottom:12px"><b>${pendientes.length} usuario(s) esperan aprobación.</b> Asígneles un rol.</div>` : '') +
+  `<div class="admin-filtros">
+    <input class="inp" id="buscar-usr" placeholder="Buscar por nombre o correo..." style="width:220px">
+    <select class="inp" id="fil-rol">
+      <option value="">Todos los roles</option>
+      ${Object.entries(ROLES).filter(([k]) => k !== 'pendiente').map(([k, v]) =>
+        `<option value="${k}">${esc(v)}</option>`).join('')}
+    </select>
+    <select class="inp" id="fil-estado">
+      <option value="">Estado: todos</option>
+      <option value="activo">Activo</option>
+      <option value="inactivo">Inactivo</option>
+    </select>
+  </div>` +
   tabla(['', 'Nombre', 'Código', 'Correo', 'Rol', 'Estado', ''],
     perfiles.map(p => [
       `<span class="avatar-ico" style="background:${COLOR_ROL[p.rol] || '#ccc'}">${esc((p.nombre || '?')[0].toUpperCase())}</span>`,
-      `<b>${esc(p.nombre)}</b>${p.es_admin_principal ? ' ' + badge('Principal', '#E8762B') : ''}`,
+      `<b>${esc(p.nombre)}</b>${p.es_admin_principal ? ' ' + badge('Principal', COLOR_ROL.superadmin || '#1565c0') : ''}`,
       esc(p.codigo || ''), esc(p.email || ''),
-      badge(ROLES[p.rol] || p.rol, COLOR_ROL[p.rol]),
-      p.activo ? 'Activo' : '<span style="color:var(--rojo)">Inactivo</span>',
-      `<button class="btn btn-xs" data-editar="${p.id}">Editar</button>
-       ${puedeRestablecer(p) ? `<button class="btn btn-xs" data-clave="${p.id}">🔑</button>` : ''}
-       ${puedeEliminar(p) ? `<button class="btn btn-xs btn-peligro" data-eliminar="${p.id}">🗑</button>` : ''}`,
+      badge(ROLES[p.rol] || p.rol, COLOR_ROL[p.rol] || '#888'),
+      p.activo ? '<span style="color:#2e7d32">Activo</span>' : '<span style="color:var(--rojo)">Inactivo</span>',
+      `<button class="btn btn-xs" data-editar="${p.id}" title="Editar">✏</button>
+       ${puedeRestablecer(p) ? `<button class="btn btn-xs" data-clave="${p.id}" title="Restablecer contraseña">🔑</button>` : ''}
+       ${puedeEliminar(p) ? `<button class="btn btn-xs btn-peligro" data-eliminar="${p.id}" title="Eliminar">🗑</button>` : ''}`,
     ])
   );
+
+  // Filtros
+  const filtrar = () => {
+    const q = el.querySelector('#buscar-usr')?.value.toLowerCase() || '';
+    const rol = el.querySelector('#fil-rol')?.value || '';
+    const est = el.querySelector('#fil-estado')?.value || '';
+    el.querySelectorAll('.simple tbody tr').forEach(tr => {
+      const txt = tr.textContent.toLowerCase();
+      const trRol = tr.querySelector('[data-editar]') ? perfiles.find(p => p.id === tr.querySelector('[data-editar]').dataset.editar)?.rol : '';
+      const trActivo = txt.includes('activo') && !txt.includes('inactivo');
+      const visible = (!q || txt.includes(q)) &&
+        (!rol || trRol === rol) &&
+        (!est || (est === 'activo' ? trActivo : !trActivo));
+      tr.style.display = visible ? '' : 'none';
+    });
+  };
+  el.querySelector('#buscar-usr')?.addEventListener('input', filtrar);
+  el.querySelector('#fil-rol')?.addEventListener('change', filtrar);
+  el.querySelector('#fil-estado')?.addEventListener('change', filtrar);
 
   el.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
@@ -648,183 +269,6 @@ async function panelUsuarios(el) {
   });
 }
 
-async function panelAreaEmpresa(el) {
-  const a = contextoEmpresa || store.area;
-  el.innerHTML = cab('Datos de la empresa', [btn('Editar', 'editar', 'btn-primario')]) +
-  `<div class="tarjeta"><table class="simple">
-    <tr><th style="width:160px">Campo</th><th>Valor</th></tr>
-    <tr><td>Nombre</td><td>${esc(a?.nombre || '—')}</td></tr>
-    <tr><td>Código</td><td>${esc(a?.codigo || '—')}</td></tr>
-    <tr><td>Descripción</td><td>${esc(a?.descripcion || '—')}</td></tr>
-    <tr><td>País</td><td>${esc(a?.pais || '—')}</td></tr>
-    <tr><td>Zona horaria</td><td>${esc(a?.zona_horaria || '—')}</td></tr>
-  </table></div>`;
-
-  el.querySelector('[data-a="editar"]')?.addEventListener('click', async () => {
-    await pedirDatos({
-      titulo: 'Editar empresa',
-      valores: a,
-      campos: [
-        { name: 'nombre', label: 'Nombre', required: true },
-        { name: 'codigo', label: 'Código corto' },
-        { name: 'descripcion', label: 'Descripción' },
-        { name: 'pais', label: 'País' },
-        { name: 'zona_horaria', label: 'Zona horaria' },
-      ],
-      alGuardar: async d => { await api.update('areas', a.id, d); await cargarCatalogo(); ok('Actualizado.'); await renderPanel(); },
-    });
-  });
-}
-
-// ══════════════════════════════════════════════════
-// ESTRUCTURA
-// ══════════════════════════════════════════════════
-
-async function panelPortafolios(el) {
-  const areaId = contextoEmpresa?.id || store.area?.id;
-  let lista = [];
-  try { lista = await api.list('portafolios', { eq: { area_id: areaId }, order: [['nombre', true]] }); } catch { /* */ }
-  el.innerHTML = cab('Portafolios', [btn('+ Nuevo', 'nuevo', 'btn-primario'), btn('🖨 Imprimir', 'imprimir')]) +
-  (!lista.length ? '<div class="aviso info">Sin portafolios. Use "+ Nuevo" para crear el primero.</div>' : '') +
-  tabla(['Código', 'Nombre', 'Responsable', 'Estado', ''],
-    lista.map(p => [esc(p.codigo || ''), `<b>${esc(p.nombre)}</b>`, esc(nombre(p.responsable_id) || '—'),
-      badge(p.estado || 'activo', p.estado === 'inactivo' ? '#aaa' : '#2e7d32'),
-      `<button class="btn btn-xs" data-editar="${p.id}">Editar</button>
-       <button class="btn btn-xs btn-peligro" data-eliminar="${p.id}">🗑</button>`]));
-  el.addEventListener('click', async e => {
-    const a = e.target.closest('[data-a]')?.dataset.a;
-    const id = e.target.closest('[data-editar]')?.dataset.editar;
-    const idE = e.target.closest('[data-eliminar]')?.dataset.eliminar;
-    if (a === 'nuevo') { await editarPortafolio(null, areaId); await renderPanel(); }
-    if (a === 'imprimir') imprimirPanel(el, 'Portafolios');
-    if (id) { await editarPortafolio(lista.find(x => x.id === id), areaId); await renderPanel(); }
-    if (idE) { await eliminarReg('portafolios', lista.find(x => x.id === idE)); await renderPanel(); }
-  });
-}
-
-async function editarPortafolio(p, areaId) {
-  await pedirDatos({
-    titulo: p ? `Editar: ${p.nombre}` : 'Nuevo portafolio',
-    valores: p || { estado: 'activo' },
-    campos: [
-      { name: 'codigo', label: 'Código' },
-      { name: 'nombre', label: 'Nombre', required: true },
-      { name: 'descripcion', label: 'Descripción' },
-      { name: 'responsable_id', label: 'Responsable', type: 'select', opciones: optsPersonas(areaId) },
-      { name: 'estado', label: 'Estado', type: 'select', opciones: [{ value: 'activo', label: 'Activo' }, { value: 'inactivo', label: 'Inactivo' }] },
-    ],
-    alGuardar: async d => {
-      if (p) await api.update('portafolios', p.id, d);
-      else await api.insert('portafolios', { ...d, area_id: areaId || store.area.id });
-      ok(p ? 'Actualizado.' : 'Portafolio creado.');
-    },
-  });
-}
-
-async function panelProgramas(el) {
-  const areaId = contextoEmpresa?.id || store.area?.id;
-  let lista = [], ports = [];
-  try {
-    [lista, ports] = await Promise.all([
-      api.list('programas', { eq: { area_id: areaId }, order: [['nombre', true]] }),
-      api.list('portafolios', { eq: { area_id: areaId }, order: [['nombre', true]] }),
-    ]);
-  } catch { /* */ }
-  const portMap = new Map(ports.map(p => [p.id, p.nombre]));
-  el.innerHTML = cab('Programas', [btn('+ Nuevo', 'nuevo', 'btn-primario'), btn('🖨 Imprimir', 'imprimir')]) +
-  (!lista.length ? '<div class="aviso info">Sin programas registrados.</div>' : '') +
-  tabla(['Código', 'Nombre', 'Portafolio', 'Responsable', 'Estado', ''],
-    lista.map(p => [esc(p.codigo || ''), `<b>${esc(p.nombre)}</b>`, esc(portMap.get(p.portafolio_id) || '—'),
-      esc(nombre(p.responsable_id) || '—'),
-      badge(p.estado || 'activo', p.estado === 'inactivo' ? '#aaa' : '#1565c0'),
-      `<button class="btn btn-xs" data-editar="${p.id}">Editar</button>
-       <button class="btn btn-xs btn-peligro" data-eliminar="${p.id}">🗑</button>`]));
-  el.addEventListener('click', async e => {
-    const a = e.target.closest('[data-a]')?.dataset.a;
-    const id = e.target.closest('[data-editar]')?.dataset.editar;
-    const idE = e.target.closest('[data-eliminar]')?.dataset.eliminar;
-    if (a === 'nuevo') { await editarPrograma(null, null, areaId, ports); await renderPanel(); }
-    if (a === 'imprimir') imprimirPanel(el, 'Programas');
-    if (id) { await editarPrograma(lista.find(x => x.id === id), null, areaId, ports); await renderPanel(); }
-    if (idE) { await eliminarReg('programas', lista.find(x => x.id === idE)); await renderPanel(); }
-  });
-}
-
-async function editarPrograma(p, portId, areaId, ports) {
-  if (!ports) {
-    try { ports = await api.list('portafolios', { eq: { area_id: areaId || store.area?.id }, order: [['nombre', true]] }); } catch { ports = []; }
-  }
-  await pedirDatos({
-    titulo: p ? `Editar: ${p.nombre}` : 'Nuevo programa',
-    valores: p || { estado: 'activo', portafolio_id: portId || null },
-    campos: [
-      { name: 'codigo', label: 'Código' },
-      { name: 'nombre', label: 'Nombre', required: true },
-      { name: 'descripcion', label: 'Descripción' },
-      { name: 'portafolio_id', label: 'Portafolio', type: 'select',
-        opciones: [{ value: null, label: '— Sin portafolio —' }, ...ports.map(x => ({ value: x.id, label: x.nombre }))] },
-      { name: 'responsable_id', label: 'Responsable', type: 'select', opciones: optsPersonas(areaId) },
-      { name: 'estado', label: 'Estado', type: 'select', opciones: [{ value: 'activo', label: 'Activo' }, { value: 'inactivo', label: 'Inactivo' }] },
-    ],
-    alGuardar: async d => {
-      if (p) await api.update('programas', p.id, d);
-      else await api.insert('programas', { ...d, area_id: areaId || store.area.id });
-      ok(p ? 'Actualizado.' : 'Programa creado.');
-    },
-  });
-}
-
-async function panelProyectos(el) {
-  const areaId = contextoEmpresa?.id || store.area?.id;
-  const proyectos = areaId ? store.proyectos.filter(p => p.area_id === areaId) : store.proyectos;
-  let ports = [], progs = [];
-  try {
-    [ports, progs] = await Promise.all([
-      api.list('portafolios', { eq: { area_id: areaId }, order: [['nombre', true]] }),
-      api.list('programas', { eq: { area_id: areaId }, order: [['nombre', true]] }),
-    ]);
-  } catch { /* */ }
-  const portMap = new Map(ports.map(p => [p.id, p.nombre]));
-  const progMap = new Map(progs.map(p => [p.id, p.nombre]));
-  const colorEst = { activo: '#2e7d32', propuesto: '#e65100', en_pausa: '#aaa', cerrado: '#4E79A7', rechazado: '#b71c1c' };
-
-  el.innerHTML = cab('Proyectos', [btn('+ Nuevo proyecto', 'nuevo', 'btn-primario'), btn('🖨 Imprimir', 'imprimir')]) +
-  tabla(['Código', 'Nombre', 'Portafolio', 'Programa', 'Estado', ''],
-    proyectos.map(p => [
-      `<b>${esc(p.codigo)}</b>`, esc(p.nombre_corto),
-      esc(portMap.get(p.portafolio_id) || '—'),
-      esc(progMap.get(p.programa_id) || '—'),
-      badge(p.estado, colorEst[p.estado] || '#666'),
-      `<button class="btn btn-xs" data-vincular="${p.id}">Vincular</button>`,
-    ])
-  );
-
-  el.addEventListener('click', async e => {
-    const a = e.target.closest('[data-a]')?.dataset.a;
-    const idVinc = e.target.closest('[data-vincular]')?.dataset.vincular;
-    if (a === 'imprimir') imprimirPanel(el, 'Proyectos');
-    if (idVinc) {
-      const p = proyectos.find(x => x.id === idVinc);
-      if (!p) return;
-      await pedirDatos({
-        titulo: `Vincular proyecto: ${p.codigo}`,
-        valores: p,
-        campos: [
-          { name: 'portafolio_id', label: 'Portafolio', type: 'select',
-            opciones: [{ value: null, label: '— Sin portafolio —' }, ...ports.map(x => ({ value: x.id, label: x.nombre }))] },
-          { name: 'programa_id', label: 'Programa', type: 'select',
-            opciones: [{ value: null, label: '— Sin programa —' }, ...progs.map(x => ({ value: x.id, label: x.nombre }))] },
-        ],
-        alGuardar: async d => { await api.update('proyectos', idVinc, d); await cargarCatalogo(); ok('Vinculado.'); await renderPanel(); },
-      });
-    }
-  });
-}
-
-// ══════════════════════════════════════════════════
-// Usuarios — helpers
-// ══════════════════════════════════════════════════
-
 async function nuevoUsuario() {
   const clave = generarClave();
   await pedirDatos({
@@ -832,32 +276,50 @@ async function nuevoUsuario() {
     campos: [
       { name: 'nombre', label: 'Nombre completo', required: true },
       { name: 'email', label: 'Correo electrónico', type: 'email', required: true },
-      { name: 'codigo', label: 'Código corto (iniciales)' },
+      { name: 'codigo', label: 'Código / iniciales' },
       { name: 'rol', label: 'Rol', type: 'select', required: true,
-        opciones: Object.entries(ROLES).filter(([k]) => !['pendiente', 'propietario'].includes(k)).map(([k, v]) => ({ value: k, label: v })) },
+        opciones: Object.entries(ROLES).filter(([k]) => !['pendiente', 'propietario'].includes(k))
+          .map(([k, v]) => ({ value: k, label: v })) },
+      { name: 'horas_dia', label: 'Horas disponibles / día (LPS)', type: 'number', min: 0, max: 24, step: 0.5, valor: 8 },
       { name: 'clave', label: 'Contraseña temporal', required: true, valor: clave },
     ],
     alGuardar: async d => {
-      ok(`Usuario registrado. Contraseña temporal: ${d.clave}`);
+      try {
+        const areaId = store.area?.id;
+        await api.insert('profiles', { nombre: d.nombre, email: d.email, codigo: d.codigo, rol: d.rol,
+          horas_dia: d.horas_dia, area_id: areaId, activo: true });
+        ok(`Usuario creado. Contraseña temporal: ${d.clave}`);
+      } catch (err) { error(mensajeError(err)); }
     },
   });
 }
 
 async function editarUsuario(p) {
   if (!p) return;
+  const rolActual = p.rol;
   await pedirDatos({
     titulo: `Editar: ${p.nombre}`,
     valores: p,
     campos: [
       { name: 'nombre', label: 'Nombre completo', required: true },
-      { name: 'codigo', label: 'Código corto' },
-      { name: 'cargo_id', label: 'Cargo', type: 'select', opciones: opciones('cargos') },
+      { name: 'codigo', label: 'Código / iniciales' },
       { name: 'horas_dia', label: 'Horas disponibles / día', type: 'number', min: 0, max: 24, step: 0.5 },
       { name: 'rol', label: 'Rol', type: 'select', required: true,
-        opciones: Object.entries(ROLES).filter(([k]) => k !== 'propietario').map(([k, v]) => ({ value: k, label: v })) },
+        opciones: Object.entries(ROLES)
+          .filter(([k]) => k !== 'propietario' && !(p.es_admin_principal && k === 'pendiente'))
+          .map(([k, v]) => ({ value: k, label: v })) },
       { name: 'activo', label: 'Activo', type: 'checkbox' },
     ],
-    alGuardar: async d => { await api.update('profiles', p.id, d); await cargarCatalogo(); ok('Actualizado.'); },
+    alGuardar: async d => {
+      try {
+        await api.update('profiles', p.id, {
+          nombre: d.nombre, codigo: d.codigo, horas_dia: d.horas_dia,
+          rol: d.rol, activo: d.activo,
+        });
+        await cargarCatalogo();
+        ok('Usuario actualizado.');
+      } catch (err) { error(mensajeError(err)); }
+    },
   });
 }
 
@@ -866,16 +328,24 @@ async function restablecerClave(p) {
   const clave = generarClave();
   const si = await confirmar(`¿Restablecer la contraseña de ${p.nombre}?`, { titulo: 'Restablecer', texto: 'Restablecer' });
   if (!si) return;
-  try { await api.update('profiles', p.id, { debe_cambiar_clave: true }); ok(`Contraseña temporal: ${clave}`); }
-  catch (e) { error(mensajeError(e)); }
+  try {
+    await api.update('profiles', p.id, { debe_cambiar_clave: true });
+    ok(`Nueva contraseña temporal: ${clave}\nComuníquela al usuario.`);
+  } catch (err) { error(mensajeError(err)); }
 }
 
 async function eliminarUsuario(p) {
   if (!p) return;
-  const si = await confirmar(`¿Eliminar a ${p.nombre}?`, { titulo: 'Eliminar usuario', texto: 'Eliminar', peligro: true });
+  const si = await confirmar(
+    `¿Dar de baja a ${p.nombre}? Su historial se conserva.`,
+    { titulo: 'Dar de baja', texto: 'Dar de baja', peligro: true }
+  );
   if (!si) return;
-  try { await api.update('profiles', p.id, { eliminado: true, activo: false }); await cargarCatalogo(); ok('Eliminado.'); }
-  catch (e) { error(mensajeError(e)); }
+  try {
+    await api.update('profiles', p.id, { eliminado: true, activo: false });
+    await cargarCatalogo();
+    ok('Usuario dado de baja.');
+  } catch (err) { error(mensajeError(err)); }
 }
 
 function puedeRestablecer(p) {
@@ -892,33 +362,718 @@ function mostrarInvitacion() {
   modal({
     titulo: 'Invitar usuarios',
     ancho: 560,
-    cuerpo: `<p>Envíe este enlace. Al registrarse quedan <b>pendientes</b> y usted les asigna el rol aquí.</p>
+    cuerpo: `<p>Envíe este enlace al nuevo usuario. Al registrarse quedará <b>pendiente</b> y usted le asigna el rol aquí.</p>
       <input class="inp" style="width:100%" readonly value="${esc(url)}">`,
-    botones: [{ texto: 'Copiar enlace', clase: 'btn-primario', accion: async () => { await navigator.clipboard?.writeText(url).catch(() => {}); ok('Enlace copiado.'); } }],
+    botones: [{ texto: 'Copiar enlace', clase: 'btn-primario', accion: async () => {
+      await navigator.clipboard?.writeText(url).catch(() => {});
+      ok('Enlace copiado.');
+    }}],
   });
 }
 
 // ══════════════════════════════════════════════════
-// Utilidades
+// ADMINISTRADOR DELEGADO
 // ══════════════════════════════════════════════════
 
-function optsPersonas(areaId) {
-  const perfs = store.perfiles.filter(p => !p.eliminado && p.activo && (!areaId || p.area_id === areaId));
-  return [{ value: null, label: '—' }, ...perfs.map(p => ({ value: p.id, label: p.nombre }))];
+async function panelDelegado(el) {
+  let perfiles = [], historial = [];
+  try {
+    perfiles = (await api.list('profiles', { eq: { activo: true }, order: [['nombre', true]] }))
+      .filter(p => !p.eliminado);
+    historial = await api.list('historial_delegados', { order: [['created_at', false]], limit: 20 }).catch(() => []);
+  } catch { /* */ }
+
+  const delegadoActual = perfiles.find(p => p.rol === 'delegado');
+  const listaLideres = perfiles.filter(p => ['lider', 'delegado', 'admin', 'superadmin'].includes(p.rol));
+
+  el.innerHTML = cab('Administrador delegado', []) +
+  `<p class="admin-sub">El delegado tiene los mismos permisos que el administrador, excepto que no puede revocar el rol al administrador principal ni eliminar usuarios. La rotación queda registrada.</p>
+  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
+    <div class="tarjeta" style="flex:1;min-width:280px;padding:20px">
+      <h3 style="margin:0 0 12px">Delegado actual</h3>
+      ${delegadoActual
+        ? `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
+             <span class="avatar-ico" style="background:${COLOR_ROL.delegado||'#F4511E'};font-size:1.4em;width:40px;height:40px;line-height:40px">${esc((delegadoActual.nombre||'?')[0].toUpperCase())}</span>
+             <div><b style="font-size:1.1em">${esc(delegadoActual.nombre)}</b><br>
+               <small style="color:var(--gris-txt)">${esc(delegadoActual.email || delegadoActual.codigo || '')}</small>
+             </div>
+           </div>
+           <div style="display:flex;gap:8px">
+             <button class="btn btn-sm btn-primario" data-a="cambiar">Cambiar delegado</button>
+             <button class="btn btn-sm btn-warn" data-a="revocar">Revocar delegación</button>
+           </div>`
+        : `<p style="color:var(--gris-txt);margin-bottom:16px">No hay delegado asignado actualmente.</p>
+           <button class="btn btn-sm btn-primario" data-a="asignar">Asignar delegado</button>`}
+    </div>
+    <div class="tarjeta" style="flex:1;min-width:280px;padding:20px">
+      <h3 style="margin:0 0 12px">Historial de delegaciones</h3>
+      ${!historial.length
+        ? '<p style="color:var(--gris-txt);font-size:.9em">Sin registros.</p>'
+        : `<table class="simple" style="font-size:.87em">
+             <thead><tr><th>Usuario</th><th>Desde</th><th>Hasta</th></tr></thead>
+             <tbody>${historial.map(h => `<tr>
+               <td>${esc(h.nombre || h.usuario_id || '—')}</td>
+               <td>${h.desde ? fmtFechaHora(h.desde) : '—'}</td>
+               <td>${h.hasta ? fmtFechaHora(h.hasta) : badge('Actual', '#2e7d32')}</td>
+             </tr>`).join('')}</tbody>
+           </table>`}
+    </div>
+  </div>`;
+
+  el.addEventListener('click', async e => {
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    if (a === 'asignar' || a === 'cambiar') {
+      await asignarDelegado(listaLideres, delegadoActual);
+      await renderPanel();
+    }
+    if (a === 'revocar' && delegadoActual) {
+      const si = await confirmar(`¿Revocar la delegación de ${delegadoActual.nombre}?`,
+        { titulo: 'Revocar delegado', texto: 'Revocar', peligro: true });
+      if (!si) return;
+      try {
+        await api.update('profiles', delegadoActual.id, { rol: 'lider' });
+        await api.insert('historial_delegados', {
+          usuario_id: delegadoActual.id, nombre: delegadoActual.nombre,
+          desde: delegadoActual.delegado_desde, hasta: new Date().toISOString(),
+        }).catch(() => {});
+        await cargarCatalogo();
+        ok('Delegación revocada.');
+        await renderPanel();
+      } catch (err) { error(mensajeError(err)); }
+    }
+  });
 }
+
+async function asignarDelegado(listaLideres, delegadoActual) {
+  const candidatos = listaLideres.filter(p => !p.es_admin_principal && p.id !== store.usuario?.id);
+  await pedirDatos({
+    titulo: 'Asignar administrador delegado',
+    campos: [{
+      name: 'usuario_id', label: 'Nuevo administrador delegado', type: 'select', required: true,
+      opciones: candidatos.map(p => ({ value: p.id, label: `${p.nombre} (${ROLES[p.rol] || p.rol})` })),
+    }],
+    alGuardar: async d => {
+      try {
+        if (delegadoActual && delegadoActual.id !== d.usuario_id) {
+          await api.update('profiles', delegadoActual.id, { rol: 'lider' });
+          await api.insert('historial_delegados', {
+            usuario_id: delegadoActual.id, nombre: delegadoActual.nombre,
+            desde: delegadoActual.delegado_desde, hasta: new Date().toISOString(),
+          }).catch(() => {});
+        }
+        await api.update('profiles', d.usuario_id, { rol: 'delegado', delegado_desde: new Date().toISOString() });
+        await cargarCatalogo();
+        ok('Delegado asignado correctamente.');
+      } catch (err) { error(mensajeError(err)); }
+    },
+  });
+}
+
+// ══════════════════════════════════════════════════
+// PROYECTOS / PROCESOS
+// ══════════════════════════════════════════════════
+
+async function panelProyectos(el) {
+  let proyectos = [], perfiles = [];
+  try {
+    [proyectos, perfiles] = await Promise.all([
+      api.list('proyectos', { order: [['codigo', true]] }),
+      api.list('profiles', { eq: { activo: true }, order: [['nombre', true]] }),
+    ]);
+  } catch { /* */ }
+
+  const colorEst = { activo: '#2e7d32', propuesto: '#e65100', en_pausa: '#795548', cerrado: '#546E7A', rechazado: '#b71c1c' };
+  const labelEst = { activo: 'Activo', propuesto: 'Propuesto', en_pausa: 'En pausa', cerrado: 'Cerrado', rechazado: 'Rechazado' };
+  const propuestos = proyectos.filter(p => p.estado === 'propuesto');
+
+  el.innerHTML = cab('Proyectos y procesos', [
+    btn('+ Nuevo proyecto', 'nuevo', 'btn-primario'),
+    btn('🖨 Imprimir', 'imprimir'),
+  ]) +
+  (propuestos.length ? `<div class="aviso warn" style="margin-bottom:12px"><b>${propuestos.length} proyecto(s) propuesto(s) esperan aprobación.</b></div>` : '') +
+  `<div class="admin-filtros">
+    <input class="inp" id="buscar-proy" placeholder="Buscar por código o nombre..." style="width:220px">
+    <select class="inp" id="fil-tipo">
+      <option value="">Todos los tipos</option>
+      <option value="proyecto">Proyecto externo</option>
+      <option value="proceso">Proceso interno</option>
+      <option value="gestion">Gestión del área</option>
+      <option value="capacitacion">Capacitación / conocimiento</option>
+    </select>
+    <select class="inp" id="fil-est">
+      <option value="">Estado: todos</option>
+      ${Object.entries(labelEst).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
+    </select>
+  </div>` +
+  `<div class="tarjeta admin-tabla-wrap">
+    <table class="simple" id="tabla-proy">
+      <thead><tr>
+        <th>CÓDIGO</th><th>NOMBRE</th><th>GERENCIA</th><th>TIPO</th><th>ESTADO</th><th>LÍDERES</th><th></th>
+      </tr></thead>
+      <tbody>${proyectos.map(p => {
+        const lidNames = (p.lideres || []).map(id => {
+          const perf = perfiles.find(x => x.id === id);
+          return perf ? perf.nombre : id;
+        }).join(', ');
+        return `<tr data-tipo="${p.tipo||''}" data-est="${p.estado||''}">
+          <td><b>${esc(p.codigo || '—')}</b></td>
+          <td>${esc(p.nombre_corto || p.nombre || '—')}</td>
+          <td>${esc(p.gerencia || '—')}</td>
+          <td><small>${esc(p.tipo || '—')}</small></td>
+          <td>${badge(labelEst[p.estado] || p.estado, colorEst[p.estado] || '#888')}</td>
+          <td><small>${esc(lidNames || '—')}</small></td>
+          <td>
+            <button class="btn btn-xs" data-editar="${p.id}">Editar</button>
+            ${p.estado === 'propuesto' ? `
+              <button class="btn btn-xs btn-primario" data-aprobar="${p.id}">Aprobar</button>
+              <button class="btn btn-xs btn-warn" data-rechazar="${p.id}">Rechazar</button>` : ''}
+            ${['cerrado', 'rechazado'].includes(p.estado) ? '' :
+              `<button class="btn btn-xs btn-warn" data-estado="${p.id}" data-nuevo-est="${p.estado === 'activo' ? 'en_pausa' : 'activo'}">
+                ${p.estado === 'activo' ? 'Pausar' : 'Activar'}
+              </button>`}
+          </td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+    <div style="text-align:right;padding:8px;color:var(--gris-txt);font-size:.85em">${proyectos.length} registro(s)</div>
+  </div>`;
+
+  // Filtros
+  const filtrar = () => {
+    const q = (el.querySelector('#buscar-proy')?.value || '').toLowerCase();
+    const tipo = el.querySelector('#fil-tipo')?.value || '';
+    const est = el.querySelector('#fil-est')?.value || '';
+    el.querySelectorAll('#tabla-proy tbody tr').forEach(tr => {
+      const ok2 = (!q || tr.textContent.toLowerCase().includes(q)) &&
+        (!tipo || tr.dataset.tipo === tipo) &&
+        (!est || tr.dataset.est === est);
+      tr.style.display = ok2 ? '' : 'none';
+    });
+  };
+  el.querySelector('#buscar-proy')?.addEventListener('input', filtrar);
+  el.querySelector('#fil-tipo')?.addEventListener('change', filtrar);
+  el.querySelector('#fil-est')?.addEventListener('change', filtrar);
+
+  el.addEventListener('click', async e => {
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    const idEdit = e.target.closest('[data-editar]')?.dataset.editar;
+    const idAprob = e.target.closest('[data-aprobar]')?.dataset.aprobar;
+    const idRech = e.target.closest('[data-rechazar]')?.dataset.rechazar;
+    const idEst = e.target.closest('[data-estado]')?.dataset.estado;
+    const nuevoEst = e.target.closest('[data-estado]')?.dataset.nuevoEst;
+    if (a === 'nuevo') { await editarProyecto(null, perfiles); await cargarCatalogo(); await renderPanel(); }
+    if (a === 'imprimir') imprimirPanel(el, 'Proyectos y procesos');
+    if (idEdit) { await editarProyecto(proyectos.find(p => p.id === idEdit), perfiles); await cargarCatalogo(); await renderPanel(); }
+    if (idAprob) { await cambiarEstadoProy(idAprob, 'activo'); await cargarCatalogo(); await renderPanel(); }
+    if (idRech) { await rechazarProyecto(proyectos.find(p => p.id === idRech)); await cargarCatalogo(); await renderPanel(); }
+    if (idEst && nuevoEst) { await cambiarEstadoProy(idEst, nuevoEst); await cargarCatalogo(); await renderPanel(); }
+  });
+}
+
+async function editarProyecto(p, perfiles) {
+  const lideresOpts = (perfiles || [])
+    .filter(x => ['lider', 'delegado', 'admin', 'superadmin'].includes(x.rol))
+    .map(x => ({ value: x.id, label: x.nombre }));
+
+  await pedirDatos({
+    titulo: p ? `Editar proyecto: ${p.codigo}` : 'Nuevo proyecto',
+    valores: p || { estado: 'activo' },
+    campos: [
+      { name: 'codigo', label: 'Código (CR o interno)', required: true },
+      { name: 'nombre_corto', label: 'Nombre corto (aparece en menú)', required: true },
+      { name: 'nombre', label: 'Nombre completo' },
+      { name: 'tipo', label: 'Tipo', type: 'select', required: true,
+        opciones: [
+          { value: 'proyecto', label: 'Proyecto externo' },
+          { value: 'proceso', label: 'Proceso interno' },
+          { value: 'gestion', label: 'Gestión del área' },
+          { value: 'capacitacion', label: 'Capacitación / conocimiento' },
+        ] },
+      { name: 'gerencia', label: 'Gerencia cliente (GI, GOI, GOC, GOF, PyL...)' },
+      { name: 'fase', label: 'Fase', type: 'select',
+        opciones: [
+          { value: '', label: '— Sin fase —' },
+          { value: 'diseño', label: 'Diseño' },
+          { value: 'preconstruccion', label: 'Preconstrucción' },
+          { value: 'construccion', label: 'Construcción' },
+          { value: 'cierre', label: 'Cierre' },
+          { value: 'permanente', label: 'Permanente' },
+        ] },
+      { name: 'estado', label: 'Estado', type: 'select', required: true,
+        opciones: [
+          { value: 'propuesto', label: 'Propuesto' },
+          { value: 'activo', label: 'Activo' },
+          { value: 'en_pausa', label: 'En pausa' },
+          { value: 'cerrado', label: 'Cerrado' },
+        ] },
+      { name: 'fecha_inicio', label: 'Fecha inicio', type: 'date' },
+      { name: 'fecha_fin', label: 'Fecha fin prevista', type: 'date' },
+      { name: 'observaciones', label: 'Observaciones' },
+    ],
+    alGuardar: async d => {
+      try {
+        const datos = { ...d, area_id: store.area?.id };
+        if (p) await api.update('proyectos', p.id, datos);
+        else await api.insert('proyectos', datos);
+        ok(p ? 'Proyecto actualizado.' : 'Proyecto creado.');
+      } catch (err) { error(mensajeError(err)); }
+    },
+  });
+}
+
+async function cambiarEstadoProy(id, nuevoEstado) {
+  try {
+    await api.update('proyectos', id, { estado: nuevoEstado });
+    ok(`Proyecto ${nuevoEstado === 'activo' ? 'activado' : nuevoEstado === 'en_pausa' ? 'pausado' : nuevoEstado}.`);
+  } catch (err) { error(mensajeError(err)); }
+}
+
+async function rechazarProyecto(p) {
+  if (!p) return;
+  await pedirDatos({
+    titulo: `Rechazar: ${p.codigo}`,
+    campos: [{ name: 'motivo', label: 'Motivo del rechazo', required: true }],
+    alGuardar: async d => {
+      try {
+        await api.update('proyectos', p.id, { estado: 'rechazado', rechazo_motivo: d.motivo });
+        ok('Proyecto rechazado. El líder recibirá aviso.');
+      } catch (err) { error(mensajeError(err)); }
+    },
+  });
+}
+
+// ══════════════════════════════════════════════════
+// LISTAS CONFIGURABLES
+// ══════════════════════════════════════════════════
+
+async function panelListas(el) {
+  let listas = [];
+  try { listas = await api.list('listas_configurables', { order: [['nombre', true]] }); } catch { /* */ }
+
+  // Si no hay listas aún, mostrar las iniciales del spec
+  const nombresExistentes = new Set(listas.map(l => l.nombre));
+  const listasAMostrar = listas.length ? listas : LISTAS_INICIALES.map(n => ({ nombre: n, valores: [], activo: true }));
+
+  let listaActiva = listasAMostrar[0];
+
+  const renderListas = () => {
+    el.innerHTML = cab('Listas configurables', [
+      btn('+ Nueva lista', 'nueva-lista', 'btn-primario'),
+      btn('🖨 Imprimir', 'imprimir'),
+    ]) +
+    `<p class="admin-sub">Todas las listas desplegables del aplicativo. Los valores con 🔒 son protegidos: se pueden renombrar, no eliminar (se usan en cálculos).</p>
+    <div style="display:flex;gap:16px;margin-top:12px">
+      <div style="width:220px;flex-shrink:0">
+        ${listasAMostrar.map((l, i) => `<button class="admin-rep-btn${listaActiva === l || listaActiva?.id === l?.id ? ' activo' : ''}" data-lista="${i}" style="${l.activo === false ? 'opacity:.5' : ''}">
+          ${esc(l.nombre)} ${l.activo === false ? '<small>(inactiva)</small>' : ''}
+        </button>`).join('')}
+      </div>
+      <div style="flex:1" id="lista-detalle">
+        <div class="admin-cargando"><span class="spinner"></span></div>
+      </div>
+    </div>`;
+
+    renderDetallelista(el.querySelector('#lista-detalle'), listaActiva);
+
+    el.querySelectorAll('[data-lista]').forEach(b => b.addEventListener('click', () => {
+      listaActiva = listasAMostrar[+b.dataset.lista];
+      el.querySelectorAll('[data-lista]').forEach(x => x.classList.toggle('activo', x === b));
+      renderDetallelista(el.querySelector('#lista-detalle'), listaActiva);
+    }));
+
+    el.querySelector('[data-a="nueva-lista"]')?.addEventListener('click', async () => {
+      await pedirDatos({
+        titulo: 'Nueva lista configurable',
+        campos: [
+          { name: 'nombre', label: 'Nombre de la lista', required: true },
+          { name: 'descripcion', label: 'Descripción' },
+        ],
+        alGuardar: async d => {
+          try {
+            await api.insert('listas_configurables', { ...d, area_id: store.area?.id, valores: [], activo: true });
+            ok('Lista creada.');
+            listas = await api.list('listas_configurables', { order: [['nombre', true]] }).catch(() => listas);
+            renderListas();
+          } catch (err) { error(mensajeError(err)); }
+        },
+      });
+    });
+    el.querySelector('[data-a="imprimir"]')?.addEventListener('click', () => imprimirPanel(el, 'Listas configurables'));
+  };
+
+  renderListas();
+}
+
+function renderDetallelista(cont, lista) {
+  if (!cont || !lista) return;
+  const valores = lista.valores || [];
+  cont.innerHTML = `
+    <div class="tarjeta" style="padding:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <h3 style="margin:0">${esc(lista.nombre)}</h3>
+        <div style="display:flex;gap:8px">
+          ${lista.id ? `<button class="btn btn-sm" data-a="exportar-lista">⬇ Exportar</button>` : ''}
+          <button class="btn btn-sm btn-primario" data-a="nuevo-valor">+ Agregar valor</button>
+          ${lista.id && lista.activo !== false
+            ? `<button class="btn btn-sm btn-warn" data-a="desactivar-lista">Desactivar lista</button>`
+            : lista.id ? `<button class="btn btn-sm" data-a="activar-lista">Activar lista</button>` : ''}
+        </div>
+      </div>
+      ${!valores.length
+        ? `<p style="color:var(--gris-txt)">Sin valores. Use "Agregar valor" para comenzar.</p>`
+        : `<table class="simple">
+          <thead><tr><th style="width:28px"></th><th>VALOR</th><th>COLOR</th><th>ACTIVO</th><th></th></tr></thead>
+          <tbody>${valores.map((v, i) => `<tr>
+            <td style="cursor:move;color:var(--gris-txt)">⠿</td>
+            <td>${v.protegido ? '🔒 ' : ''}${esc(v.valor || v.nombre || v)}</td>
+            <td>${v.color ? `<span style="display:inline-block;width:16px;height:16px;border-radius:3px;background:${esc(v.color)};vertical-align:middle"></span>` : '—'}</td>
+            <td>${v.activo !== false ? '✓' : '<span style="color:var(--gris-txt)">—</span>'}</td>
+            <td>
+              <button class="btn btn-xs" data-editar-val="${i}">✏</button>
+              ${v.protegido ? '' : `<button class="btn btn-xs ${v.activo !== false ? 'btn-warn' : ''}" data-toggle-val="${i}">${v.activo !== false ? 'Desact.' : 'Activar'}</button>`}
+            </td>
+          </tr>`).join('')}</tbody>
+        </table>`}
+    </div>`;
+
+  cont.addEventListener('click', async e => {
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    const iEdit = e.target.closest('[data-editar-val]')?.dataset.editarVal;
+    const iToggle = e.target.closest('[data-toggle-val]')?.dataset.toggleVal;
+    if (a === 'nuevo-valor') await agregarValorLista(lista, valores, cont);
+    if (a === 'exportar-lista') exportarListaCSV(lista);
+    if (iEdit !== undefined) await editarValorLista(lista, valores, +iEdit, cont);
+    if (iToggle !== undefined) await toggleValorLista(lista, valores, +iToggle, cont);
+    if (a === 'desactivar-lista' && lista.id) {
+      await api.update('listas_configurables', lista.id, { activo: false }).catch(() => {});
+      lista.activo = false;
+      ok('Lista desactivada.');
+      renderDetallelista(cont, lista);
+    }
+    if (a === 'activar-lista' && lista.id) {
+      await api.update('listas_configurables', lista.id, { activo: true }).catch(() => {});
+      lista.activo = true;
+      ok('Lista activada.');
+      renderDetallelista(cont, lista);
+    }
+  });
+}
+
+async function agregarValorLista(lista, valores, cont) {
+  await pedirDatos({
+    titulo: `Agregar valor a: ${lista.nombre}`,
+    campos: [
+      { name: 'valor', label: 'Valor', required: true },
+      { name: 'color', label: 'Color (ej: #2e7d32)', type: 'color' },
+    ],
+    alGuardar: async d => {
+      const nuevosValores = [...valores, { valor: d.valor, color: d.color || null, activo: true }];
+      if (lista.id) {
+        await api.update('listas_configurables', lista.id, { valores: nuevosValores });
+      } else {
+        await api.insert('listas_configurables', { nombre: lista.nombre, valores: nuevosValores, area_id: store.area?.id, activo: true });
+      }
+      lista.valores = nuevosValores;
+      ok('Valor agregado.');
+      renderDetallelista(cont, lista);
+    },
+  });
+}
+
+async function editarValorLista(lista, valores, idx, cont) {
+  const v = valores[idx];
+  if (!v) return;
+  await pedirDatos({
+    titulo: `Editar valor`,
+    valores: { valor: v.valor || v.nombre || v, color: v.color || '' },
+    campos: [
+      { name: 'valor', label: 'Valor', required: true },
+      { name: 'color', label: 'Color', type: 'color' },
+    ],
+    alGuardar: async d => {
+      const nuevosValores = [...valores];
+      nuevosValores[idx] = { ...v, valor: d.valor, color: d.color || null };
+      if (lista.id) await api.update('listas_configurables', lista.id, { valores: nuevosValores });
+      lista.valores = nuevosValores;
+      ok('Valor actualizado.');
+      renderDetallelista(cont, lista);
+    },
+  });
+}
+
+async function toggleValorLista(lista, valores, idx, cont) {
+  const v = valores[idx];
+  if (!v || v.protegido) return;
+  const nuevosValores = [...valores];
+  nuevosValores[idx] = { ...v, activo: v.activo === false };
+  if (lista.id) await api.update('listas_configurables', lista.id, { valores: nuevosValores }).catch(() => {});
+  lista.valores = nuevosValores;
+  renderDetallelista(cont, lista);
+}
+
+function exportarListaCSV(lista) {
+  const filas = (lista.valores || []).map(v => `"${(v.valor || v.nombre || v).replace(/"/g, '""')}","${v.color || ''}","${v.activo !== false ? 'Activo' : 'Inactivo'}"`);
+  const csv = 'Valor,Color,Estado\n' + filas.join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `lista_${lista.nombre.replace(/[^a-z0-9]/gi, '_')}.csv`;
+  a.click();
+}
+
+// ══════════════════════════════════════════════════
+// PARÁMETROS
+// ══════════════════════════════════════════════════
+
+async function panelParametros(el) {
+  let params = {};
+  try { params = (await api.list('parametros', { limit: 1 }))[0] || {}; } catch { /* */ }
+
+  el.innerHTML = cab('Parámetros del sistema', [btn('Guardar', 'guardar', 'btn-primario')]) +
+  `<p class="admin-sub">Valores que controlan el comportamiento del aplicativo. Los cambios son inmediatos para todos los usuarios.</p>
+  <div class="tarjeta" style="padding:20px;margin-top:12px;max-width:560px">
+    <table class="simple">
+      <tbody>
+        <tr><td><b>Meta de PAC (%)</b></td>
+          <td><input class="inp" type="number" id="meta-pac" min="0" max="100" value="${esc(String(params.meta_pac ?? 80))}"></td></tr>
+        <tr><td><b>Umbral ámbar del PAC (%)</b></td>
+          <td><input class="inp" type="number" id="umbral-ambar" min="0" max="100" value="${esc(String(params.umbral_ambar ?? 60))}"></td></tr>
+        <tr><td><b>Semanas de Look Ahead</b></td>
+          <td><input class="inp" type="number" id="sem-la" min="1" max="12" value="${esc(String(params.semanas_la ?? 3))}"></td></tr>
+        <tr><td><b>Día de cierre semanal</b></td>
+          <td><select class="inp" id="dia-cierre">
+            ${['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'].map((d, i) =>
+              `<option value="${i+1}"${(params.dia_cierre||5) === i+1 ? ' selected' : ''}>${d}</option>`).join('')}
+          </select></td></tr>
+        <tr><td><b>Hora de cierre</b></td>
+          <td><input class="inp" type="time" id="hora-cierre" value="${esc(params.hora_cierre || '17:00')}"></td></tr>
+        <tr><td><b>Día de reunión semanal</b></td>
+          <td><select class="inp" id="dia-reunion">
+            ${['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'].map((d, i) =>
+              `<option value="${i+1}"${(params.dia_reunion||5) === i+1 ? ' selected' : ''}>${d}</option>`).join('')}
+          </select></td></tr>
+        <tr><td><b>Hora de reunión</b></td>
+          <td><input class="inp" type="time" id="hora-reunion" value="${esc(params.hora_reunion || '08:00')}"></td></tr>
+        <tr><td><b>Días laborables</b></td>
+          <td>
+            ${['Lu','Ma','Mi','Ju','Vi','Sa','Do'].map((d, i) =>
+              `<label style="margin-right:8px"><input type="checkbox" class="chk-lab" value="${i+1}"
+                ${((params.dias_laborables || [1,2,3,4,5]).includes(i+1)) ? 'checked' : ''}> ${d}</label>`).join('')}
+          </td></tr>
+        <tr><td><b>Días de anticipación de alertas</b></td>
+          <td><input class="inp" type="number" id="dias-alerta" min="0" max="30" value="${esc(String(params.dias_alerta ?? 2))}"></td></tr>
+      </tbody>
+    </table>
+  </div>`;
+
+  el.querySelector('[data-a="guardar"]')?.addEventListener('click', async () => {
+    const diasLab = [...el.querySelectorAll('.chk-lab:checked')].map(c => +c.value);
+    const datos = {
+      meta_pac: +el.querySelector('#meta-pac').value,
+      umbral_ambar: +el.querySelector('#umbral-ambar').value,
+      semanas_la: +el.querySelector('#sem-la').value,
+      dia_cierre: +el.querySelector('#dia-cierre').value,
+      hora_cierre: el.querySelector('#hora-cierre').value,
+      dia_reunion: +el.querySelector('#dia-reunion').value,
+      hora_reunion: el.querySelector('#hora-reunion').value,
+      dias_laborables: diasLab,
+      dias_alerta: +el.querySelector('#dias-alerta').value,
+      area_id: store.area?.id,
+    };
+    try {
+      if (params.id) await api.update('parametros', params.id, datos);
+      else await api.insert('parametros', datos);
+      ok('Parámetros guardados correctamente.');
+    } catch (err) { error(mensajeError(err)); }
+  });
+}
+
+// ══════════════════════════════════════════════════
+// CALENDARIO
+// ══════════════════════════════════════════════════
+
+async function panelCalendario(el) {
+  let semanas = [], feriados = [];
+  const anioActual = new Date().getFullYear();
+  let anio = anioActual;
+
+  const cargarDatos = async () => {
+    try {
+      [semanas, feriados] = await Promise.all([
+        api.list('semanas', { eq: { anio }, order: [['numero', true]] }).catch(() => []),
+        api.list('feriados', { order: [['fecha', true]] }).catch(() => []),
+      ]);
+    } catch { /* */ }
+  };
+
+  await cargarDatos();
+
+  const render = () => {
+    el.innerHTML = cab('Calendario', [
+      btn('+ Agregar feriado', 'nuevo-feriado'),
+      btn('Generar semanas del año', 'gen-semanas', 'btn-primario'),
+    ]) +
+    `<div class="admin-filtros">
+      <label>Año:
+        <select class="inp" id="sel-anio">
+          ${[anioActual - 1, anioActual, anioActual + 1, anioActual + 2].map(a =>
+            `<option value="${a}"${a === anio ? ' selected' : ''}>${a}</option>`).join('')}
+        </select>
+      </label>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px">
+      <div class="tarjeta" style="flex:1;min-width:300px;padding:16px;max-height:480px;overflow-y:auto">
+        <h3 style="margin:0 0 10px">Semanas ${anio}</h3>
+        ${!semanas.length
+          ? `<p style="color:var(--gris-txt)">Sin semanas generadas. Use "Generar semanas del año".</p>`
+          : `<table class="simple" style="font-size:.87em">
+              <thead><tr><th>Semana</th><th>Lunes</th><th>Domingo</th><th>Estado</th></tr></thead>
+              <tbody>${semanas.map(s => `<tr>
+                <td><b>S-${String(s.numero).padStart(2, '0')}</b></td>
+                <td>${s.fecha_inicio || '—'}</td>
+                <td>${s.fecha_fin || '—'}</td>
+                <td>${badge(s.estado || 'abierta', s.estado === 'cerrada' ? '#546E7A' : '#2e7d32')}</td>
+              </tr>`).join('')}</tbody>
+            </table>`}
+      </div>
+      <div class="tarjeta" style="flex:1;min-width:260px;padding:16px;max-height:480px;overflow-y:auto">
+        <h3 style="margin:0 0 10px">Feriados y días no laborables</h3>
+        ${!feriados.length
+          ? `<p style="color:var(--gris-txt)">Sin feriados registrados.</p>`
+          : `<table class="simple" style="font-size:.87em">
+              <thead><tr><th>Fecha</th><th>Descripción</th><th></th></tr></thead>
+              <tbody>${feriados.map(f => `<tr>
+                <td>${esc(f.fecha || '—')}</td>
+                <td>${esc(f.descripcion || '—')}</td>
+                <td><button class="btn btn-xs btn-peligro" data-del-feriado="${f.id}">🗑</button></td>
+              </tr>`).join('')}</tbody>
+            </table>`}
+      </div>
+    </div>`;
+
+    el.querySelector('#sel-anio')?.addEventListener('change', async e => {
+      anio = +e.target.value;
+      await cargarDatos();
+      render();
+    });
+
+    el.addEventListener('click', async e => {
+      const a = e.target.closest('[data-a]')?.dataset.a;
+      const idDel = e.target.closest('[data-del-feriado]')?.dataset.delFeriado;
+      if (a === 'nuevo-feriado') {
+        await pedirDatos({
+          titulo: 'Agregar feriado',
+          campos: [
+            { name: 'fecha', label: 'Fecha', type: 'date', required: true },
+            { name: 'descripcion', label: 'Descripción', required: true },
+          ],
+          alGuardar: async d => {
+            try {
+              await api.insert('feriados', { ...d, area_id: store.area?.id });
+              ok('Feriado registrado.');
+              await cargarDatos();
+              render();
+            } catch (err) { error(mensajeError(err)); }
+          },
+        });
+      }
+      if (a === 'gen-semanas') {
+        const si = await confirmar(
+          `¿Generar las semanas lunes-domingo para el año ${anio}? Las semanas existentes no se sobrescriben.`,
+          { titulo: 'Generar semanas', texto: 'Generar' }
+        );
+        if (!si) return;
+        try {
+          const generadas = generarSemanas(anio);
+          let cont2 = 0;
+          for (const s of generadas) {
+            const existe = semanas.find(x => x.numero === s.numero && x.anio === anio);
+            if (!existe) {
+              await api.insert('semanas', { ...s, anio, area_id: store.area?.id, estado: 'abierta' });
+              cont2++;
+            }
+          }
+          ok(`${cont2} semana(s) generada(s) para el año ${anio}.`);
+          await cargarDatos();
+          render();
+        } catch (err) { error(mensajeError(err)); }
+      }
+      if (idDel) {
+        const si = await confirmar('¿Eliminar este feriado?', { titulo: 'Eliminar', texto: 'Eliminar', peligro: true });
+        if (!si) return;
+        try {
+          await api.removeWhere('feriados', { eq: { id: idDel } });
+          ok('Feriado eliminado.');
+          await cargarDatos();
+          render();
+        } catch (err) { error(mensajeError(err)); }
+      }
+    });
+  };
+
+  render();
+}
+
+function generarSemanas(anio) {
+  const semanas = [];
+  let fecha = new Date(anio, 0, 1);
+  // Ir al primer lunes del año (o antes si es necesario para cubrir S-01)
+  const dow = fecha.getDay(); // 0=Dom
+  if (dow !== 1) {
+    const diff = dow === 0 ? -6 : 1 - dow;
+    fecha.setDate(fecha.getDate() + diff);
+  }
+  let num = 1;
+  while (fecha.getFullYear() <= anio || num <= 53) {
+    const lunes = new Date(fecha);
+    const domingo = new Date(fecha);
+    domingo.setDate(domingo.getDate() + 6);
+    if (lunes.getFullYear() > anio && domingo.getFullYear() > anio) break;
+    semanas.push({
+      numero: num,
+      fecha_inicio: lunes.toISOString().slice(0, 10),
+      fecha_fin: domingo.toISOString().slice(0, 10),
+    });
+    fecha.setDate(fecha.getDate() + 7);
+    num++;
+    if (num > 54) break;
+  }
+  return semanas;
+}
+
+// ══════════════════════════════════════════════════
+// AUDITORÍA
+// ══════════════════════════════════════════════════
+
+async function panelAuditoria(el) {
+  let registros = [];
+  try { registros = await api.list('auditoria', { order: [['created_at', false]], limit: 100 }); } catch { /* */ }
+
+  el.innerHTML = cab('Auditoría', [btn('🖨 Imprimir', 'imprimir')]) +
+  `<p class="admin-sub">Registro de acciones importantes realizadas en el aplicativo (últimas 100).</p>` +
+  (!registros.length
+    ? '<div class="aviso info" style="margin-top:12px">Sin registros. La tabla <code>auditoria</code> debe estar configurada en la base de datos.</div>'
+    : tabla(
+        ['Fecha', 'Usuario', 'Acción', 'Detalle'],
+        registros.map(r => [
+          fmtFechaHora(r.created_at),
+          esc(r.usuario_nombre || '—'),
+          `<code>${esc(r.accion || '—')}</code>`,
+          esc(r.detalle || '—'),
+        ])
+      ));
+
+  el.querySelector('[data-a="imprimir"]')?.addEventListener('click', () => imprimirPanel(el, 'Auditoría'));
+}
+
+// ══════════════════════════════════════════════════
+// Utilidades compartidas
+// ══════════════════════════════════════════════════
 
 function generarClave() {
   const c = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
   const n = crypto.getRandomValues(new Uint32Array(10));
   return Array.from(n, x => c[x % c.length]).join('');
-}
-
-async function eliminarReg(tabla, rec) {
-  if (!rec) return;
-  const si = await confirmar(`¿Eliminar "${esc(rec.nombre)}"?`, { titulo: 'Eliminar', texto: 'Eliminar', peligro: true });
-  if (!si) return;
-  try { await api.removeWhere(tabla, { eq: { id: rec.id } }); ok('Eliminado.'); }
-  catch (e) { error(mensajeError(e)); }
 }
 
 function cab(titulo, botones = []) {
@@ -929,7 +1084,7 @@ function cab(titulo, botones = []) {
 function btn(texto, accion, clase = '') { return { texto, accion, clase }; }
 
 function tabla(cabeceras, filas) {
-  if (!filas.length) return '';
+  if (!filas.length) return '<div class="aviso info" style="margin-top:12px">Sin registros.</div>';
   return `<div class="tarjeta admin-tabla-wrap"><table class="simple">
     <thead><tr>${cabeceras.map(c => `<th>${c}</th>`).join('')}</tr></thead>
     <tbody>${filas.map(celdas => `<tr>${celdas.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody>
@@ -939,7 +1094,9 @@ function tabla(cabeceras, filas) {
 function imprimirPanel(el, titulo) {
   const win = window.open('', '_blank', 'width=900,height=700');
   if (!win) { error('El navegador bloqueó la ventana emergente.'); return; }
-  const estilos = [...document.styleSheets].map(s => { try { return [...s.cssRules].map(r => r.cssText).join('\n'); } catch { return ''; } }).join('\n');
+  const estilos = [...document.styleSheets].map(s => {
+    try { return [...s.cssRules].map(r => r.cssText).join('\n'); } catch { return ''; }
+  }).join('\n');
   const content = el.querySelector?.('.tarjeta, .admin-tabla-wrap, .admin-kpis');
   win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titulo)}</title>
     <style>${estilos}\n@media print{.no-imprimir,.barra-acciones{display:none!important}body{font-size:11pt}}</style>
