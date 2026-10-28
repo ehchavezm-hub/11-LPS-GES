@@ -7,6 +7,7 @@ import { ir } from '../core/router.js';
 import { pedirDatos, ok, error, arrastrable } from './ui.js';
 
 export const NAV = [
+  { grupo: 'Administración' },
   { ruta: '/admin', ico: '⚙', texto: 'Administración', si: esAdmin, prefijo: '/admin' },
   { grupo: 'Planificación' },
   { ruta: '/plan', ico: '📅', texto: 'Plan semanal', si: esStaff },
