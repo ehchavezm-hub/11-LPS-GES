@@ -61,9 +61,15 @@ export async function panelColaboracion(entidad, id, { alCambiar } = {}) {
         alCambiar?.(await cargar());
       }
       const bc = e.target.closest('[data-borrar-com]');
-      if (bc) { await api.remove('comentarios', bc.dataset.borrarCom); alCambiar?.(await cargar()); }
+      if (bc) {
+        if (!await confirmar('¿Eliminar este comentario? Esta acción no se puede deshacer.', { titulo: 'Eliminar comentario', texto: 'Eliminar', peligro: true })) return;
+        await api.remove('comentarios', bc.dataset.borrarCom); alCambiar?.(await cargar());
+      }
       const be = e.target.closest('[data-borrar-enl]');
-      if (be) { await api.remove('enlaces', be.dataset.borrarEnl); alCambiar?.(await cargar()); }
+      if (be) {
+        if (!await confirmar('¿Eliminar este enlace? Esta acción no se puede deshacer.', { titulo: 'Eliminar enlace', texto: 'Eliminar', peligro: true })) return;
+        await api.remove('enlaces', be.dataset.borrarEnl); alCambiar?.(await cargar());
+      }
     } catch (err) { error(mensajeError(err)); }
   });
   await cargar();
