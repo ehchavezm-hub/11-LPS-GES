@@ -41,6 +41,10 @@ export async function render(el, { query }) {
   el.addEventListener('change', async e => {
     const s = e.target.closest('select[data-u]');
     if (!s) return;
+    // Feedback visual inmediato: actualizar color del select antes de que llegue la respuesta
+    const selColor = s.value ? store.valores.get(s.value)?.color : null;
+    s.style.background = selColor ? `color-mix(in srgb,${selColor} 22%,white)` : '';
+    s.closest('td').style.background = selColor ? `color-mix(in srgb,${selColor} 14%,white)` : '';
     try {
       const ex = estado.ubic.find(u => u.usuario_id === s.dataset.u && u.fecha === s.dataset.f);
       if (!s.value) { if (ex) await api.remove('ubicaciones_dia', ex.id); }
@@ -84,7 +88,7 @@ async function pintar() {
         const u = ubic.find(x => x.usuario_id === p.id && x.fecha === f);
         const color = u ? store.valores.get(u.ubicacion_id)?.color : null;
         return `<td style="${color ? `background:color-mix(in srgb, ${color} 14%, white)` : ''}">${editable
-          ? `<select class="sel" data-u="${p.id}" data-f="${f}" style="width:100%"><option value="">—</option>${ops.map(o => `<option value="${o.id}"${u?.ubicacion_id === o.id ? ' selected' : ''}>${esc(o.valor)}</option>`).join('')}</select>`
+          ? `<select class="sel" data-u="${p.id}" data-f="${f}" style="width:100%;${color ? `background:color-mix(in srgb,${color} 22%,white);` : ''}"><option value="">—</option>${ops.map(o => `<option value="${o.id}"${u?.ubicacion_id === o.id ? ' selected' : ''}${o.color ? ` style="background:${o.color}33"` : ''}>${esc(o.valor)}</option>`).join('')}</select>`
           : esc(u ? store.valores.get(u.ubicacion_id)?.valor : '')}</td>`;
       }).join('')}
       <td class="num">${num(horasDia(p.id))}</td><td class="num">${num(cap)}</td><td class="num">${num(hh)}</td>
