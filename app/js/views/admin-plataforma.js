@@ -474,7 +474,8 @@ export async function panelEstructuraTodas(el, ctx, { area = '' } = {}) {
     el.innerHTML = cab(area ? `Estructura de la empresa: ${nombreEmp}` : 'Estructura de todas las empresas',
       area ? 'Portafolio › Programa › Proyecto › Sub-proyecto de esta empresa (en el sub-proyecto se registra el LPS). Es la misma estructura que se ve en Plataforma › «Estructura de todas las empresas».'
         : 'Empresa › Portafolio › Programa › Proyecto › Sub-proyecto (en el sub-proyecto se registra el LPS). Es la misma estructura que cada empresa ve en «Estructura de la empresa»: lo que cambie aquí se refleja allá.',
-      `<button class="btn" data-nuevo="portafolios"${enArea}>+ Portafolio</button><button class="btn" data-nuevo="programas"${enArea}>+ Programa</button><button class="btn" data-nuevo="proyectos"${enArea}>+ Proyecto</button><button class="btn btn-primario" data-a="nuevo-sub">+ Sub-proyecto</button>`) +
+      `<button class="btn" data-nuevo="portafolios"${enArea}>+ Portafolio</button><button class="btn" data-nuevo="programas"${enArea}>+ Programa</button><button class="btn" data-nuevo="proyectos"${enArea}>+ Proyecto</button><button class="btn btn-primario" data-a="nuevo-sub">+ Sub-proyecto</button>
+       <button class="btn" data-a="xl-export">⬇ Descargar XLS</button><label class="btn" title="Cargar proyectos desde XLS">⬆ Cargar XLS<input type="file" accept=".xlsx,.xls" data-a="xl-import" style="display:none"></label>`) +
       `<div class="chips-cifras">
         ${area ? '' : `<span class="chip-cifra"><b>${datos.areas.length}</b> Empresas</span>`}<span class="chip-cifra"><b>${vis(datos.portafolios).length}</b> Portafolios</span>
         <span class="chip-cifra"><b>${vis(datos.programas).length}</b> Programas</span><span class="chip-cifra"><b>${vis(datos.proyectos).filter(p => !p.padre_id).length}</b> Proyectos</span>
@@ -493,6 +494,7 @@ export async function panelEstructuraTodas(el, ctx, { area = '' } = {}) {
     try {
       if (d.vista) { vistaEstructura = d.vista; pintarTodo(); return; }
       if (d.toggle) { contraidos.has(d.toggle) ? contraidos.delete(d.toggle) : contraidos.add(d.toggle); pintarTodo(); return; }
+      if (d.a === 'xl-export') { try { await exportarEstructura(area); } catch (err) { error(mensajeError(err)); } return; }
       if (d.a === 'expandir') { contraidos.clear(); pintarTodo(); return; }
       if (d.a === 'contraer') { datos.areas.forEach(a => contraidos.add('a' + a.id)); datos.portafolios.forEach(f => contraidos.add('f' + f.id)); datos.programas.forEach(g => contraidos.add('g' + g.id)); datos.proyectos.forEach(p => contraidos.add('p' + p.id)); pintarTodo(); return; }
       let cambio = false, area = null;
@@ -515,7 +517,14 @@ export async function panelEstructuraTodas(el, ctx, { area = '' } = {}) {
   });
   el.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.org-caja')) e.target.click(); });
   el.addEventListener('input', e => { if (e.target.matches('[data-buscar]')) filtrarTabla(el); });
-  el.addEventListener('change', e => { if (e.target.matches('[data-mostrar]')) filtrarTabla(el); });
+  el.addEventListener('change', async e => {
+    if (e.target.matches('[data-mostrar]')) { filtrarTabla(el); return; }
+    if (e.target.matches('[data-a="xl-import"]') && e.target.files?.[0]) {
+      try { await importarEstructura(e.target.files[0], area, async () => { await refrescar(area); pintarTodo(); }); }
+      catch (err) { error(mensajeError(err)); }
+      e.target.value = '';
+    }
+  });
   pintarTodo();
 }
 
@@ -655,6 +664,131 @@ function pintarOrganigrama(cuerpo) {
   });
   cuerpo.innerHTML = `<p class="nota">Haga clic en una tarjeta para editarla; 🗑 la elimina y <b>+</b> (en cada proyecto) le agrega un sub-proyecto. Los proyectos se listan en columna bajo su programa, portafolio o empresa. Las cajas naranjas son proyectos (con su administrador) y las azul oscuro, sus sub-proyectos, donde se registra el LPS.</p>
     <div class="org-lienzo">${arboles.join('')}</div>`;
+}
+
+// ---------- Exportar / Importar XLS ----------
+async function exportarEstructura(soloAreaId = '') {
+  await libExcel();
+  const XLSX = window.XLSX;
+  const cabecera = ['Empresa', 'Portafolio', 'Programa', 'Proyecto', 'Código Proyecto', 'Sub-proyecto', 'Código Sub-proyecto', 'Estado'];
+  const filas = [cabecera];
+  const areas = soloAreaId ? datos.areas.filter(a => a.id === soloAreaId) : datos.areas;
+  for (const a of areas) {
+    const ports = datos.portafolios.filter(f => f.area_id === a.id);
+    const progs = datos.programas.filter(g => g.area_id === a.id);
+    const projs = datos.proyectos.filter(p => p.area_id === a.id && !p.padre_id);
+    if (!projs.length) { filas.push([a.nombre, '', '', '', '', '', '', '']); continue; }
+    for (const p of projs) {
+      const prog = progs.find(g => g.id === p.programa_id);
+      const port = ports.find(f => f.id === (p.portafolio_id || prog?.portafolio_id));
+      const subs = datos.proyectos.filter(x => x.padre_id === p.id);
+      if (subs.length) {
+        for (const s of subs)
+          filas.push([a.nombre, port?.nombre || '', prog?.nombre || '', p.nombre_corto, p.codigo || '', s.nombre_corto, s.codigo || '', s.estado]);
+      } else {
+        filas.push([a.nombre, port?.nombre || '', prog?.nombre || '', p.nombre_corto, p.codigo || '', '', '', p.estado]);
+      }
+    }
+  }
+  const ws = XLSX.utils.aoa_to_sheet(filas);
+  ws['!cols'] = cabecera.map((_, i) => ({ wch: [20, 20, 20, 25, 16, 25, 18, 12][i] }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Estructura');
+  XLSX.writeFile(wb, `estructura-${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
+
+async function importarEstructura(file, soloAreaId, alTerminar) {
+  await libExcel();
+  const XLSX = window.XLSX;
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+  if (!rows.length) { error('El archivo está vacío o no tiene el formato esperado.'); return; }
+
+  // Caché local para no re-crear lo que ya existe o ya creamos en esta sesión
+  const portCache = new Map(); // "areaId:nombre" → id
+  const progCache = new Map(); // "areaId:portId:nombre" → id
+  const proyCache = new Map(); // "areaId:codigo|nombre" → id
+
+  const v = k => String(rows[0][k] !== undefined ? k : Object.keys(rows[0]).find(h => h.trim() === k) || k);
+  const col = (row, ...names) => String(names.reduce((acc, n) => acc || row[n] || '', '')).trim();
+
+  // Precargar existentes en caché
+  for (const f of datos.portafolios) portCache.set(`${f.area_id}:${f.nombre}`, f.id);
+  for (const g of datos.programas) {
+    const portId = g.portafolio_id || '';
+    progCache.set(`${g.area_id}:${portId}:${g.nombre}`, g.id);
+  }
+  for (const p of datos.proyectos.filter(x => !x.padre_id)) {
+    proyCache.set(`${p.area_id}:${p.codigo || p.nombre_corto}`, p.id);
+  }
+
+  let creados = 0, omitidos = 0;
+  const crearNodo = async (tabla, areaId, campos) => {
+    const res = await api.adminUsuarios('estructura', { tabla, area_id: areaId, datos: campos });
+    if (tabla === 'portafolios') datos.portafolios.push(res.registro);
+    else if (tabla === 'programas') datos.programas.push(res.registro);
+    else datos.proyectos.push(res.registro);
+    creados++;
+    return res.registro;
+  };
+
+  for (const row of rows) {
+    const nomEmp  = col(row, 'Empresa');
+    const nomPort = col(row, 'Portafolio');
+    const nomProg = col(row, 'Programa');
+    const nomProy = col(row, 'Proyecto');
+    const codProy = col(row, 'Código Proyecto', 'Codigo Proyecto');
+    const nomSub  = col(row, 'Sub-proyecto');
+    const codSub  = col(row, 'Código Sub-proyecto', 'Codigo Sub-proyecto');
+    const estado  = col(row, 'Estado') || 'activo';
+
+    const areaId = soloAreaId || datos.areas.find(a => a.nombre === nomEmp)?.id;
+    if (!areaId) { omitidos++; continue; }
+
+    // Portafolio
+    let portId = null;
+    if (nomPort) {
+      const clave = `${areaId}:${nomPort}`;
+      portId = portCache.get(clave);
+      if (!portId) {
+        const r = await crearNodo('portafolios', areaId, { nombre: nomPort, estado: 'activo' });
+        portId = r.id; portCache.set(clave, portId);
+      }
+    }
+
+    // Programa
+    let progId = null;
+    if (nomProg) {
+      const clave = `${areaId}:${portId || ''}:${nomProg}`;
+      progId = progCache.get(clave);
+      if (!progId) {
+        const r = await crearNodo('programas', areaId, { nombre: nomProg, portafolio_id: portId || null, estado: 'activo' });
+        progId = r.id; progCache.set(clave, progId);
+      }
+    }
+
+    // Proyecto
+    if (!nomProy && !codProy) { omitidos++; continue; }
+    const claveProy = `${areaId}:${codProy || nomProy}`;
+    let proyId = proyCache.get(claveProy);
+    if (!proyId) {
+      const r = await crearNodo('proyectos', areaId, { nombre_corto: nomProy, codigo: codProy || null, programa_id: progId || null, portafolio_id: portId || null, estado });
+      proyId = r.id; proyCache.set(claveProy, proyId);
+    } else { if (!nomSub) omitidos++; }
+
+    // Sub-proyecto
+    if (!nomSub && !codSub) continue;
+    const claveSub = `${areaId}:${proyId}:${codSub || nomSub}`;
+    const subExiste = datos.proyectos.some(p => p.padre_id === proyId && (codSub ? p.codigo === codSub : p.nombre_corto === nomSub));
+    if (!subExiste) {
+      await crearNodo('proyectos', areaId, { nombre_corto: nomSub, codigo: codSub || null, padre_id: proyId, estado });
+    } else { omitidos++; }
+  }
+
+  ok(`Importación completa: ${creados} elemento(s) creado(s), ${omitidos} ya existían o se omitieron.`);
+  await alTerminar();
 }
 
 // ---------- Altas, ediciones y bajas (pasan por el servidor: pueden ser de cualquier empresa) ----------
