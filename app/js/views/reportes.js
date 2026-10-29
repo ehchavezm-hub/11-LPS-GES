@@ -2,7 +2,7 @@
 // "Todo en 1 hoja", nombre del archivo y Guardar PDF). Los datos se leen de la base con los mismos cálculos
 // que las pantallas (PAC, Pareto de CNC, capacidad…) para que el reporte coincida con lo que se ve en la app.
 import { api, mensajeError } from '../data/api.js';
-import { store, lideres, equipo, nombre, proyecto, etiqueta, textoEstado, colorEstado, param, valoresLista, esGestor, esStaff, visibleParaConsulta, semanasLookAhead, enProyectoSel, haySeleccion, nombreSeleccion } from '../core/store.js';
+import { store, on, lideres, equipo, nombre, proyecto, etiqueta, textoEstado, colorEstado, param, valoresLista, esGestor, esStaff, visibleParaConsulta, semanasLookAhead, enProyectoSel, haySeleccion, nombreSeleccion } from '../core/store.js';
 import { lunes, sumarSemanas, sumarDias, etiquetaSemana, esc, html, num, pct, fmtFecha, hoy, DIAS, agrupar } from '../core/util.js';
 import { error } from '../ui/ui.js';
 import { columnasActividad } from '../services/columnas.js';
@@ -267,7 +267,7 @@ const REPORTES = [
 ];
 
 // ---------- Pantalla ----------
-let estado;
+let estado, desuscribir = [];
 
 export async function render(el) {
   const semanas = Array.from({ length: 20 }, (_, i) => sumarSemanas(lunes(), i - 13)).reverse();
@@ -323,6 +323,8 @@ export async function render(el) {
     setTimeout(restaurar, 60000);
     f.contentWindow.focus(); f.contentWindow.print();
   });
+  desuscribir.forEach(f => f()); desuscribir = [];
+  desuscribir.push(on('proyecto', () => generar()));
   await generar();
 }
 
