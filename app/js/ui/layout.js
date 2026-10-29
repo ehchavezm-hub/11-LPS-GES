@@ -22,8 +22,10 @@ export const NAV = [
   { grupo: 'Más' },
   { ruta: '/config/usuarios', ico: '⚙', texto: 'Configuración', si: esGestor, prefijo: '/config' },
   { ruta: '/plantillas', ico: '🧩', texto: 'Plantillas', si: esStaff },
-  { ruta: '/mejoras', ico: '💡', texto: 'Mejoras del aplicativo', si: () => true },
   { ruta: '/ayuda', ico: '❔', texto: 'Ayuda', si: () => true },
+  // Al final del menú y para todos los usuarios de todas las empresas (pedido q7)
+  { grupo: 'Todas las empresas' },
+  { ruta: '/mejoras', ico: '💡', texto: 'Mejoras del aplicativo', si: () => true },
 ];
 
 let filtroProy = '';

@@ -148,10 +148,15 @@ async function atender(req: Request): Promise<Response> {
     const { data: sesion, error: eSesion } = await admin.auth.getUser(jwt);
     if (eSesion || !sesion?.user) return falla('Sesión no válida.', 401);
     const { data: yo } = await admin.from('profiles').select('*').eq('id', sesion.user.id).single();
+    const d = await req.json().catch(() => ({}));
+    // Mejoras del aplicativo (pedido q7): las ven todos los usuarios de todas las empresas; las gestionan los propietarios
+    if (d.accion === 'mejoras' || d.accion === 'gestionar_mejora') {
+      if (!yo?.activo || yo.rol === 'pendiente' || yo.eliminado) return falla('No autorizado.', 403);
+      return await mejoras(admin, yo, d);
+    }
     const { data: permitido } = await comoUsuario.rpc('puede', { p_accion: 'gestionar_usuarios' });
     if (!yo?.activo || !permitido) return falla('No tiene permiso para gestionar usuarios.', 403);
 
-    const d = await req.json().catch(() => ({}));
     const clave = String(d.clave ?? '');
     const accionesEmpresa = ['empresas', 'crear_empresa', 'estado_empresa', 'plataforma', 'editar_empresa', 'eliminar_empresa',
       'usar_empresa', 'cambiar_principal', 'estructura', 'lideres', 'propietario', 'usuario_plataforma', 'auditoria_plataforma',
@@ -222,6 +227,34 @@ async function atender(req: Request): Promise<Response> {
     if (Sentry) { Sentry.captureException(e); await Sentry.flush(2000); }
     return falla(e instanceof Error ? e.message : String(e), 500);
   }
+}
+
+// ---------- Mejoras del aplicativo de todas las empresas ----------
+// deno-lint-ignore no-explicit-any
+async function mejoras(admin: any, yo: any, d: any): Promise<Response> {
+  if (d.accion === 'mejoras') {
+    const { data: items, error: e } = await admin.from('solicitudes_cambio').select('*').order('created_at', { ascending: false }).limit(500);
+    if (e) return falla(e.message);
+    const autores = [...new Set((items ?? []).map((s: any) => s.autor_id).filter(Boolean))];
+    const [{ data: perfiles }, { data: areas }] = await Promise.all([
+      autores.length ? admin.from('profiles').select('id, nombre').in('id', autores) : Promise.resolve({ data: [] }),
+      admin.from('areas').select('id, nombre'),
+    ]);
+    const nom = new Map((perfiles ?? []).map((p: any) => [p.id, p.nombre]));
+    const emp = new Map((areas ?? []).map((a: any) => [a.id, a.nombre]));
+    // Solo lo necesario para la lista: sin correos ni otros datos de las personas
+    return respuesta({ gestiona: !!yo.es_plataforma, mejoras: (items ?? []).map((s: any) => ({ ...s,
+      autor_nombre: nom.get(s.autor_id) ?? '', empresa: emp.get(s.area_id) ?? '' })) });
+  }
+  if (!yo.es_plataforma) return falla('Solo los propietarios de la plataforma gestionan las mejoras de todas las empresas.', 403);
+  const ESTADOS_MEJORA = ['recibida', 'en_analisis', 'aprobada', 'en_desarrollo', 'entregada', 'descartada'];
+  const cambios: Record<string, unknown> = {};
+  if (d.estado !== undefined) { if (!ESTADOS_MEJORA.includes(String(d.estado))) return falla('Estado no válido.'); cambios.estado = String(d.estado); }
+  if (d.prioridad !== undefined) { if (!['alta', 'media', 'baja'].includes(String(d.prioridad))) return falla('Prioridad no válida.'); cambios.prioridad = String(d.prioridad); }
+  if (d.respuesta !== undefined) cambios.respuesta = d.respuesta ? String(d.respuesta).slice(0, 4000) : null;
+  const { data: x, error: e } = await admin.from('solicitudes_cambio').update(cambios).eq('id', String(d.id ?? '')).select().maybeSingle();
+  if (e) return falla(e.message);
+  return x ? respuesta({ registro: x }) : falla('Solicitud no encontrada.', 404);
 }
 
 // ---------- Empresas (administrador de la plataforma) ----------

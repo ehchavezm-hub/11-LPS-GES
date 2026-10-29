@@ -170,6 +170,7 @@ Estado de cada observación al 25/10/2026.
 | 142 (q5) | Migrar la data LPS al sub-proyecto | ⏳ En la base no hay actividades vigentes (las 25 que hubo se borraron desde el aplicativo; están en la auditoría). Lo que sí hay: 55 CET/Servicios de GT ligados al proyecto «0000001 GT-OT», hoy en la empresa Cumbra. Pendiente: confirmar el sub-proyecto de destino | Consulta a la base | Pendiente de respuesta |
 | 143 (q5 bis) | Administración: «Plataforma (Propietario)» y «Empresa (nombre de la empresa)» | ✅ | `a11.js` | ✅ |
 | 144 (q6) | Subir la sección PROYECTOS debajo de Administración | ✅ Menú: Administración → PROYECTOS (árbol con su propio desplazamiento) → Planificación, Seguimiento y Más. Sin Administración, PROYECTOS queda arriba | `q6.js`; humo 160 pantallas | ✅ |
+| 145 (q7) | Mejoras del aplicativo a la vista de todos los usuarios de todas las empresas, al final del menú | ✅ Último grupo del menú («Todas las empresas»). Lista las solicitudes de todas las empresas (empresa y autor); cualquiera crea las suyas; las gestionan los propietarios (y cada empresa las suyas). admin-usuarios v10 | `q7.js` (propietario y líder) | ✅ |
 
 ## Lo que encontró la reconfirmación
 

@@ -528,6 +528,18 @@ export function crearAdaptadorDemo() {
     async adminUsuarios(accion, d = {}) {
       db = cargar();
       const yo = perfil();
+      // Mejoras del aplicativo de todas las empresas (pedido q7): cualquier usuario activo
+      if (accion === 'mejoras' || accion === 'gestionar_mejora') {
+        if (!yo?.activo || yo.rol === 'pendiente') throw new Error('No autorizado.');
+        if (accion === 'mejoras') {
+          const mejoras = [...tabla('solicitudes_cambio')].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))
+            .map(s => ({ ...s, autor_nombre: tabla('profiles').find(p => p.id === s.autor_id)?.nombre || '', empresa: tabla('areas').find(a => a.id === s.area_id)?.nombre || '' }));
+          return { mejoras, gestiona: !!yo.es_plataforma };
+        }
+        if (!yo.es_plataforma) throw new Error('Solo los propietarios de la plataforma gestionan las mejoras de todas las empresas.');
+        const { id, estado, prioridad, respuesta } = d;
+        return await api.update('solicitudes_cambio', id, { estado, prioridad, respuesta });
+      }
       if (!yo || !GESTORES.includes(yo.rol)) throw new Error('No tiene permiso para gestionar usuarios.');
       if (['empresas', 'crear_empresa', 'estado_empresa'].includes(accion)) return empresasDemo(accion, d, yo);
       if (['plataforma', 'editar_empresa', 'eliminar_empresa', 'usar_empresa', 'cambiar_principal', 'estructura', 'lideres', 'propietario',
