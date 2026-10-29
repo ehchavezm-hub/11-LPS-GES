@@ -2,7 +2,7 @@
 // precisión de estimación, PAC ponderado y reconocimientos del mes (M-14).
 import { medir } from '../core/monitoreo.js';
 import { api } from '../data/api.js';
-import { store, on, esStaff, lideres, equipo, visibleParaConsulta, nombre, etiqueta, param, proyecto, valoresLista } from '../core/store.js';
+import { store, on, esStaff, lideres, equipo, visibleParaConsulta, nombre, etiqueta, param, proyecto, valoresLista, enProyectoSel } from '../core/store.js';
 import { lunes, sumarSemanas, numeroSemana, esc, html, pct, num, agrupar, sumarDias, etiquetaSemana } from '../core/util.js';
 import { kpi } from '../ui/ui.js';
 import { resumenPAC, resumenHistorico, colorPAC, paretoCNC, resumenRestricciones, capacidadSemana, colorCarga, semanasPendiente } from '../services/indicadores.js';
@@ -56,7 +56,7 @@ async function cargarDatos() {
 
 function filtrarActs(acts) {
   return acts.filter(a => visibleParaConsulta(a.proyecto_id) && (!estado.gerencia || a.gerencia_id === estado.gerencia || proyecto(a.proyecto_id)?.gerencia_id === estado.gerencia)
-    && (!estado.lider || a.responsable_id === estado.lider) && (!store.proyectoSel || a.proyecto_id === store.proyectoSel));
+    && (!estado.lider || a.responsable_id === estado.lider) && enProyectoSel(a.proyecto_id));
 }
 
 function serieSemanal(acts, hist) {
@@ -87,7 +87,7 @@ function pintar() {
     return c + n ? c / (c + n) : null;
   })();
   const ultima = [...conDato].reverse().find(s => s.semana < lunes());
-  const rr = resumenRestricciones(estado.rests.filter(x => !store.proyectoSel || x.proyecto_id === store.proyectoSel));
+  const rr = resumenRestricciones(estado.rests.filter(x => enProyectoSel(x.proyecto_id)));
   const carteraAb = estado.cartera.filter(c => ['abierta', 'en_proceso', 'nueva'].includes(c.estado) && (!estado.lider || c.responsable_id === estado.lider));
   const arrastres = actsTodas.filter(a => a.semana === lunes() && semanasPendiente(a) >= Number(param('arrastre_alerta') || 2));
   const meta = Number(param('meta_pac'));

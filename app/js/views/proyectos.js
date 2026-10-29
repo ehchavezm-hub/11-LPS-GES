@@ -1,6 +1,6 @@
 // Proyectos (6.3): catálogo que alimenta el menú, propuesta y aprobación, ficha con indicadores e hitos.
 import { api, mensajeError } from '../data/api.js';
-import { store, cargarCatalogo, esGestor, esStaff, esAdmin, puede, opciones, opcionesLideres, lideres, opcionesEstado, colorEstado, textoEstado, etiqueta, nombre, proyecto, seleccionarProyecto, valoresLista, opcionesProyectos, puedeAgregarProyecto, puedeEditarProyecto } from '../core/store.js';
+import { store, cargarCatalogo, esGestor, esStaff, esAdmin, puede, opciones, opcionesLideres, lideres, opcionesEstado, colorEstado, textoEstado, etiqueta, nombre, proyecto, seleccionarProyecto, valoresLista, opcionesProyectos, puedeAgregarProyecto, puedeEditarProyecto, subproyectos } from '../core/store.js';
 import { esc, html, fmtFecha, hoy, num, pct, lunes, sumarSemanas } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -211,6 +211,11 @@ async function eliminarConHistorial(p, usos) {
 // confirmaciones: cuántas preguntas hacer antes de borrar (el botón 🗑 y la ficha hacen dos)
 async function eliminarProyecto(p, { confirmaciones = 2 } = {}) {
   if (!esGestor()) throw new Error('No tiene permiso para eliminar proyectos.');
+  const hijos = subproyectos(p.id);
+  if (hijos.length) {
+    error(`"${p.codigo}" tiene ${hijos.length} sub-proyecto(s). Elimínelos o muévalos primero, o elimínelo con todo desde Administración › Estructura.`);
+    return false;
+  }
   const usos = await usosDeProyecto(p.id);
   if (usos.length) return proyectoConHistorial(p, usos);
   if (confirmaciones >= 2 && !await confirmar(`¿Eliminar el proyecto "${p.codigo} · ${p.nombre_corto}"? No tiene actividades ni otros registros.`,
@@ -363,11 +368,13 @@ async function asignarLideres(p) {
 async function ficha(el, id) {
   const p = proyecto(id);
   if (!p) { el.innerHTML = vacio('Proyecto no encontrado o sin permiso para verlo.'); return; }
+  // Un proyecto con sub-proyectos suma lo registrado en ellos (el LPS se registra en los sub-proyectos)
+  const ids = { in: { proyecto_id: [id, ...subproyectos(id).map(s => s.id)] } };
   const [acts, rests, hitos, cartera] = await Promise.all([
-    api.list('actividades', { eq: { proyecto_id: id } }),
-    esStaff() ? api.list('restricciones', { eq: { proyecto_id: id } }) : Promise.resolve([]),
+    api.list('actividades', ids),
+    esStaff() ? api.list('restricciones', ids) : Promise.resolve([]),
     esStaff() ? api.list('hitos', { eq: { proyecto_id: id }, order: [['fecha', true]] }) : Promise.resolve([]),
-    esStaff() ? api.list('cartera', { eq: { proyecto_id: id } }) : Promise.resolve([]),
+    esStaff() ? api.list('cartera', ids) : Promise.resolve([]),
   ]);
   const r = resumenPAC(acts);
   const rr = resumenRestricciones(rests);

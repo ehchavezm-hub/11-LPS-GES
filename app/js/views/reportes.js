@@ -2,7 +2,7 @@
 // "Todo en 1 hoja", nombre del archivo y Guardar PDF). Los datos se leen de la base con los mismos cálculos
 // que las pantallas (PAC, Pareto de CNC, capacidad…) para que el reporte coincida con lo que se ve en la app.
 import { api, mensajeError } from '../data/api.js';
-import { store, lideres, equipo, nombre, proyecto, etiqueta, textoEstado, colorEstado, param, valoresLista, esGestor, esStaff, visibleParaConsulta, semanasLookAhead } from '../core/store.js';
+import { store, lideres, equipo, nombre, proyecto, etiqueta, textoEstado, colorEstado, param, valoresLista, esGestor, esStaff, visibleParaConsulta, semanasLookAhead, enProyectoSel } from '../core/store.js';
 import { lunes, sumarSemanas, sumarDias, etiquetaSemana, esc, html, num, pct, fmtFecha, hoy, DIAS, agrupar } from '../core/util.js';
 import { error } from '../ui/ui.js';
 import { columnasActividad } from '../services/columnas.js';
@@ -12,7 +12,7 @@ import { tablaPDF, kpisPDF, documentoReporte, nombreProyectoActual, nombreArchiv
 
 // ---------- Utilidades de los reportes ----------
 const badge = (t, c) => (t ? `<span class="badge" style="--c:${c || '#4E79A7'}">${esc(t)}</span>` : '');
-const delProyecto = a => !store.proyectoSel || a.proyecto_id === store.proyectoSel;
+const delProyecto = a => enProyectoSel(a.proyecto_id);   // incluye los sub-proyectos, como el Plan semanal y el Look Ahead
 const delResp = (f, campo = 'responsable_id') => (!f.resp || f.resp === 'todos' ? () => true : x => x[campo] === f.resp);
 
 /** Columnas de PDF a partir de las mismas definiciones de las grillas (títulos, orden, anchos y texto de cada celda). */
