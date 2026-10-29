@@ -357,8 +357,8 @@ export async function panelEstructuraTodas(el, ctx) {
   const pintarTodo = () => {
     const vivos = datos.proyectos.filter(p => !['cerrado', 'rechazado'].includes(p.estado));
     const sinAdmin = vivos.filter(p => !lideresEf(p).length).length;
-    el.innerHTML = cab('Estructura de todas las empresas', 'Empresa › Portafolio › Programa › Proyecto. Es la misma estructura que cada empresa ve en «Estructura de la empresa»: lo que cambie aquí se refleja allá.',
-      `<button class="btn" data-nuevo="portafolios">+ Portafolio</button><button class="btn" data-nuevo="programas">+ Programa</button><button class="btn btn-primario" data-nuevo="proyectos">+ Proyecto</button>`) +
+    el.innerHTML = cab('Estructura de todas las empresas', 'Empresa › Portafolio › Programa › Proyecto › Sub-proyecto (en el sub-proyecto se registra el LPS). Es la misma estructura que cada empresa ve en «Estructura de la empresa»: lo que cambie aquí se refleja allá.',
+      `<button class="btn" data-nuevo="portafolios">+ Portafolio</button><button class="btn" data-nuevo="programas">+ Programa</button><button class="btn" data-nuevo="proyectos">+ Proyecto</button><button class="btn btn-primario" data-a="nuevo-sub">+ Sub-proyecto</button>`) +
       `<div class="chips-cifras">
         <span class="chip-cifra"><b>${datos.areas.length}</b> Empresas</span><span class="chip-cifra"><b>${datos.portafolios.length}</b> Portafolios</span>
         <span class="chip-cifra"><b>${datos.programas.length}</b> Programas</span><span class="chip-cifra"><b>${datos.proyectos.filter(p => !p.padre_id).length}</b> Proyectos</span>
@@ -380,6 +380,12 @@ export async function panelEstructuraTodas(el, ctx) {
       if (d.a === 'expandir') { contraidos.clear(); pintarTodo(); return; }
       if (d.a === 'contraer') { datos.areas.forEach(a => contraidos.add('a' + a.id)); datos.portafolios.forEach(f => contraidos.add('f' + f.id)); datos.programas.forEach(g => contraidos.add('g' + g.id)); datos.proyectos.forEach(p => contraidos.add('p' + p.id)); pintarTodo(); return; }
       let cambio = false, area = null;
+      if (d.a === 'nuevo-sub') {
+        // Nivel Sub-proyecto (pedido Q2): primero se elige el proyecto al que pertenece
+        const padre = await elegirProyectoPadre();
+        if (!padre) return;
+        const r = await editarNodo('proyectos', null, { area: padre.area_id, padre: padre.id }); cambio = !!r; area = r?.area_id;
+      }
       if (d.nuevo) { const r = await editarNodo(d.nuevo, null, { area: d.area, portafolio: d.portafolio, programa: d.programa, padre: d.padre }); cambio = !!r; area = r?.area_id; }
       if (d.editar) { const x = datos[d.tabla].find(r => r.id === d.editar); cambio = !!await editarNodo(d.tabla, x, {}); area = x?.area_id; }
       if (d.eliminar) { const x = datos[d.tabla].find(r => r.id === d.eliminar); cambio = await eliminarNodo(d.tabla, x); area = x?.area_id; }
@@ -483,12 +489,27 @@ function filtrarTabla(el) {
   });
 }
 
+// Proyecto al que se agrega un sub-proyecto: solo proyectos (no sub-proyectos), con su empresa
+function elegirProyectoPadre() {
+  const opciones = datos.proyectos.filter(p => !p.padre_id && !['cerrado', 'rechazado'].includes(p.estado))
+    .map(p => ({ value: p.id, label: `${empresa(p.area_id)?.nombre || ''} › ${p.codigo} · ${p.nombre_corto}` }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+  if (!opciones.length) { error('Primero cree un proyecto: el sub-proyecto pertenece a un proyecto.'); return Promise.resolve(null); }
+  let elegido = null;
+  return pedirDatos({
+    titulo: 'Nuevo sub-proyecto', antes: 'Elija el proyecto al que pertenece. El sub-proyecto hereda su empresa, portafolio, programa y líderes; en él se registra el LPS (Look Ahead y Plan semanal).',
+    campos: [{ name: 'padre_id', label: 'Proyecto', type: 'select', required: true, full: true, options: opciones }],
+    alGuardar: d => { elegido = datos.proyectos.find(p => p.id === d.padre_id) || null; },
+  }).then(() => elegido);
+}
+
 // Organigrama (como el lienzo «Estructura de Proyectos»): cajas por nivel unidas con líneas
 function pintarOrganigrama(cuerpo) {
   // Cada tarjeta se edita con un clic sobre ella (pedido 14)
   const TABLA = { portafolio: 'portafolios', programa: 'programas', proyecto: 'proyectos', subproyecto: 'proyectos' };
-  const caja = (tipo, titulo, sub, id) => `<div class="org-caja org-${tipo}" role="button" tabindex="0" title="Clic para editar"
+  const caja = (tipo, titulo, sub, id, areaSub) => `<div class="org-caja org-${tipo}" role="button" tabindex="0" title="Clic para editar"
       ${tipo === 'empresa' ? `data-editar-empresa="${id}"` : `data-editar="${id}" data-tabla="${TABLA[tipo]}"`}><b>${esc(titulo)}</b><small>${esc(sub)}</small>
+      ${areaSub ? `<button class="org-mas" title="Agregar sub-proyecto" aria-label="Agregar sub-proyecto a ${esc(titulo)}" data-nuevo="proyectos" data-area="${areaSub}" data-padre="${id}">+</button>` : ''}
       ${tipo === 'empresa' && id === datos.mi_area ? '' : `<button class="org-borrar" title="Eliminar" aria-label="Eliminar ${esc(titulo)}"
         ${tipo === 'empresa' ? `data-eliminar-empresa="${id}"` : `data-eliminar="${id}" data-tabla="${TABLA[tipo]}"`}>🗑</button>`}</div>`;
   // Portafolios y programas se abren en horizontal; los proyectos (y sus sub-proyectos) se apilan en vertical (pedido 20)
@@ -498,7 +519,7 @@ function pintarOrganigrama(cuerpo) {
     return `<li>${htmlCaja}${ramas.length ? `<ul>${ramas.join('')}</ul>` : proyectos.length ? columna(proyectos) : ''}</li>`;
   };
   const sub = p => nodo(caja('subproyecto', p.nombre_corto, 'Sub-proyecto', p.id), []);
-  const proy = p => nodo(caja('proyecto', p.nombre_corto, `Proyecto${lideresDe(p.id).length ? ' · ' + lideresDe(p.id).map(nombreCorto).join(', ') : ''}`, p.id), [], subDe(p).map(sub));
+  const proy = p => nodo(caja('proyecto', p.nombre_corto, `Proyecto${lideresDe(p.id).length ? ' · ' + lideresDe(p.id).map(nombreCorto).join(', ') : ''}`, p.id, p.area_id), [], subDe(p).map(sub));
   const raiz = arr => arr.filter(p => !p.padre_id);
   const prog = g => nodo(caja('programa', g.nombre, 'Programa', g.id), [], raiz(datos.proyectos.filter(p => p.programa_id === g.id)).map(proy));
   const arboles = datos.areas.map(a => {
@@ -511,7 +532,7 @@ function pintarOrganigrama(cuerpo) {
     return `<div class="org-arbol"><ul>${nodo(caja('empresa', a.nombre, 'Empresa', a.id), hijos,
       raiz(proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id)).map(proy))}</ul></div>`;
   });
-  cuerpo.innerHTML = `<p class="nota">Haga clic en una tarjeta para editarla; 🗑 la elimina. Los proyectos se listan en columna bajo su programa, portafolio o empresa. Las cajas naranjas son proyectos (con su administrador) y las azul oscuro, sus sub-proyectos, donde se registra el LPS.</p>
+  cuerpo.innerHTML = `<p class="nota">Haga clic en una tarjeta para editarla; 🗑 la elimina y <b>+</b> (en cada proyecto) le agrega un sub-proyecto. Los proyectos se listan en columna bajo su programa, portafolio o empresa. Las cajas naranjas son proyectos (con su administrador) y las azul oscuro, sus sub-proyectos, donde se registra el LPS.</p>
     <div class="org-lienzo">${arboles.join('')}</div>`;
 }
 

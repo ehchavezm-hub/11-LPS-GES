@@ -429,8 +429,8 @@
 .org-arbol ul.org-v > li::after { display: none; }
 .org-arbol ul.org-v > li::before { border: 0; border-left: 1.5px solid #7fb3c8; width: 0; height: 10px; left: 50%; right: auto; }
 .org-arbol ul.org-v > li:first-child::before { display: none; }
-.org-arbol ul.org-v ul.org-v { padding-top: 10px; }
-.org-arbol ul.org-v ul.org-v::before { height: 10px; border-left-style: dashed; }
+.org-arbol ul.org-v ul.org-v { padding-top: 10px; position: relative; left: 30px; }   /* sub-proyectos: corridos bajo su proyecto */
+.org-arbol ul.org-v ul.org-v::before { height: 10px; border-left-style: dashed; left: calc(50% - 30px); }
 .org-arbol li.org-grupo { padding-left: 8px; padding-right: 8px; }
 .admin-quien { border: 1px solid #cfe0ea; background: #f3f9fc; border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; }
 .admin-quien > .nota { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
@@ -441,3 +441,7 @@
   font-size: 11px; line-height: 1; cursor: pointer; opacity: 0; transition: opacity .15s; padding: 0; }
 .org-caja:hover .org-borrar, .org-caja:focus-within .org-borrar, .org-borrar:focus-visible { opacity: 1; }
 .org-borrar:hover { background: #fdecec; }
+/* + en cada proyecto: agrega un sub-proyecto (pedido Q2) */
+.org-mas { position: absolute; bottom: -9px; right: -9px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid #1A365D; background: #1f2f5c;
+  color: #fff; font-weight: 800; line-height: 18px; font-size: 15px; cursor: pointer; padding: 0; z-index: 2; }
+.org-mas:hover, .org-mas:focus-visible { background: #0b6f86; outline: none; }

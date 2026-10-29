@@ -14,6 +14,78 @@
 // La clave secreta (service_role) solo existe aquí, en el servidor de Supabase: nunca en el navegador.
 // El usuario debe cambiar la contraseña asignada en su siguiente ingreso (profiles.debe_cambiar_clave).
 import { createClient } from 'npm:@supabase/supabase-js@2.117.3';
+import postgres from 'npm:postgres@3.4.5';
+
+// Borrados completos en UNA transacción directa a la base (conexión SUPABASE_DB_URL del servidor), para cuando las
+// funciones de las migraciones 025/026 aún no están instaladas. Con ellas instaladas se usan esas funciones.
+const funcionFaltante = (e: { message?: string } | null) => !!e && /Could not find the function|schema cache/i.test(e.message ?? '');
+async function enTransaccion<T>(trabajo: (tx: postgres.TransactionSql) => Promise<T>): Promise<T> {
+  const url = Deno.env.get('SUPABASE_DB_URL');
+  if (!url) throw new Error('Falta instalar la migración de borrado en la base (025/026).');
+  const sql = postgres(url, { max: 1, prepare: false });
+  try { return await sql.begin(trabajo) as T; } finally { await sql.end({ timeout: 5 }); }
+}
+// Mismo orden que public.eliminar_empresa (migración 025)
+const BORRADO_EMPRESA = [
+  'delete from public.restricciones where area_id = $1', 'delete from public.acuerdos where area_id = $1',
+  'delete from public.reuniones where area_id = $1', 'delete from public.hitos where area_id = $1',
+  'delete from public.actividades where area_id = $1', 'delete from public.cartera where area_id = $1',
+  'delete from public.cierres where area_id = $1', 'delete from public.pac_historico where area_id = $1',
+  'delete from public.ubicaciones_dia where area_id = $1', 'delete from public.comentarios where area_id = $1',
+  'delete from public.enlaces where area_id = $1', 'delete from public.solicitudes_cambio where area_id = $1',
+  `delete from public.plantilla_items where plantilla_id in (select id from public.plantillas where area_id = $1)
+     or proyecto_id in (select id from public.proyectos where area_id = $1)`,
+  'delete from public.plantillas where area_id = $1',
+  'delete from public.proyecto_lideres where proyecto_id in (select id from public.proyectos where area_id = $1)',
+  'delete from public.proyecto_favoritos where proyecto_id in (select id from public.proyectos where area_id = $1)',
+  'delete from public.proyectos where area_id = $1 and padre_id is not null', 'delete from public.proyectos where area_id = $1',
+  'delete from public.programas where area_id = $1', 'delete from public.portafolios where area_id = $1',
+  'delete from public.vistas where area_id = $1', 'delete from public.columnas_personalizadas where area_id = $1',
+  'delete from public.organigrama_nodos where area_id = $1', 'delete from public.delegado_historial where area_id = $1',
+  'delete from public.permisos where area_id = $1', 'delete from public.parametros where area_id = $1',
+  'delete from public.notificaciones where usuario_id in (select id from public.profiles where area_id = $1)',
+  'delete from public.profiles where area_id = $1',
+  'delete from public.lista_valores where lista_id in (select id from public.listas where area_id = $1)',
+  'delete from public.listas where area_id = $1', 'delete from public.auditoria where area_id = $1',
+  'delete from public.areas where id = $1',
+];
+async function eliminarEmpresaDirecto(area: string) {
+  await enTransaccion(async tx => {
+    await tx`select set_config('lpsgt.eliminando_empresa', 'on', true), set_config('lpsgt.cierre_en_curso', 'on', true)`;
+    // Los valores protegidos (p. ej. «Completado») no se pueden borrar uno a uno; al eliminar la empresa completa sí.
+    // Solo dentro de esta transacción: si algo falla, todo vuelve atrás, también esta regla.
+    await tx.unsafe('alter table public.lista_valores disable trigger trg_proteger_valor');
+    for (const q of BORRADO_EMPRESA) await tx.unsafe(q, [area]);
+    await tx.unsafe('alter table public.lista_valores enable trigger trg_proteger_valor');
+  });
+}
+// Mismo orden que public.eliminar_proyecto_plataforma (migración 026)
+async function eliminarProyectoDirecto(id: string) {
+  return await enTransaccion(async tx => {
+    await tx`select set_config('lpsgt.cierre_en_curso', 'on', true)`;
+    const ids = (await tx`select id from public.proyectos where id = ${id} or padre_id = ${id}`).map(r => r.id);
+    const acts = (await tx`select id from public.actividades where proyecto_id = any(${ids}::uuid[])`).map(r => r.id);
+    const rests = (await tx`select id from public.restricciones where proyecto_id = any(${ids}::uuid[]) or actividad_id = any(${acts}::uuid[])`).map(r => r.id);
+    const cart = (await tx`select id from public.cartera where proyecto_id = any(${ids}::uuid[])`).map(r => r.id);
+    for (const t of ['comentarios', 'enlaces']) {
+      await tx.unsafe(`delete from public.${t} where (entidad = 'actividad' and entidad_id = any($1::uuid[]))
+        or (entidad = 'restriccion' and entidad_id = any($2::uuid[])) or (entidad = 'cartera' and entidad_id = any($3::uuid[]))
+        or (entidad = 'proyecto' and entidad_id = any($4::uuid[]))`, [acts, rests, cart, ids]);
+    }
+    await tx`delete from public.restricciones where id = any(${rests}::uuid[])`;
+    await tx`update public.actividades set cartera_id = null where cartera_id = any(${cart}::uuid[])`;
+    await tx`delete from public.actividades where id = any(${acts}::uuid[])`;
+    await tx`delete from public.cartera where id = any(${cart}::uuid[])`;
+    await tx`delete from public.plantilla_items where proyecto_id = any(${ids}::uuid[])`;
+    await tx`update public.lista_valores set extra = extra - 'proyecto_id' where extra ->> 'proyecto_id' = any(${ids.map(String)}::text[])`;
+    await tx`delete from public.proyecto_lideres where proyecto_id = any(${ids}::uuid[])`;
+    await tx`delete from public.proyecto_favoritos where proyecto_id = any(${ids}::uuid[])`;
+    await tx`delete from public.hitos where proyecto_id = any(${ids}::uuid[])`;
+    await tx`delete from public.proyectos where padre_id = ${id}`;
+    await tx`delete from public.proyectos where id = ${id}`;
+    return { subproyectos: ids.length - 1, actividades: acts.length, restricciones: rests.length, cartera: cart.length };
+  });
+}
 
 // Monitoreo opcional: secreto SENTRY_DSN de la función (supabase secrets set SENTRY_DSN=...).
 // Sin datos personales: no se envían correos, contraseñas ni el cuerpo de la solicitud.
@@ -293,7 +365,11 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
     // Todo en una transacción (public.eliminar_empresa, migración 025): o se elimina completa, con todos sus datos,
     // o no cambia nada. El aplicativo pide escribir el nombre de la empresa para confirmar.
     const { error: e } = await admin.rpc('eliminar_empresa', { p_area: area });
-    if (e) return falla(e.message);
+    if (funcionFaltante(e)) {
+      const { count: plat } = await admin.from('profiles').select('id', { count: 'exact', head: true }).eq('area_id', area).eq('es_plataforma', true);
+      if (plat) return falla('Un propietario de la plataforma está trabajando en esa empresa. Que abra otra empresa primero.');
+      try { await eliminarEmpresaDirecto(area); } catch (err) { return falla((err as Error).message); }
+    } else if (e) return falla(e.message);
     for (const u of usuarios ?? []) await admin.auth.admin.deleteUser(u.id);
     return respuesta({ ok: true });
   }
@@ -321,6 +397,9 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
       if (tabla === 'proyectos' && d.completo) {
         // Con su historial y sus sub-proyectos, en una transacción (public.eliminar_proyecto_plataforma, migración 026)
         const { data: r, error: e } = await admin.rpc('eliminar_proyecto_plataforma', { p_proyecto: x.id });
+        if (funcionFaltante(e)) {
+          try { return respuesta({ ok: true, eliminado: await eliminarProyectoDirecto(x.id) }); } catch (err) { return falla((err as Error).message); }
+        }
         return e ? falla(e.message) : respuesta({ ok: true, eliminado: r });
       }
       if (tabla === 'proyectos') {
