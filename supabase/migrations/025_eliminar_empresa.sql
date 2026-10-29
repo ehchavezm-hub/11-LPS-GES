@@ -10,7 +10,7 @@ set client_min_messages = warning;
 
 -- La protección de valores no aplica mientras se elimina una empresa completa
 create or replace function public.tg_proteger_valor() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = public, pg_temp as $$
 begin
   if coalesce(current_setting('lpsgt.eliminando_empresa', true), '') = 'on' then
     return coalesce(old, new);

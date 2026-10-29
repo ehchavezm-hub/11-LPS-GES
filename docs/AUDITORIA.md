@@ -74,3 +74,23 @@ Supabase pide tu aprobación para ejecutar SQL que modifica la base. Dos opcione
 1. En Claude: Configuración › Conectores › Supabase › permitir siempre *apply_migration* / *execute_sql*, y pedirme que las aplique; o
 2. En Supabase › SQL Editor: pegar y ejecutar, en este orden, `supabase/migrations/025_eliminar_empresa.sql`,
    `026_eliminar_proyecto_plataforma.sql`, `027_auditoria_seguridad_rendimiento.sql` y `028_vistas_sin_duplicados.sql`.
+
+## Auditoría 2 (después de sub-proyectos, agregación, Desactivar y Mejoras)
+
+Estado de la base verificado en Supabase: 025–028 y la migración de datos del pedido 14 están aplicadas (funciones de
+borrado, 55 índices, índice único de vistas, `get_propietarios` cerrada, 55 CET/Servicios en GT_OT, proyecto antiguo
+eliminado). Las alertas de las 14 reglas fila por fila, las 55 llaves sin índice y los índices duplicados desaparecieron.
+
+| # | Hallazgo | Criticidad | Impacto | Solución | Estado |
+|---|----------|-----------|---------|----------|--------|
+| 1 | `tg_proteger_valor` quedó sin `search_path` fijo al reescribirla en 025 (no conformidad propia) | **Medio** (seguridad) | Una función de la base podría resolver nombres en otro esquema | 029 y archivo 025 del repositorio corregidos | ⏳ Aplicar 029 |
+| 2 | 11 tablas con una regla «para todo» que también lee + una regla de lectura: ambas se evaluaban en cada consulta | **Bajo** (rendimiento) | Costo extra en cada lectura al crecer los datos | 029: reglas de alta, cambio y baja copiadas de la base (mismas condiciones) y la lectura solo en `*_sel`; verificado que `*_sel` cubre a quien podía escribir. Ubicaciones: cada persona sigue leyendo las suyas | ⏳ Aplicar 029 (pruebas de permisos OK en local) |
+| 3 | `areas`: dos reglas de lectura | **Bajo** | Igual que 2 | 029: una sola regla (empresa propia o propietario) | ⏳ Aplicar 029 |
+| 4 | Reporte «Catálogo de proyectos»: los sub-proyectos aparecían sueltos, sin su proyecto | **Bajo** (consistencia) | Lectura confusa del catálogo | Cada sub-proyecto va bajo su proyecto, con la columna «Sub-proyecto de» | ✅ |
+| 5 | Super administrador de una empresa (no propietario): su «Estructura de la empresa» no tiene aún Desactivar ni «+ Sub-proyecto» (los propietarios sí) | **Bajo** (hoy no hay ese caso: ninguna empresa tiene super administrador asignado) | Diferencia de funciones entre roles | Recomendado cuando se asigne el primero: abrir la vista de dos pestañas a ese rol, limitada a su empresa | Recomendación |
+| 6 | Reunión semanal no filtra por el proyecto o nivel elegido en el menú | **Bajo** (diseño) | La reunión es del equipo completo | Se mantiene así a propósito | Conforme |
+
+Revisados y conformes: la agregación de abajo hacia arriba (sub-proyecto → proyecto → programa → portafolio → empresa) en
+Plan, Look Ahead, Restricciones, Cartera, Tablero, Reportes, Resumen y PDF; los CET/Servicios heredados por los
+sub-proyectos; Desactivar en cascada; Mejoras de todas las empresas (solo nombre del autor y de la empresa, sin correos).
+Las alertas restantes son funciones que validan el rol por dentro o `registro_abierto` (pública a propósito).
