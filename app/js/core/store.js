@@ -241,9 +241,9 @@ export function proyectoDeServicio(id) { return (id && store.valores.get(id)?.ex
  * Opciones de CET / Servicio para elegir: si se indica un proyecto, solo los de ese proyecto y los que no tienen proyecto
  * (si el proyecto no tiene ninguno asociado, se ofrecen todos). etiqueta(v) arma el texto de cada opción.
  */
-export function opcionesServicio({ proyectoId = null, etiqueta: etq = v => (v.codigo ? `${v.codigo} · ${v.valor}` : v.valor), vacio = true } = {}) {
-  let vs = valoresLista('servicios');
-  if (proyectoId && vs.some(v => servicioSirve(v.extra?.proyecto_id, proyectoId))) vs = vs.filter(v => !v.extra?.proyecto_id || servicioSirve(v.extra.proyecto_id, proyectoId));
+export function opcionesServicio({ proyectoId: _pId = null, etiqueta: etq = v => (v.codigo ? `${v.codigo} · ${v.valor}` : v.valor), vacio = true } = {}) {
+  // s17: un sub-proyecto puede atender a un CET/Servicio de cualquier proyecto de la empresa
+  const vs = valoresLista('servicios');
   const ops = vs.map(v => ({ value: v.id, label: etq(v) }));
   return vacio ? [{ value: null, label: '—' }, ...ops] : ops;
 }

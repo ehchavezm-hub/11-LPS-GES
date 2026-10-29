@@ -106,11 +106,9 @@ export function derivarProyectoServicio(fila, cambios) {
     const p = proyecto(cambios.proyecto_id);
     if (p?.gerencia_id) d.gerencia_id = p.gerencia_id;
     const serv = servicioDeProyecto(p);
-    const otro = proyectoDeServicio(fila.servicio_id);
-    // Proyecto con un solo CET / Servicio: se usa ese, salvo que la fila ya tenga uno de este mismo proyecto.
-    // Si el de la fila pertenece a otro proyecto, se reemplaza (o se limpia).
-    if (serv && !servicioSirve(otro, p?.id)) d.servicio_id = serv;
-    else if (fila.servicio_id && otro && !servicioSirve(otro, p?.id)) d.servicio_id = null;
+    // s17: si la fila aún no tiene CET/Servicio y el proyecto tiene uno solo, se auto-rellena.
+    // No se reemplaza ni limpia un servicio ya elegido: cualquier CET/Servicio es válido para cualquier proyecto.
+    if (serv && !fila.servicio_id) d.servicio_id = serv;
   }
   if ('_cet' in cambios) d.servicio_id = cambios._cet ?? null;            // CET elegido → su Servicio
   // Servicio de un proyecto elegido en una fila sin proyecto: se completan el proyecto y su gerencia
