@@ -296,8 +296,15 @@ export async function nuevoCETServicio({ proyectoId = null } = {}) {
 }
 
 /** Alta de proyecto: crea (administrador, delegado o líder con "agregar_proyecto") o propone. */
-export async function formularioProyecto(p = null) {
+// sub: alta de un sub-proyecto (botón «+ Agregar» del menú SUB-PROYECTOS, pedido q10): se elige el proyecto al que
+// pertenece y hereda de él la gerencia, el portafolio y el programa
+export async function formularioProyecto(p = null, { sub = false } = {}) {
   const crea = puedeAgregarProyecto();
+  const raices = store.proyectos.filter(x => !x.padre_id && x.id !== p?.id && !['cerrado', 'rechazado'].includes(x.estado));
+  if (sub && !raices.length) { error('Primero cree un proyecto (en Administración › Estructura): el sub-proyecto pertenece a un proyecto.'); return; }
+  // Proyecto sugerido: el elegido en el menú (o el padre del sub-proyecto elegido)
+  const sel = store.proyectoSel && store.proyectos.find(x => x.id === store.proyectoSel);
+  const padreSugerido = sel ? (sel.padre_id || sel.id) : (raices.length === 1 ? raices[0].id : '');
   // Jerarquía de la empresa: Portafolio → Programa → Proyecto (ambos opcionales)
   const [portafolios, programas] = await Promise.all([
     api.list('portafolios', { eq: { area_id: store.area.id }, order: [['nombre', true]] }).catch(() => []),
@@ -305,10 +312,22 @@ export async function formularioProyecto(p = null) {
   ]);
   const nomPort = id => portafolios.find(x => x.id === id)?.nombre;
   const d = await pedirDatos({
-    titulo: p ? 'Editar proyecto' : crea ? 'Nuevo proyecto' : 'Proponer proyecto', texto: p ? 'Guardar' : crea ? 'Crear' : 'Enviar propuesta',
-    antes: !crea && !p ? 'El proyecto quedará "Propuesto" hasta que el administrador lo apruebe. Mientras tanto ya puede registrar actividades en él.' : '',
-    valores: p || { estado: 'activo' },
-    campos: [
+    titulo: p ? 'Editar proyecto' : sub ? (crea ? 'Nuevo sub-proyecto' : 'Proponer sub-proyecto') : crea ? 'Nuevo proyecto' : 'Proponer proyecto',
+    texto: p ? 'Guardar' : crea ? 'Crear' : 'Enviar propuesta',
+    antes: [sub ? 'El sub-proyecto pertenece a un proyecto: hereda su gerencia, portafolio, programa y líderes. En él se registra el LPS (Look Ahead y Plan semanal).' : '',
+      !crea && !p ? 'Quedará "Propuesto" hasta que el administrador lo apruebe. Mientras tanto ya puede registrar actividades en él.' : ''].filter(Boolean).join(' '),
+    valores: p || { estado: 'activo', ...(sub ? { padre_id: padreSugerido } : {}) },
+    campos: sub ? [
+      { name: 'padre_id', label: 'Proyecto al que pertenece', type: 'select', required: true, full: true,
+        options: [{ value: '', label: '— Elija el proyecto —' }, ...raices.map(x => ({ value: x.id, label: `${x.codigo} · ${x.nombre_corto}` }))] },
+      { name: 'codigo', label: 'Código', required: true, placeholder: 'Ej.: GT-OT-003' },
+      { name: 'nombre_corto', label: 'Nombre corto (menú)', required: true },
+      { name: 'nombre_completo', label: 'Nombre completo' },
+      { name: 'fase_id', label: 'Fase', type: 'select', options: opciones('fases') },
+      { name: 'fecha_inicio', label: 'Inicio previsto', type: 'date' },
+      { name: 'fecha_fin', label: 'Fin previsto', type: 'date' },
+      { name: 'observaciones', label: 'Observaciones', type: 'textarea' },
+    ] : [
       { name: 'codigo', label: 'Código', required: true, placeholder: 'Ej.: 3126 o INT-012' },
       { name: 'nombre_corto', label: 'Nombre corto (menú)', required: true },
       { name: 'nombre_completo', label: 'Nombre completo' },
@@ -333,7 +352,11 @@ export async function formularioProyecto(p = null) {
       if ('padre_id' in v) datos.padre_id = v.padre_id || null;
       // Un sub-proyecto hereda la ubicación de su proyecto (en la base lo asegura public.tg_subproyecto)
       const padre = datos.padre_id && store.proyectos.find(x => x.id === datos.padre_id);
-      if (padre) { datos.portafolio_id = padre.portafolio_id || null; datos.programa_id = padre.programa_id || null; }
+      if (padre) {
+        datos.portafolio_id = padre.portafolio_id || null; datos.programa_id = padre.programa_id || null;
+        if (!datos.gerencia_id) datos.gerencia_id = padre.gerencia_id || null;
+        if (!datos.pais_id && padre.pais_id) datos.pais_id = padre.pais_id;
+      }
       // El programa define su portafolio
       const prog = programas.find(x => x.id === datos.programa_id);
       if (prog?.portafolio_id) datos.portafolio_id = prog.portafolio_id;
@@ -345,7 +368,7 @@ export async function formularioProyecto(p = null) {
       if (!crea && !p) {
         await api.insert('proyecto_lideres', { proyecto_id: reg.id, usuario_id: store.usuario.id }).catch(() => {});
       }
-      ok(crea || p ? 'Proyecto guardado.' : 'Propuesta enviada al administrador.');
+      ok(crea || p ? (sub ? 'Sub-proyecto guardado.' : 'Proyecto guardado.') : 'Propuesta enviada al administrador.');
       await cargarCatalogo();
     },
   });

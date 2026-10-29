@@ -171,6 +171,7 @@ Estado de cada observación al 25/10/2026.
 | 143 (q5 bis) | Administración: «Plataforma (Propietario)» y «Empresa (nombre de la empresa)» | ✅ | `a11.js` | ✅ |
 | 144 (q6) | Subir la sección PROYECTOS debajo de Administración | ✅ Menú: Administración → PROYECTOS (árbol con su propio desplazamiento) → Planificación, Seguimiento y Más. Sin Administración, PROYECTOS queda arriba | `q6.js`; humo 160 pantallas | ✅ |
 | 145 (q7) | Mejoras del aplicativo a la vista de todos los usuarios de todas las empresas, al final del menú | ✅ Último grupo del menú («Todas las empresas»). Lista las solicitudes de todas las empresas (empresa y autor); cualquiera crea las suyas; las gestionan los propietarios (y cada empresa las suyas). admin-usuarios v10 | `q7.js` (propietario y líder) | ✅ |
+| 146 (q10) | Menú lateral: «PROYECTOS» → «SUB-PROYECTOS» y «+ Agregar» crea sub-proyectos | ✅ El formulario pide el proyecto al que pertenece (sugiere el elegido en el menú; si no hay, es obligatorio escogerlo) y hereda gerencia, país, portafolio y programa | `q10.js`; humo 160 pantallas | ✅ |
 
 ## Lo que encontró la reconfirmación
 
