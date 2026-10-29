@@ -520,8 +520,12 @@ export async function panelEstructuraTodas(el, ctx, { area = '' } = {}) {
   el.addEventListener('change', async e => {
     if (e.target.matches('[data-mostrar]')) { filtrarTabla(el); return; }
     if (e.target.matches('[data-a="xl-import"]') && e.target.files?.[0]) {
+      const lbl = e.target.closest('label');
+      const textoOrig = lbl ? lbl.firstChild?.textContent : null;
+      if (lbl) lbl.firstChild.textContent = '⏳ Importando...';
       try { await importarEstructura(e.target.files[0], area, async () => { await refrescar(area); pintarTodo(); }); }
       catch (err) { error(mensajeError(err)); }
+      finally { if (lbl && textoOrig) lbl.firstChild.textContent = textoOrig; }
       e.target.value = '';
     }
   });
@@ -816,15 +820,26 @@ async function importarEstructura(file, soloAreaId, alTerminar) {
   }
 
   const total = cPorts + cProgs + cProys + cSubs;
-  const resumen = [
-    total ? `✅ Creados: ${cPorts} portafolio(s), ${cProgs} programa(s), ${cProys} proyecto(s), ${cSubs} sub-proyecto(s)` : null,
-    omitidos ? `⏭ Omitidos (ya existían): ${omitidos}` : null,
-    errores.length ? `❌ Errores (${errores.length}):\n${errores.join('\n')}` : null,
-  ].filter(Boolean).join('\n');
 
-  if (errores.length && !total) error(resumen);
-  else ok(resumen || 'Nada que importar: todos los registros ya existían.');
+  // Actualizar la vista antes de mostrar el resumen
   if (total > 0) await alTerminar();
+
+  // Modal con resumen (no desaparece solo como el toast)
+  const lineas = [
+    total
+      ? `<p style="color:var(--verde,#2e7d32);margin:0 0 6px"><b>Creados: ${cPorts} portafolio(s), ${cProgs} programa(s), ${cProys} proyecto(s), ${cSubs} sub-proyecto(s)</b></p>`
+      : `<p style="margin:0 0 6px">Sin elementos nuevos.</p>`,
+    omitidos ? `<p style="margin:0 0 6px;color:var(--texto-suave,#666)">⏭ Ya existían (omitidos): <b>${omitidos}</b></p>` : '',
+    errores.length
+      ? `<p style="color:var(--rojo,#c62828);margin:0 0 4px"><b>Errores (${errores.length}):</b></p><pre style="font-size:12px;white-space:pre-wrap;max-height:200px;overflow:auto;background:#fef2f2;padding:8px;border-radius:4px">${esc(errores.join('\n'))}</pre>`
+      : '',
+  ].join('');
+
+  modal({
+    titulo: 'Resultado de la importación',
+    cuerpo: lineas,
+    botones: [{ texto: 'Cerrar', clase: 'btn-primario' }],
+  });
 }
 
 // ---------- Altas, ediciones y bajas (pasan por el servidor: pueden ser de cualquier empresa) ----------
