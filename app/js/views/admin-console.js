@@ -33,7 +33,6 @@ const MENU = [
   // Para los propietarios, Portafolios y Programas van dentro de «Estructura de la empresa» (pedido 16)
   { id: 'portafolios',   ico: '🗂', texto: 'Portafolios',             si: () => esAdmin() && !esPlataforma() },
   { id: 'programas',     ico: '📁', texto: 'Programas',               si: () => esAdmin() && !esPlataforma() },
-  { id: 'proyectos',     ico: '📌', texto: 'Proyectos / Procesos',    si: esAdmin },
   // Listas configurables, Parámetros y Calendario aplican a los sub-proyectos: quedan en Configuración (pedido a11)
   { sep: true },
   { id: 'auditoria',     ico: '🕑', texto: 'Auditoría',               si: esAdmin },
@@ -171,7 +170,6 @@ async function renderPanel() {
       'estructura':  el => esPlataforma() ? plat.panelEstructuraEmpresa(el, ctx) : panelEstructura(el),
       'portafolios': panelPortafolios,
       'programas':   panelProgramas,
-      'proyectos':   panelProyectos,
       'auditoria':   config('auditoria'),
     };
     const fn = mapa[panelActivo];
@@ -244,11 +242,11 @@ async function panelResumen(el) {
   el.querySelector('[data-a="imprimir"]')?.addEventListener('click', () => imprimirPanel(el, 'Resumen del área'));
   // El delegado se gestiona en Configuración › Usuarios y roles (pedido 16)
   el.querySelector('[data-a="ir-delegado"]')?.addEventListener('click', () => { location.hash = '#/config/usuarios'; });
-  el.querySelector('[data-a="ir-proyectos"]')?.addEventListener('click', () => navegarA('proyectos'));
+  el.querySelector('[data-a="ir-proyectos"]')?.addEventListener('click', () => navegarA('estructura'));
 }
 
 // ════════════════════════════════════════════════════════════════
-// PROYECTOS / PROCESOS
+// PROYECTOS / PROCESOS (mantenido para referencia interna)
 // ════════════════════════════════════════════════════════════════
 
 async function panelProyectos(el) {
@@ -347,34 +345,118 @@ async function cargarEstructura() {
 const estadoEst = e => e === 'inactivo' ? badge('Inactivo', '#888') : badge('Activo', '#2e7d32');
 
 async function panelEstructura(el) {
-  const { portafolios, programas, proyectos } = await cargarEstructura();
-  const vivos = proyectos.filter(p => !['cerrado', 'rechazado'].includes(p.estado));
-  const subs = p => vivos.filter(x => x.padre_id === p.id);
-  const itemProy = p => `<li class="est-proy"><b>${esc(p.codigo)}</b> · ${esc(p.nombre_corto)} <small class="nota">${esc(p.estado)}</small>
-    ${subs(p).length ? `<ul>${subs(p).map(x => `<li class="est-proy">▫ <b>${esc(x.codigo)}</b> · ${esc(x.nombre_corto)} <small class="nota">sub-proyecto</small></li>`).join('')}</ul>` : ''}</li>`;
-  const ramaPrograma = g => {
-    const ps = vivos.filter(p => p.programa_id === g.id && !p.padre_id);
-    return `<li><span class="est-prog">📁 ${esc(g.nombre)}</span> ${g.estado === 'inactivo' ? estadoEst(g.estado) : ''}
-      <small class="nota">${ps.length} proyecto(s)</small>${ps.length ? `<ul>${ps.map(itemProy).join('')}</ul>` : ''}</li>`;
+  const [{ portafolios, programas, proyectos }, lideresProy] = await Promise.all([
+    cargarEstructura(),
+    api.list('proyecto_lideres', {}).catch(() => []),
+  ]);
+  const colorEst = { activo: '#2e7d32', propuesto: '#e65100', en_pausa: '#795548', cerrado: '#546E7A', rechazado: '#b71c1c' };
+  const labelEst = { activo: 'Activo', propuesto: 'Propuesto', en_pausa: 'En pausa', cerrado: 'Cerrado', rechazado: 'Rechazado' };
+  const propuestos = proyectos.filter(p => p.estado === 'propuesto');
+  const lidNames = p => lideresProy.filter(l => l.proyecto_id === p.id).map(l => nombre(l.usuario_id)).filter(Boolean).join(', ');
+
+  const itemProy = (p, filtroEst, q) => {
+    const ger = etiqueta(p.gerencia_id);
+    const lids = lidNames(p);
+    const subs = proyectos.filter(x => x.padre_id === p.id).filter(x =>
+      (!filtroEst || x.estado === filtroEst) &&
+      (!q || `${x.codigo} ${x.nombre_corto}`.toLowerCase().includes(q)));
+    return `<li class="est-proy" data-est="${p.estado}">
+      <div class="est-proy-fila">
+        <span class="est-proy-nombre"><b>${esc(p.codigo)}</b> · ${esc(p.nombre_corto)}</span>
+        <span class="est-proy-meta">
+          ${badge(labelEst[p.estado] || p.estado, colorEst[p.estado] || '#888')}
+          ${ger ? `<small class="nota" style="margin-left:4px">${esc(ger)}</small>` : ''}
+          ${lids ? `<small class="nota" style="margin-left:4px">👤 ${esc(lids)}</small>` : ''}
+        </span>
+        <span class="est-proy-acc">
+          <button class="btn btn-xs" data-editar="${p.id}">Editar</button>
+          ${p.estado === 'propuesto' ? `
+            <button class="btn btn-xs btn-primario" data-aprobar="${p.id}">Aprobar</button>
+            <button class="btn btn-xs btn-warn" data-rechazar="${p.id}">Rechazar</button>` : ''}
+          ${['cerrado', 'rechazado', 'propuesto'].includes(p.estado) ? '' :
+            `<button class="btn btn-xs btn-warn" data-estado="${p.id}" data-nuevo-est="${p.estado === 'activo' ? 'en_pausa' : 'activo'}">
+              ${p.estado === 'activo' ? 'Pausar' : 'Activar'}</button>`}
+        </span>
+      </div>
+      ${subs.length ? `<ul>${subs.map(x => itemProy(x, filtroEst, q)).join('')}</ul>` : ''}
+    </li>`;
   };
-  const ramaPortafolio = f => {
-    const gs = programas.filter(g => g.portafolio_id === f.id);
-    const ps = vivos.filter(p => p.portafolio_id === f.id && !p.programa_id && !p.padre_id);
-    return `<li><span class="est-port">🗂 ${esc(f.nombre)}</span> ${f.estado === 'inactivo' ? estadoEst(f.estado) : ''}
-      <ul>${gs.map(ramaPrograma).join('')}${ps.map(itemProy).join('')}${!gs.length && !ps.length ? '<li class="nota">Sin programas ni proyectos</li>' : ''}</ul></li>`;
-  };
-  const progSueltos = programas.filter(g => !g.portafolio_id);
-  const proySueltos = vivos.filter(p => !p.portafolio_id && !p.programa_id && !p.padre_id);
-  el.innerHTML = cab('Estructura de la empresa', [btn('🖨 Imprimir', 'imprimir')]) +
-    `<p class="admin-sub">Cada proyecto puede pertenecer a un programa, y cada programa a un portafolio. Se asignan en
-      <b>Portafolios</b>, <b>Programas</b> y en el formulario de cada proyecto.</p>
-    <div class="tarjeta est-arbol"><ul>
+
+  const buildArbol = (filtroEst = '', q = '') => {
+    const pasaFiltro = p => {
+      const ok = (!filtroEst || p.estado === filtroEst) && (!q || `${p.codigo} ${p.nombre_corto}`.toLowerCase().includes(q));
+      const tieneSubs = proyectos.filter(x => x.padre_id === p.id).some(x =>
+        (!filtroEst || x.estado === filtroEst) && (!q || `${x.codigo} ${x.nombre_corto}`.toLowerCase().includes(q)));
+      return ok || tieneSubs;
+    };
+    const ramaPrograma = g => {
+      const ps = proyectos.filter(p => p.programa_id === g.id && !p.padre_id).filter(pasaFiltro);
+      if (!ps.length && filtroEst) return '';
+      return `<li><span class="est-prog">📁 ${esc(g.nombre)}</span> ${g.estado === 'inactivo' ? estadoEst(g.estado) : ''}
+        <small class="nota">${ps.length} proyecto(s)</small>${ps.length ? `<ul>${ps.map(p => itemProy(p, filtroEst, q)).join('')}</ul>` : ''}</li>`;
+    };
+    const ramaPortafolio = f => {
+      const gs = programas.filter(g => g.portafolio_id === f.id);
+      const ps = proyectos.filter(p => p.portafolio_id === f.id && !p.programa_id && !p.padre_id).filter(pasaFiltro);
+      const gsConProy = gs.filter(g => proyectos.filter(p => p.programa_id === g.id && !p.padre_id).some(pasaFiltro));
+      if (!ps.length && !gsConProy.length && filtroEst) return '';
+      return `<li><span class="est-port">🗂 ${esc(f.nombre)}</span> ${f.estado === 'inactivo' ? estadoEst(f.estado) : ''}
+        <ul>${gs.map(ramaPrograma).join('')}${ps.map(p => itemProy(p, filtroEst, q)).join('')}${!gs.length && !ps.length ? '<li class="nota">Sin programas ni proyectos</li>' : ''}</ul></li>`;
+    };
+    const progSueltos = programas.filter(g => !g.portafolio_id).filter(g =>
+      proyectos.filter(p => p.programa_id === g.id && !p.padre_id).some(pasaFiltro));
+    const proySueltos = proyectos.filter(p => !p.portafolio_id && !p.programa_id && !p.padre_id).filter(pasaFiltro);
+    return `<div class="tarjeta est-arbol"><ul>
       <li><span class="est-emp">🏢 ${esc(store.area?.nombre || 'Empresa')}</span>
         <ul>${portafolios.map(ramaPortafolio).join('')}
           ${progSueltos.length ? `<li><span class="est-port nota">Programas sin portafolio</span><ul>${progSueltos.map(ramaPrograma).join('')}</ul></li>` : ''}
-          ${proySueltos.length ? `<li><span class="est-port nota">Proyectos sin portafolio ni programa (${proySueltos.length})</span><ul>${proySueltos.map(itemProy).join('')}</ul></li>` : ''}
+          ${proySueltos.length ? `<li><span class="est-port nota">Proyectos sin portafolio ni programa</span><ul>${proySueltos.map(p => itemProy(p, filtroEst, q)).join('')}</ul></li>` : ''}
         </ul></li></ul></div>`;
-  el.addEventListener('click', e => { if (e.target.closest('[data-a="imprimir"]')) imprimirPanel(el, 'Estructura de la empresa'); });
+  };
+
+  el.innerHTML = cab('Estructura de la empresa', [
+    btn('+ Nuevo proyecto', 'nuevo', 'btn-primario'),
+    btn('🖨 Imprimir', 'imprimir'),
+  ]) +
+  (propuestos.length ? `<div class="aviso warn" style="margin-bottom:12px"><b>${propuestos.length} proyecto(s) propuesto(s) esperan aprobación.</b></div>` : '') +
+  `<div class="admin-filtros">
+    <input class="inp" id="buscar-est" placeholder="Buscar por código o nombre..." style="width:220px">
+    <select class="inp" id="fil-port-est"><option value="">Portafolio: todos</option>
+      ${portafolios.map(x => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('')}</select>
+    <select class="inp" id="fil-est-arbol"><option value="">Estado: todos</option>
+      <option value="activo">Activo</option>
+      <option value="propuesto">Propuesto</option>
+      <option value="en_pausa">En pausa</option>
+      <option value="cerrado">Cerrado</option>
+      <option value="rechazado">Rechazado</option>
+    </select>
+  </div>
+  <div id="est-arbol-cont">${buildArbol()}</div>`;
+
+  const refrescar = () => {
+    const q = (el.querySelector('#buscar-est')?.value || '').toLowerCase();
+    const filtroEst = el.querySelector('#fil-est-arbol')?.value || '';
+    el.querySelector('#est-arbol-cont').innerHTML = buildArbol(filtroEst, q);
+  };
+  el.querySelector('#buscar-est')?.addEventListener('input', refrescar);
+  el.querySelector('#fil-port-est')?.addEventListener('change', refrescar);
+  el.querySelector('#fil-est-arbol')?.addEventListener('change', refrescar);
+
+  el.addEventListener('click', async e => {
+    const a = e.target.closest('[data-a]')?.dataset.a;
+    const idEdit = e.target.closest('[data-editar]')?.dataset.editar;
+    const idAprob = e.target.closest('[data-aprobar]')?.dataset.aprobar;
+    const idRech = e.target.closest('[data-rechazar]')?.dataset.rechazar;
+    const idEst = e.target.closest('[data-estado]')?.dataset.estado;
+    const nuevoEst = e.target.closest('[data-estado]')?.dataset.nuevoEst;
+    if (a === 'imprimir') { imprimirPanel(el, 'Estructura de la empresa'); return; }
+    const { formularioProyecto } = await import('./proyectos.js');
+    if (a === 'nuevo') { await formularioProyecto(); await cargarCatalogo(); await renderPanel(); }
+    if (idEdit) { await formularioProyecto(proyectos.find(p => p.id === idEdit)); await cargarCatalogo(); await renderPanel(); }
+    if (idAprob) { await cambiarEstadoProy(idAprob, 'activo', { aprobado_por: store.usuario.id, aprobado_at: new Date().toISOString() }); await cargarCatalogo(); await renderPanel(); }
+    if (idRech) { await rechazarProyecto(proyectos.find(p => p.id === idRech)); await cargarCatalogo(); await renderPanel(); }
+    if (idEst && nuevoEst) { await cambiarEstadoProy(idEst, nuevoEst); await cargarCatalogo(); await renderPanel(); }
+  });
 }
 
 async function panelPortafolios(el) {
