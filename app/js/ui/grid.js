@@ -339,17 +339,36 @@ export function crearGrilla(contenedor, cfg) {
   }
 
   // ---------- Columnas Tabulator ----------
+  /** Crea un <select> para el filtro de cabecera de columnas tipo lista */
+  function filtroSelectLista(c, val) {
+    return (cell, onRendered, success) => {
+      const ops = typeof c.opciones === 'function' ? c.opciones() : (c.opciones || []);
+      const sel = document.createElement('select');
+      sel.style.cssText = 'width:100%;height:100%;border:none;background:transparent;font-size:inherit;padding:0 2px;cursor:pointer';
+      const optVacio = document.createElement('option'); optVacio.value = ''; optVacio.textContent = '—'; sel.appendChild(optVacio);
+      for (const op of ops) {
+        if (op.value == null || op.value === '') continue;
+        const o = document.createElement('option'); o.value = String(op.value); o.textContent = op.label ?? ''; sel.appendChild(o);
+      }
+      sel.addEventListener('change', () => success(sel.value));
+      return sel;
+    };
+  }
+
   function colTabulator(c) {
     // c.valor(fila): columna cuyo valor se toma de otro campo (p. ej. CET = el servicio de la fila)
     const val = (v, fila) => (c.valor ? c.valor(fila) : v);
+    const usarCombo = c.filtro !== false && c.tipo === 'lista' && c.opciones;
     const def = {
       field: c.field, title: c.title, width: c.ancho, minWidth: c.minAncho || 40, frozen: !!c.fijo,
       visible: c.visible !== false, headerSort: c.ordenable !== false, hozAlign: c.align || (c.tipo === 'numero' ? 'right' : 'left'),
       headerTooltip: c.ayuda || c.title, resizable: true,
       editable: cell => editableCampo(cell.getRow().getData(), c),
-      headerFilter: c.filtro === false ? false : 'input',
+      headerFilter: c.filtro === false ? false : (usarCombo ? filtroSelectLista(c, val) : 'input'),
       headerFilterPlaceholder: '',
-      headerFilterFunc: (term, valor, fila) => {
+      headerFilterFunc: usarCombo
+        ? (term, valor, fila) => !term || String(val(valor, fila) ?? '') === String(term)
+        : (term, valor, fila) => {
         const t = normalizar(term);
         const texto = c.tipo === 'lista' ? etiquetaOpcion(c, val(valor, fila), fila) : c.tipo === 'fecha' ? fmtFecha(valor) : String((c.exportar ? c.exportar(valor, fila) : valor) ?? '');
         return normalizar(texto).includes(t);
