@@ -399,20 +399,34 @@ async function gestionarUsuarios(a, alCambiar) {
 // ════════════════════════════════════════════════════════════════
 let vistaEstructura = 'tabla';
 const contraidos = new Set();
+// Empresa a la que se limita la vista de estructura (pedido 16: «Estructura de la empresa» con las mismas dos pestañas);
+// vacío = todas las empresas
+let soloArea = '';
+const vis = arr => soloArea ? arr.filter(x => x.area_id === soloArea) : arr;
+const areasVis = () => soloArea ? datos.areas.filter(a => a.id === soloArea) : datos.areas;
 
-export async function panelEstructuraTodas(el, ctx) {
+/** Estructura de la empresa elegida (menú EMPRESA): misma vista que la de todas las empresas, solo con esa empresa. */
+export function panelEstructuraEmpresa(el, ctx) { return panelEstructuraTodas(el, ctx, { area: store.area?.id }); }
+
+export async function panelEstructuraTodas(el, ctx, { area = '' } = {}) {
   await cargarPlataforma();
+  soloArea = area;
+  const nombreEmp = area ? empresa(area)?.nombre || '' : '';
+  const enArea = area ? ` data-area="${area}"` : '';
   const pintarTodo = () => {
-    const vivos = datos.proyectos.filter(p => !['cerrado', 'rechazado'].includes(p.estado));
+    soloArea = area;   // la vista vuelve a pintarse sola: conserva su empresa
+    const vivos = vis(datos.proyectos).filter(p => !['cerrado', 'rechazado'].includes(p.estado));
     const sinAdmin = vivos.filter(p => !lideresEf(p).length).length;
-    el.innerHTML = cab('Estructura de todas las empresas', 'Empresa › Portafolio › Programa › Proyecto › Sub-proyecto (en el sub-proyecto se registra el LPS). Es la misma estructura que cada empresa ve en «Estructura de la empresa»: lo que cambie aquí se refleja allá.',
-      `<button class="btn" data-nuevo="portafolios">+ Portafolio</button><button class="btn" data-nuevo="programas">+ Programa</button><button class="btn" data-nuevo="proyectos">+ Proyecto</button><button class="btn btn-primario" data-a="nuevo-sub">+ Sub-proyecto</button>`) +
+    el.innerHTML = cab(area ? `Estructura de la empresa: ${nombreEmp}` : 'Estructura de todas las empresas',
+      area ? 'Portafolio › Programa › Proyecto › Sub-proyecto de esta empresa (en el sub-proyecto se registra el LPS). Es la misma estructura que se ve en Plataforma › «Estructura de todas las empresas».'
+        : 'Empresa › Portafolio › Programa › Proyecto › Sub-proyecto (en el sub-proyecto se registra el LPS). Es la misma estructura que cada empresa ve en «Estructura de la empresa»: lo que cambie aquí se refleja allá.',
+      `<button class="btn" data-nuevo="portafolios"${enArea}>+ Portafolio</button><button class="btn" data-nuevo="programas"${enArea}>+ Programa</button><button class="btn" data-nuevo="proyectos"${enArea}>+ Proyecto</button><button class="btn btn-primario" data-a="nuevo-sub">+ Sub-proyecto</button>`) +
       `<div class="chips-cifras">
-        <span class="chip-cifra"><b>${datos.areas.length}</b> Empresas</span><span class="chip-cifra"><b>${datos.portafolios.length}</b> Portafolios</span>
-        <span class="chip-cifra"><b>${datos.programas.length}</b> Programas</span><span class="chip-cifra"><b>${datos.proyectos.filter(p => !p.padre_id).length}</b> Proyectos</span>
-        <span class="chip-cifra"><b>${datos.proyectos.filter(p => p.padre_id).length}</b> Sub-proyectos</span>
+        ${area ? '' : `<span class="chip-cifra"><b>${datos.areas.length}</b> Empresas</span>`}<span class="chip-cifra"><b>${vis(datos.portafolios).length}</b> Portafolios</span>
+        <span class="chip-cifra"><b>${vis(datos.programas).length}</b> Programas</span><span class="chip-cifra"><b>${vis(datos.proyectos).filter(p => !p.padre_id).length}</b> Proyectos</span>
+        <span class="chip-cifra"><b>${vis(datos.proyectos).filter(p => p.padre_id).length}</b> Sub-proyectos</span>
         <span class="chip-cifra ${sinAdmin ? 'alerta' : ''}"><b>${sinAdmin}</b> Proyectos sin administrador</span></div>
-      <div class="pestanas-linea"><button data-vista="tabla" class="${vistaEstructura === 'tabla' ? 'activo' : ''}">Estructura de todas las empresas</button>
+      <div class="pestanas-linea"><button data-vista="tabla" class="${vistaEstructura === 'tabla' ? 'activo' : ''}">${area ? 'Estructura de la empresa' : 'Estructura de todas las empresas'}</button>
         <button data-vista="arbol" class="${vistaEstructura === 'arbol' ? 'activo' : ''}">Estructura jerárquica</button></div>
       <div data-cuerpo></div>`;
     const cuerpo = el.querySelector('[data-cuerpo]');
@@ -489,7 +503,7 @@ function pintarTabla(cuerpo) {
         <button class="btn btn-xs btn-peligro-borde" data-eliminar="${g.id}" data-tabla="programas">Eliminar</button>`,
     }, 'g' + g.id, ps.length)) ps.forEach(p => filaProyecto(p, nivel + 1));
   };
-  for (const a of datos.areas) {
+  for (const a of areasVis()) {
     const ports = datos.portafolios.filter(f => f.area_id === a.id);
     const progSueltos = datos.programas.filter(g => g.area_id === a.id && !g.portafolio_id);
     const proySueltos = proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id && !p.padre_id);
@@ -544,7 +558,7 @@ function filtrarTabla(el) {
 
 // Proyecto al que se agrega un sub-proyecto: solo proyectos (no sub-proyectos), con su empresa
 function elegirProyectoPadre() {
-  const opciones = datos.proyectos.filter(p => !p.padre_id && !['cerrado', 'rechazado'].includes(p.estado))
+  const opciones = vis(datos.proyectos).filter(p => !p.padre_id && !['cerrado', 'rechazado'].includes(p.estado))
     .map(p => ({ value: p.id, label: `${empresa(p.area_id)?.nombre || ''} › ${p.codigo} · ${p.nombre_corto}` }))
     .sort((a, b) => a.label.localeCompare(b.label));
   if (!opciones.length) { error('Primero cree un proyecto: el sub-proyecto pertenece a un proyecto.'); return Promise.resolve(null); }
@@ -575,7 +589,7 @@ function pintarOrganigrama(cuerpo) {
   const proy = p => nodo(caja('proyecto', p.nombre_corto, `Proyecto${lideresDe(p.id).length ? ' · ' + lideresDe(p.id).map(nombreCorto).join(', ') : ''}`, p.id, p.area_id), [], subDe(p).map(sub));
   const raiz = arr => arr.filter(p => !p.padre_id);
   const prog = g => nodo(caja('programa', g.nombre, 'Programa', g.id), [], raiz(datos.proyectos.filter(p => p.programa_id === g.id)).map(proy));
-  const arboles = datos.areas.map(a => {
+  const arboles = areasVis().map(a => {
     const hijos = [
       ...datos.portafolios.filter(f => f.area_id === a.id).map(f => nodo(caja('portafolio', f.nombre, 'Portafolio', f.id),
         datos.programas.filter(g => g.portafolio_id === f.id).map(prog),
