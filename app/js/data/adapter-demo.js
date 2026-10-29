@@ -131,7 +131,8 @@ export function crearAdaptadorDemo() {
     const existe = id => tabla('areas').some(a => a.id === id);
     if (accion === 'plataforma') {
       return clon({ areas: tabla('areas').map(a => ({ ...a, activa: a.activa !== false })), perfiles: tabla('profiles').filter(p => !p.eliminado),
-        portafolios: tabla('portafolios'), programas: tabla('programas'), proyectos: tabla('proyectos'), lideres: tabla('proyecto_lideres'), mi_area: yo.area_id });
+        portafolios: tabla('portafolios'), programas: tabla('programas'), proyectos: tabla('proyectos'), lideres: tabla('proyecto_lideres'),
+        miembros: tabla('empresa_miembros'), mi_area: yo.area_id });
     }
     if (accion === 'editar_empresa') {
       const nombre = String(d.nombre || '').trim();
@@ -145,6 +146,11 @@ export function crearAdaptadorDemo() {
       if (area === yo.area_id) throw new Error('No puede eliminar la empresa en la que está trabajando. Abra otra empresa primero.');
       if (tabla('profiles').some(p => p.area_id === area && p.es_plataforma)) throw new Error('Un propietario de la plataforma está trabajando en esa empresa. Que abra otra empresa primero.');
       const proys = new Set(tabla('proyectos').filter(p => p.area_id === area).map(p => p.id));
+      for (const p of tabla('profiles').filter(x => x.area_id === area)) {
+        const otra = tabla('empresa_miembros').find(m => m.usuario_id === p.id && m.area_id !== area && m.activo !== false);
+        if (otra) Object.assign(p, { area_id: otra.area_id, rol: otra.rol, activo: otra.activo, es_admin_principal: otra.es_admin_principal });
+      }
+      db.empresa_miembros = tabla('empresa_miembros').filter(m => m.area_id !== area);
       const usuarios = new Set(tabla('profiles').filter(p => p.area_id === area).map(p => p.id));
       const listas = new Set(tabla('listas').filter(l => l.area_id === area).map(l => l.id));
       const plantillas = new Set(tabla('plantillas').filter(x => x.area_id === area).map(x => x.id));
@@ -163,9 +169,12 @@ export function crearAdaptadorDemo() {
     }
     if (accion === 'cambiar_principal') {
       const nuevo = perfil(String(d.usuario_id || ''));
-      if (!nuevo || nuevo.area_id !== area) throw new Error('El usuario no pertenece a esa empresa.');
+      const miembro = tabla('empresa_miembros').find(m => m.usuario_id === nuevo?.id && m.area_id === area);
+      if (!nuevo || (nuevo.area_id !== area && !miembro)) throw new Error('El usuario no pertenece a esa empresa.');
       tabla('profiles').filter(p => p.area_id === area && !p.es_plataforma && p.id !== nuevo.id).forEach(p => { p.es_admin_principal = false; });
-      Object.assign(nuevo, { es_admin_principal: true, rol: 'superadmin', activo: true });
+      tabla('empresa_miembros').filter(m => m.area_id === area && m.usuario_id !== nuevo.id).forEach(m => { m.es_admin_principal = false; });
+      if (nuevo.area_id === area) Object.assign(nuevo, { es_admin_principal: true, rol: 'superadmin', activo: true });
+      else Object.assign(miembro, { es_admin_principal: true, rol: 'superadmin', activo: true });
       guardar(); return { ok: true };
     }
     if (accion === 'estructura') {
@@ -253,6 +262,26 @@ export function crearAdaptadorDemo() {
     if (accion === 'usuario_plataforma') {
       const u = perfil(String(d.usuario_id || ''));
       if (!u) throw new Error('Usuario no encontrado.');
+      if (area && u.area_id !== area) {
+        const m = tabla('empresa_miembros').find(x => x.usuario_id === u.id && x.area_id === area);
+        if (!m) throw new Error('El usuario no pertenece a esa empresa.');
+        if (d.quitar) {
+          if (m.es_admin_principal) throw new Error('Es el super administrador principal de esa empresa: designe antes a otro.');
+          db.empresa_miembros = tabla('empresa_miembros').filter(x => x !== m); guardar(); return { ok: true };
+        }
+        if (d.rol !== undefined) m.rol = d.rol;
+        if (d.activo !== undefined) m.activo = !!d.activo;
+        guardar(); return { ok: true };
+      }
+      if (d.quitar) {
+        const otra = tabla('empresa_miembros').find(x => x.usuario_id === u.id && x.area_id !== u.area_id && x.activo !== false);
+        if (!otra) throw new Error('Esta es la única empresa de la persona: para quitarla use «Eliminar usuario» en la configuración de la empresa.');
+        if (u.es_admin_principal) throw new Error('Es el super administrador principal de esa empresa: designe antes a otro.');
+        const viejo = u.area_id;
+        Object.assign(u, { area_id: otra.area_id, rol: otra.rol, activo: otra.activo, es_admin_principal: otra.es_admin_principal });
+        db.empresa_miembros = tabla('empresa_miembros').filter(x => !(x.usuario_id === u.id && x.area_id === viejo));
+        guardar(); return { ok: true };
+      }
       if (d.rol !== undefined) {
         if (u.es_admin_principal && d.rol !== 'superadmin') throw new Error('El administrador principal de una empresa es super administrador. Cambie antes el principal.');
         u.rol = d.rol;
@@ -528,6 +557,24 @@ export function crearAdaptadorDemo() {
     async adminUsuarios(accion, d = {}) {
       db = cargar();
       const yo = perfil();
+      // Usuarios de varias empresas (030): mismas acciones que el servidor
+      if (accion === 'mis_empresas' || accion === 'cambiar_empresa') {
+        if (!yo) throw new Error('No autorizado.');
+        const ms = tabla('empresa_miembros').filter(m => m.usuario_id === yo.id && m.activo !== false);
+        if (accion === 'mis_empresas') {
+          const ids = [...new Set([yo.area_id, ...ms.map(m => m.area_id)])];
+          return clon({ actual: yo.area_id, empresas: tabla('areas').filter(a => ids.includes(a.id)).map(a => ({ id: a.id, nombre: a.nombre, activa: a.activa !== false,
+            rol: ms.find(m => m.area_id === a.id)?.rol ?? yo.rol })) });
+        }
+        const m = ms.find(x => x.area_id === d.area_id);
+        if (!m) throw new Error('No pertenece a esa empresa.');
+        // Antes de cambiar, la empresa que deja queda como membresía con su rol actual
+        const actual = tabla('empresa_miembros').find(x => x.usuario_id === yo.id && x.area_id === yo.area_id);
+        if (actual) Object.assign(actual, { rol: yo.rol, activo: yo.activo, es_admin_principal: yo.es_admin_principal });
+        else tabla('empresa_miembros').push({ usuario_id: yo.id, area_id: yo.area_id, rol: yo.rol, activo: yo.activo, es_admin_principal: !!yo.es_admin_principal });
+        Object.assign(yo, { area_id: m.area_id, rol: m.rol, activo: m.activo !== false, es_admin_principal: !!m.es_admin_principal });
+        guardar(); return { ok: true };
+      }
       // Mejoras del aplicativo de todas las empresas (pedido q7): cualquier usuario activo
       if (accion === 'mejoras' || accion === 'gestionar_mejora') {
         if (!yo?.activo || yo.rol === 'pendiente') throw new Error('No autorizado.');
@@ -551,7 +598,18 @@ export function crearAdaptadorDemo() {
       if (accion === 'crear') {
         const email = String(d.email || '').trim().toLowerCase();
         if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error('Correo no válido.');
-        if (tabla('profiles').some(p => p.email === email)) throw new Error('Ya existe un usuario con ese correo.');
+        const existente = tabla('profiles').find(p => p.email === email);
+        if (existente) {
+          // Ya tiene cuenta en otra empresa: un propietario la agrega a esta empresa con el rol elegido (030)
+          if (!yo.es_plataforma) throw new Error('Ya existe un usuario con ese correo en otra empresa. Pida a un propietario de la plataforma que lo agregue a esta empresa.');
+          const destino = d.area_id || yo.area_id;
+          if (existente.area_id === destino || tabla('empresa_miembros').some(m => m.usuario_id === existente.id && m.area_id === destino)) throw new Error('Ya existe un usuario con ese correo en esta empresa.');
+          if (!tabla('empresa_miembros').some(m => m.usuario_id === existente.id && m.area_id === existente.area_id)) {
+            tabla('empresa_miembros').push({ usuario_id: existente.id, area_id: existente.area_id, rol: existente.rol, activo: existente.activo, es_admin_principal: !!existente.es_admin_principal });
+          }
+          tabla('empresa_miembros').push({ usuario_id: existente.id, area_id: destino, rol: d.rol || 'lider', activo: true, es_admin_principal: false });
+          guardar(); return { id: existente.id, agregado: true };
+        }
         if (GESTORES.includes(d.rol) && !esSuper(yo)) throw new Error('Solo el super administrador asigna los roles de super administrador, administrador y delegado.');
         const [p] = await api.insert('profiles', { area_id: yo.es_plataforma && d.area_id ? d.area_id : yo.area_id, email, nombre: String(d.nombre || '').trim(), rol: d.rol || 'lider',
           codigo: d.codigo || null, cargo_id: d.cargo_id || null, gerencia_ids: d.gerencia_ids || [], horas_dia: d.horas_dia === '' || d.horas_dia == null ? null : Number(d.horas_dia),

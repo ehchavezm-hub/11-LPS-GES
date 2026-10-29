@@ -1,10 +1,10 @@
 // Estructura general: cabecera, navegación lateral y menú de proyectos (6.3), notificaciones y usuario. v1.1
-import { api, modoDemo } from '../data/api.js';
+import { api, modoDemo, mensajeError } from '../data/api.js';
 import { store, on, esGestor, esStaff, esAdmin, puede, seleccionarProyecto, seleccionarNivel, cargarCatalogo, rol } from '../core/store.js';
 import { ROLES } from '../data/catalogos.js';
 import { esc, html, normalizar, fmtFechaHora } from '../core/util.js';
 import { ir } from '../core/router.js';
-import { pedirDatos, ok, arrastrable } from './ui.js';
+import { pedirDatos, ok, error, arrastrable } from './ui.js';
 
 export const NAV = [
   { grupo: 'Administración' },
@@ -315,6 +315,28 @@ function panelNotificaciones() {
   }), 0);
 }
 
+// Usuarios de varias empresas (030): elegir con qué empresa trabajar. El rol es el que tiene en cada una.
+async function cambiarDeEmpresa() {
+  let r;
+  try { r = await api.adminUsuarios('mis_empresas'); } catch (e) { error(mensajeError(e)); return; }
+  const empresas = (r?.empresas || []).filter(x => x.activa);
+  if (empresas.length < 2) { ok('Usted pertenece a una sola empresa.'); return; }
+  await pedirDatos({
+    titulo: 'Cambiar de empresa', texto: 'Cambiar',
+    antes: 'Trabajará con los proyectos, el equipo y la configuración de la empresa elegida. Puede volver cuando quiera desde este mismo menú.',
+    valores: { area_id: r.actual },
+    campos: [{ name: 'area_id', label: 'Empresa', type: 'select', required: true, full: true,
+      options: empresas.map(x => ({ value: x.id, label: `${x.nombre} · ${ROLES[x.rol] || x.rol}${x.id === r.actual ? ' (actual)' : ''}` })) }],
+    alGuardar: async d => {
+      if (d.area_id === r.actual) return;
+      await api.adminUsuarios('cambiar_empresa', { area_id: d.area_id });
+      try { localStorage.removeItem('lpsgt-proyecto'); localStorage.removeItem('lpsgt-nivel'); } catch { /* opcional */ }
+      location.hash = '#/';
+      location.reload();
+    },
+  });
+}
+
 function menuUsuario(alSalir) {
   if (document.querySelector('.menu-usuario')) return cerrarFlotantes();
   cerrarFlotantes();
@@ -323,6 +345,7 @@ function menuUsuario(alSalir) {
     <div style="padding:8px 10px"><b>${esc(u.nombre)}</b><div class="nota">${esc(u.email || '')}</div><div class="nota">${esc(ROLES[rol()] || rol())}</div></div>
     <hr style="border:none;border-top:1px solid var(--borde)">
     <button data-a="perfil">Mi perfil</button>
+    ${(store.misEmpresas || []).length > 1 && !u.es_plataforma ? '<button data-a="empresa">🏢 Cambiar de empresa</button>' : ''}
     ${modoDemo ? '<button data-a="cambiar">Cambiar de usuario de demostración</button><button data-a="reiniciar">Reiniciar datos de demostración</button>'
       : '<button data-a="clave">Cambiar contraseña</button>'}
     <button data-a="salir">Cerrar sesión</button>
@@ -333,6 +356,7 @@ function menuUsuario(alSalir) {
     cerrarFlotantes();
     if (a === 'salir' || a === 'cambiar') alSalir();
     if (a === 'reiniciar') { api.reiniciar(); alSalir(); }
+    if (a === 'empresa') await cambiarDeEmpresa();
     if (a === 'perfil') {
       await pedirDatos({
         titulo: 'Mi perfil', valores: u,

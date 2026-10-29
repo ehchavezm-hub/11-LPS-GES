@@ -559,6 +559,69 @@ select como('admin@x.pe');
 select debe_fallar($q$ select eliminar_proyecto_plataforma((select id from proyectos limit 1)) $q$, 'permission denied');
 reset role;
 
+-- 030: un usuario en varias empresas
+reset role;
+do $$ begin perform set_config('request.jwt.claim.sub', '', false); end $$;
+insert into areas (nombre) values ('Empresa B');
+insert into auth.users (email, raw_user_meta_data) values ('multi@x.pe', '{"nombre":"Multi"}'), ('bsolo@x.pe', '{"nombre":"B Solo"}'), ('badmin@x.pe', '{"nombre":"B Admin"}');
+do $$
+declare v_a uuid := (select area_id from profiles p join auth.users u on u.id = p.id where u.email = 'admin@x.pe');
+        v_b uuid := (select id from areas where nombre = 'Empresa B');
+begin
+  update profiles set area_id = v_a, rol = 'admin', activo = true where id = (select id from auth.users where email = 'multi@x.pe');
+  update profiles set area_id = v_b, rol = 'lider', activo = true where id = (select id from auth.users where email = 'bsolo@x.pe');
+  update profiles set area_id = v_b, rol = 'superadmin', activo = true where id = (select id from auth.users where email = 'badmin@x.pe');
+  insert into empresa_miembros (usuario_id, area_id, rol) select id, v_b, 'superadmin' from auth.users where email = 'multi@x.pe';
+  insert into proyectos (area_id, codigo, nombre_corto, estado) values (v_b, 'B-1', 'Proyecto B', 'activo');
+  -- la empresa activa queda como membresía (disparador) y la otra se agregó
+  assert (select count(*) from empresa_miembros m join auth.users u on u.id = m.usuario_id where u.email = 'multi@x.pe') = 2, '030: faltan membresías';
+  assert pertenece((select id from auth.users where email = 'multi@x.pe'), v_b), '030: pertenece() falla';
+  assert not pertenece((select id from auth.users where email = 'lider2@x.pe'), v_b), '030: pertenece() deja pasar a otra empresa';
+end $$;
+select set_config('prueba.lider2', (select id::text from auth.users where email = 'lider2@x.pe'), false);
+set role authenticated;
+-- Un miembro de B ve a «multi» (activo en A) y no ve membresías de otras empresas ajenas
+select como('bsolo@x.pe');
+do $$ begin
+  assert exists (select 1 from profiles p where p.nombre = 'Multi'), '030: el equipo de B no ve a su miembro activo en A';
+  assert not exists (select 1 from profiles p where p.nombre = 'Lider Dos'), '030: B ve personas de A';
+end $$;
+select como('lider2@x.pe');
+do $$ begin
+  assert not exists (select 1 from empresa_miembros m join areas a on a.id = m.area_id where a.nombre = 'Empresa B'), '030: A ve membresías de B';
+end $$;
+-- Líder de proyecto en B: un miembro sí, una persona de otra empresa no
+select como('badmin@x.pe');
+insert into proyecto_lideres (proyecto_id, usuario_id)
+  select (select id from proyectos where codigo = 'B-1'), (select id from profiles where nombre = 'Multi');
+select debe_fallar($q$ insert into proyecto_lideres (proyecto_id, usuario_id)
+  select (select id from proyectos where codigo = 'B-1'), current_setting('prueba.lider2')::uuid $q$);
+-- Eliminar a «multi» desde B: solo se le retira de B (su cuenta y su empresa A siguen)
+do $$ begin
+  assert eliminar_usuario((select id from profiles where nombre = 'Multi')) = 'retirado', '030: no se retiró';
+end $$;
+reset role;
+do $$ begin perform set_config('request.jwt.claim.sub', '', false); end $$;
+do $$
+declare v_a uuid := (select area_id from profiles p join auth.users u on u.id = p.id where u.email = 'admin@x.pe');
+        v_b uuid := (select id from areas where nombre = 'Empresa B');
+        v_m uuid := (select id from auth.users where email = 'multi@x.pe');
+begin
+  assert exists (select 1 from profiles where id = v_m and area_id = v_a and not eliminado), '030: se perdió la cuenta o su empresa A';
+  assert not exists (select 1 from empresa_miembros where usuario_id = v_m and area_id = v_b), '030: sigue en B';
+  assert not exists (select 1 from proyecto_lideres where usuario_id = v_m), '030: sigue de líder en B';
+  -- Activo en B y se elimina la empresa B: pasa a A, no se borra
+  insert into empresa_miembros (usuario_id, area_id, rol) values (v_m, v_b, 'superadmin');
+  perform cambiar_empresa_activa(v_m, v_b);
+  assert (select area_id from profiles where id = v_m) = v_b and (select rol from profiles where id = v_m) = 'superadmin', '030: no cambió de empresa activa';
+  assert exists (select 1 from empresa_miembros where usuario_id = v_m and area_id = v_a), '030: el cambio de empresa activa quitó la membresía de A';
+  perform eliminar_empresa(v_b);
+  assert exists (select 1 from profiles where id = v_m and area_id = v_a), '030: al eliminar B se perdió el usuario de varias empresas';
+  assert not exists (select 1 from profiles p join auth.users u on u.id = p.id where u.email = 'bsolo@x.pe'), '030: el usuario solo de B debió eliminarse';
+  assert not exists (select 1 from empresa_miembros where area_id = v_b), '030: quedaron membresías de B';
+  raise notice '030 OK';
+end $$;
+
 -- 017: las funciones de disparador no se pueden invocar como API
 do $$ begin
   assert not exists (select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.prorettype = 'trigger'::regtype

@@ -50,10 +50,14 @@ let dejarCatalogo = null;
 // ---------- Usuarios ----------
 async function usuarios(el) {
   // Los eliminados con historial se conservan solo como nombre en los registros pasados
-  const [todos, historial] = await Promise.all([
-    api.list('profiles', { eq: { area_id: store.area.id }, order: [['nombre', true]] }),
-    api.list('delegado_historial', { eq: { area_id: store.area.id }, order: [['desde', false]] }).catch(() => [])]);
-  const perfiles = todos.filter(p => !p.eliminado);
+  const [todos, historial, miembros] = await Promise.all([
+    api.list('profiles', { order: [['nombre', true]] }),
+    api.list('delegado_historial', { eq: { area_id: store.area.id }, order: [['desde', false]] }).catch(() => []),
+    api.list('empresa_miembros', { eq: { area_id: store.area.id } }).catch(() => [])]);
+  // Personas de esta empresa: con ella como empresa activa o como miembros que hoy trabajan en otra (030)
+  const deAqui = new Map(miembros.filter(m => m.activo !== false).map(m => [m.usuario_id, m]));
+  const perfiles = todos.filter(p => !p.eliminado && (p.area_id === store.area.id || deAqui.has(p.id))).map(p => p.area_id === store.area.id ? p
+    : { ...p, rol: deAqui.get(p.id).rol, activo: deAqui.get(p.id).activo, es_admin_principal: deAqui.get(p.id).es_admin_principal, _otraEmpresa: true });
   const pendientes = perfiles.filter(p => p.rol === 'pendiente' && p.activo);
   const principal = esSuperadmin();
   el.innerHTML = `
@@ -65,12 +69,12 @@ async function usuarios(el) {
         <button class="btn btn-sm" data-a="invitar" title="Enlace para que la persona se registre sola">✉ Invitar</button>
         <button class="btn btn-sm" data-a="pdf-usuarios" title="Usuarios y roles con el organigrama">🖨 PDF</button></div>
       <table class="simple"><tr><th>Nombre</th><th>Código</th><th>Cargo</th><th>Correo</th><th>Rol</th><th>Gerencias (consulta)</th><th class="num">H/día</th><th>Estado</th><th></th></tr>
-      ${perfiles.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.es_admin_principal ? ' ' + badge('Principal', '#E8762B') : ''}</td><td>${esc(p.codigo || '')}</td><td>${esc(p.cargo_id ? store.valores.get(p.cargo_id)?.valor || '' : '')}</td><td>${esc(p.email || '')}</td>
+      ${perfiles.map(p => `<tr><td><b>${esc(p.nombre)}</b>${p.es_admin_principal ? ' ' + badge('Principal', '#E8762B') : ''}${p._otraEmpresa ? `<br><small class="nota" title="Pertenece a varias empresas. Su rol en esta empresa lo cambia un propietario en Administración › Plataforma › Empresas › Gestionar.">Hoy trabaja en otra empresa</small>` : ''}</td><td>${esc(p.codigo || '')}</td><td>${esc(p.cargo_id ? store.valores.get(p.cargo_id)?.valor || '' : '')}</td><td>${esc(p.email || '')}</td>
         <td>${badge(ROLES[p.rol] || p.rol, COLOR_ROL[p.rol])}</td>
         <td>${esc((p.gerencia_ids || []).map(g => store.valores.get(g)?.codigo || '').join(', '))}</td><td class="num">${p.horas_dia ?? '—'}</td>
         <td>${p.activo ? 'Activo' : '<span style="color:var(--rojo)">Inactivo</span>'}</td>
-        <td style="white-space:nowrap"><button class="btn btn-sm" data-editar="${p.id}">Editar</button>
-          ${puedeRestablecer(p) ? `<button class="btn btn-sm" data-clave="${p.id}" title="Restablecer contraseña">🔑</button>` : ''}
+        <td style="white-space:nowrap">${p._otraEmpresa ? '' : `<button class="btn btn-sm" data-editar="${p.id}">Editar</button>`}
+          ${puedeRestablecer(p) && !p._otraEmpresa ? `<button class="btn btn-sm" data-clave="${p.id}" title="Restablecer contraseña">🔑</button>` : ''}
           ${puedeEliminar(p) ? `<button class="btn btn-sm" data-eliminar="${p.id}" title="Eliminar usuario">🗑</button>` : ''}</td></tr>`).join('')}</table></div>
     <div data-organigrama style="margin-bottom:12px"></div>
     <details class="tarjeta"><summary><b>Historial del administrador delegado</b></summary>
@@ -130,7 +134,8 @@ async function eliminarUsuario(p) {
   if (!si) return;
   try {
     const r = await api.rpc('eliminar_usuario', { p_usuario: p.id });
-    ok(r === 'eliminado' ? `${p.nombre} fue eliminado.` : `${p.nombre} fue eliminado; su nombre se conserva en el historial.`);
+    ok(r === 'eliminado' ? `${p.nombre} fue eliminado.` : r === 'retirado' ? `${p.nombre} ya no pertenece a esta empresa (su cuenta y sus otras empresas siguen).`
+      : `${p.nombre} fue eliminado; su nombre se conserva en el historial.`);
   } catch (e) { error(mensajeError(e)); }
   await cargarCatalogo();
   render(document.getElementById('contenido'), { seccion: 'usuarios' });

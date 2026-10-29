@@ -154,6 +154,22 @@ async function atender(req: Request): Promise<Response> {
       if (!yo?.activo || yo.rol === 'pendiente' || yo.eliminado) return falla('No autorizado.', 403);
       return await mejoras(admin, yo, d);
     }
+    // Usuarios de varias empresas (migración 030): ver sus empresas y cambiar de empresa activa
+    if (d.accion === 'mis_empresas' || d.accion === 'cambiar_empresa') {
+      if (!yo || yo.eliminado) return falla('No autorizado.', 403);
+      if (d.accion === 'mis_empresas') {
+        const { data: ms, error: e } = await admin.from('empresa_miembros').select('area_id, rol, activo').eq('usuario_id', yo.id).eq('activo', true);
+        if (e) return respuesta({ empresas: [] });
+        const ids = [...new Set([...(ms ?? []).map((m: any) => m.area_id), yo.area_id].filter(Boolean))];
+        const { data: areas } = await admin.from('areas').select('id, nombre, activa').in('id', ids);
+        return respuesta({ actual: yo.area_id, empresas: (areas ?? []).map((a: any) => ({ id: a.id, nombre: a.nombre, activa: a.activa !== false,
+          rol: (ms ?? []).find((m: any) => m.area_id === a.id)?.rol ?? yo.rol })) });
+      }
+      const destino = String(d.area_id ?? '');
+      if (destino === yo.area_id) return respuesta({ ok: true });
+      const { error: e } = await admin.rpc('cambiar_empresa_activa', { p_usuario: yo.id, p_area: destino });
+      return e ? falla(e.message) : respuesta({ ok: true });
+    }
     const { data: permitido } = await comoUsuario.rpc('puede', { p_accion: 'gestionar_usuarios' });
     if (!yo?.activo || !permitido) return falla('No tiene permiso para gestionar usuarios.', 403);
 
@@ -186,7 +202,17 @@ async function atender(req: Request): Promise<Response> {
         app_metadata: { creado_por: yo.id, area_id: areaDestino },
       });
       if (eCrear) {
-        return falla(/already|registered|exists/i.test(eCrear.message) ? 'Ya existe un usuario con ese correo.' : eCrear.message);
+        if (!/already|registered|exists/i.test(eCrear.message)) return falla(eCrear.message);
+        // La persona ya tiene cuenta (en otra empresa): un propietario la agrega a esta empresa con el rol elegido
+        if (!yo.es_plataforma) return falla('Ya existe un usuario con ese correo en otra empresa. Pida a un propietario de la plataforma que lo agregue a esta empresa.');
+        const { data: existente } = await admin.from('profiles').select('id, area_id, eliminado, es_plataforma').ilike('email', email).maybeSingle();
+        if (!existente || existente.eliminado) return falla('Ya existe una cuenta con ese correo, pero no está disponible.');
+        if (existente.es_plataforma) return falla('Esa cuenta es de un propietario de la plataforma: ya administra todas las empresas.');
+        const { data: ya } = await admin.from('empresa_miembros').select('usuario_id').eq('usuario_id', existente.id).eq('area_id', areaDestino).maybeSingle();
+        if (ya || existente.area_id === areaDestino) return falla('Ya existe un usuario con ese correo en esta empresa.');
+        const { error: eM } = await admin.from('empresa_miembros').insert({ usuario_id: existente.id, area_id: areaDestino, rol, activo: true });
+        if (eM) return falla(/empresa_miembros/.test(eM.message) ? 'Falta aplicar en la base la migración 030 (usuarios en varias empresas).' : eM.message);
+        return respuesta({ id: existente.id, agregado: true });
       }
       const id = creado.user.id;
       // Supabase guarda app_metadata después de insertar la cuenta: el disparador de alta la deja en la primera
@@ -268,8 +294,11 @@ async function empresas(admin: any, yo: any, d: any, _clave: string): Promise<Re
     if (e) return falla(e.message);
     const { data: perfiles } = await admin.from('profiles').select('id, area_id, rol, activo, eliminado, es_admin_principal, es_plataforma, nombre, email');
     const { data: proys } = await admin.from('proyectos').select('area_id');
+    const { data: miembros } = await admin.from('empresa_miembros').select('usuario_id, area_id, activo');
     const lista = (areas ?? []).map((a: any) => {
-      const ps = (perfiles ?? []).filter((p: any) => p.area_id === a.id && !p.eliminado);
+      // Personas de la empresa: con ella como empresa activa o como membresía (usuarios de varias empresas)
+      const ids = new Set((miembros ?? []).filter((m: any) => m.area_id === a.id && m.activo).map((m: any) => m.usuario_id));
+      const ps = (perfiles ?? []).filter((p: any) => (p.area_id === a.id || ids.has(p.id)) && !p.eliminado);
       const principal = ps.find((p: any) => p.es_admin_principal && !p.es_plataforma) || ps.find((p: any) => p.es_admin_principal);
       return { ...a, codigo: String(a.id).slice(0, 8), usuarios: ps.filter((p: any) => p.activo && p.rol !== 'pendiente').length,
         proyectos: (proys ?? []).filter((p: any) => p.area_id === a.id).length,
@@ -358,6 +387,7 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
   const existeArea = async (id: string) => !!id && !!(await admin.from('areas').select('id').eq('id', id).maybeSingle()).data;
 
   if (d.accion === 'plataforma') {
+    const { data: miembros } = await admin.from('empresa_miembros').select('usuario_id, area_id, rol, activo, es_admin_principal');
     const [areas, perfiles, portafolios, programas, proyectos, lideres] = await Promise.all([
       admin.from('areas').select('id, nombre, descripcion, activa, created_at').order('created_at'),
       admin.from('profiles').select('id, area_id, nombre, email, codigo, rol, activo, eliminado, es_admin_principal, es_plataforma, created_at'),
@@ -369,7 +399,7 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
     const error = [areas, perfiles, portafolios, programas, proyectos, lideres].find(r => r.error)?.error;
     if (error) return falla(error.message);
     return respuesta({ areas: areas.data, perfiles: (perfiles.data ?? []).filter((p: any) => !p.eliminado), portafolios: portafolios.data,
-      programas: programas.data, proyectos: proyectos.data, lideres: lideres.data, mi_area: yo.area_id });
+      programas: programas.data, proyectos: proyectos.data, lideres: lideres.data, miembros: miembros ?? [], mi_area: yo.area_id });
   }
 
   if (d.accion === 'historial_proyecto') {
@@ -403,7 +433,11 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
       if (plat) return falla('Un propietario de la plataforma está trabajando en esa empresa. Que abra otra empresa primero.');
       try { await eliminarEmpresaDirecto(area); } catch (err) { return falla((err as Error).message); }
     } else if (e) return falla(e.message);
-    for (const u of usuarios ?? []) await admin.auth.admin.deleteUser(u.id);
+    // Cuentas de acceso: solo de quienes ya no tienen perfil (los que pertenecen a otra empresa pasaron a ella)
+    for (const u of usuarios ?? []) {
+      const { data: sigue } = await admin.from('profiles').select('id').eq('id', u.id).maybeSingle();
+      if (!sigue) await admin.auth.admin.deleteUser(u.id);
+    }
     return respuesta({ ok: true });
   }
 
@@ -415,10 +449,20 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
 
   if (d.accion === 'cambiar_principal') {
     const { data: nuevo } = await admin.from('profiles').select('id, area_id, activo, eliminado').eq('id', String(d.usuario_id ?? '')).maybeSingle();
-    if (!nuevo || nuevo.area_id !== area || nuevo.eliminado) return falla('El usuario no pertenece a esa empresa.');
+    if (!nuevo || nuevo.eliminado) return falla('El usuario no pertenece a esa empresa.');
+    const { data: miembro } = await admin.from('empresa_miembros').select('usuario_id').eq('usuario_id', nuevo.id).eq('area_id', area).maybeSingle();
+    if (nuevo.area_id !== area && !miembro) return falla('El usuario no pertenece a esa empresa.');
+    // Un solo super administrador principal por empresa (en los perfiles activos en ella y en las membresías)
     await admin.from('profiles').update({ es_admin_principal: false }).eq('area_id', area).eq('es_plataforma', false).neq('id', nuevo.id);
-    const { error: e } = await admin.from('profiles').update({ es_admin_principal: true, rol: 'superadmin', activo: true }).eq('id', nuevo.id);
-    return e ? falla(e.message) : respuesta({ ok: true });
+    await admin.from('empresa_miembros').update({ es_admin_principal: false }).eq('area_id', area).neq('usuario_id', nuevo.id);
+    if (nuevo.area_id === area) {
+      const { error: e } = await admin.from('profiles').update({ es_admin_principal: true, rol: 'superadmin', activo: true }).eq('id', nuevo.id);
+      if (e) return falla(e.message);
+    } else {
+      const { error: e } = await admin.from('empresa_miembros').update({ es_admin_principal: true, rol: 'superadmin', activo: true }).eq('usuario_id', nuevo.id).eq('area_id', area);
+      if (e) return falla(e.message);
+    }
+    return respuesta({ ok: true });
   }
 
   if (d.accion === 'estructura') {
@@ -483,7 +527,8 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
     if (!p) return falla('Proyecto no encontrado.', 404);
     const ids: string[] = Array.isArray(d.usuario_ids) ? d.usuario_ids.map(String) : [];
     const { data: validos } = await admin.from('profiles').select('id').eq('area_id', p.area_id).in('id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']);
-    const ok = new Set((validos ?? []).map((x: any) => x.id));
+    const { data: miembrosP } = await admin.from('empresa_miembros').select('usuario_id').eq('area_id', p.area_id).eq('activo', true).in('usuario_id', ids.length ? ids : ['00000000-0000-0000-0000-000000000000']);
+    const ok = new Set([...(validos ?? []).map((x: any) => x.id), ...(miembrosP ?? []).map((x: any) => x.usuario_id)]);
     await admin.from('proyecto_lideres').delete().eq('proyecto_id', p.id);
     const filas = ids.filter(i => ok.has(i)).map(usuario_id => ({ proyecto_id: p.id, usuario_id }));
     if (filas.length) {
@@ -506,8 +551,40 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
   }
 
   if (d.accion === 'usuario_plataforma') {
-    const { data: u } = await admin.from('profiles').select('id, es_plataforma, es_admin_principal').eq('id', String(d.usuario_id ?? '')).maybeSingle();
+    const { data: u } = await admin.from('profiles').select('id, area_id, es_plataforma, es_admin_principal').eq('id', String(d.usuario_id ?? '')).maybeSingle();
     if (!u) return falla('Usuario no encontrado.', 404);
+    // Usuario de varias empresas: su rol y estado en una empresa que no es la activa están en su membresía
+    if (area && u.area_id !== area) {
+      const { data: m } = await admin.from('empresa_miembros').select('es_admin_principal').eq('usuario_id', u.id).eq('area_id', area).maybeSingle();
+      if (!m) return falla('El usuario no pertenece a esa empresa.');
+      if (d.quitar) {
+        if (m.es_admin_principal) return falla('Es el super administrador principal de esa empresa: designe antes a otro.');
+        await admin.from('proyecto_lideres').delete().eq('usuario_id', u.id).in('proyecto_id',
+          ((await admin.from('proyectos').select('id').eq('area_id', area)).data ?? []).map((x: any) => x.id).concat(['00000000-0000-0000-0000-000000000000']));
+        const { error: e } = await admin.from('empresa_miembros').delete().eq('usuario_id', u.id).eq('area_id', area);
+        return e ? falla(e.message) : respuesta({ ok: true });
+      }
+      const cm: Record<string, unknown> = {};
+      if (d.rol !== undefined) {
+        if (!ROLES.includes(String(d.rol))) return falla('Rol no válido.');
+        if (m.es_admin_principal && d.rol !== 'superadmin') return falla('El administrador principal de una empresa es super administrador. Cambie antes el principal.');
+        cm.rol = String(d.rol);
+      }
+      if (d.activo !== undefined) cm.activo = !!d.activo;
+      const { error: e } = await admin.from('empresa_miembros').update(cm).eq('usuario_id', u.id).eq('area_id', area);
+      return e ? falla(e.message) : respuesta({ ok: true });
+    }
+    if (d.quitar) {
+      // Es su empresa activa: si pertenece a otra, pasa a ella; si no, se usa «Eliminar usuario»
+      const { data: otras } = await admin.from('empresa_miembros').select('area_id').eq('usuario_id', u.id).neq('area_id', u.area_id).eq('activo', true);
+      if (!otras?.length) return falla('Esta es la única empresa de la persona: para quitarla use «Eliminar usuario» en la configuración de la empresa.');
+      if (u.es_admin_principal) return falla('Es el super administrador principal de esa empresa: designe antes a otro.');
+      const viejo = u.area_id;
+      const { error: e1 } = await admin.rpc('mover_a_otra_empresa', { p_usuario: u.id, p_dejar: viejo });
+      if (e1) return falla(e1.message);
+      await admin.from('empresa_miembros').delete().eq('usuario_id', u.id).eq('area_id', viejo);
+      return respuesta({ ok: true });
+    }
     const cambios: Record<string, unknown> = {};
     if (d.rol !== undefined) {
       if (!ROLES.includes(String(d.rol))) return falla('Rol no válido.');

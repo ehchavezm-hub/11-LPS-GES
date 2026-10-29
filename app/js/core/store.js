@@ -52,13 +52,15 @@ export async function conteoColaboracion() {
 
 export async function cargarCatalogo() {
   const u = store.usuario;
-  const [areas, listas, valores, params, permisos, perfiles, proyectos, lideres, favs, columnas, portafolios, programas] = await Promise.all([
+  const [areas, listas, valores, params, permisos, perfiles, proyectos, lideres, favs, columnas, portafolios, programas, miembros] = await Promise.all([
     api.list('areas', { eq: { id: u.area_id } }),
     api.list('listas', {}),
     api.list('lista_valores', { order: [['orden', true]] }),
     api.list('parametros', { eq: { area_id: u.area_id } }),
     api.list('permisos', { eq: { area_id: u.area_id } }),
-    api.list('profiles', { eq: { area_id: u.area_id }, order: [['nombre', true]] }),
+    // Sin filtrar por empresa: la base devuelve solo los visibles (la propia persona y los de su empresa, incluidos los
+    // miembros que hoy trabajan en otra empresa, migración 030); abajo se dejan los de esta empresa
+    api.list('profiles', { order: [['nombre', true]] }),
     api.list('proyectos', { eq: { area_id: u.area_id }, order: [['codigo', true]] }),
     u.rol === 'consulta' ? Promise.resolve([]) : api.list('proyecto_lideres', {}),
     api.list('proyecto_favoritos', { eq: { usuario_id: u.id } }),
@@ -66,6 +68,8 @@ export async function cargarCatalogo() {
     // Jerarquía de la empresa (menú de proyectos en árbol): Portafolio → Programa → Proyecto
     api.list('portafolios', { eq: { area_id: u.area_id }, order: [['nombre', true]] }).catch(() => []),
     api.list('programas', { eq: { area_id: u.area_id }, order: [['nombre', true]] }).catch(() => []),
+    // Usuarios de varias empresas (030): sin la migración aplicada, lista vacía y todo funciona como antes
+    api.list('empresa_miembros', {}).catch(() => []),
   ]);
   store.area = areas[0] || null;
   api.fijarArea?.(store.area?.id);
@@ -84,7 +88,15 @@ export async function cargarCatalogo() {
   for (const p of params) store.parametros[p.clave] = p.valor;
   store.permisos = {};
   for (const p of permisos) (store.permisos[p.rol] ||= {})[p.accion] = p.permitido;
-  store.perfiles = perfiles;
+  // Equipo de la empresa: quienes la tienen como empresa activa y sus miembros que hoy trabajan en otra (con su rol aquí)
+  const deAqui = new Map(miembros.filter(m => m.area_id === u.area_id && m.activo !== false).map(m => [m.usuario_id, m]));
+  store.perfiles = perfiles.filter(p => p.area_id === u.area_id || deAqui.has(p.id)).map(p => {
+    if (p.area_id === u.area_id) return p;
+    const m = deAqui.get(p.id);
+    return { ...p, rol: m.rol, activo: m.activo, es_admin_principal: m.es_admin_principal, _otraEmpresa: true };
+  });
+  // Empresas de la persona (si son varias, el menú ofrece cambiar de empresa)
+  store.misEmpresas = [...new Set([u.area_id, ...miembros.filter(m => m.usuario_id === u.id && m.activo !== false).map(m => m.area_id)])];
   store.proyectos = u.rol === 'consulta'
     ? proyectos.filter(p => p.estado === 'activo' && (u.gerencia_ids || []).includes(p.gerencia_id)) : proyectos;
   store.proyectoLideres = lideres;

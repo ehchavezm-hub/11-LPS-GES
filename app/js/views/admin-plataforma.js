@@ -21,7 +21,20 @@ export async function cargarPlataforma({ forzar = false } = {}) {
 /** Empresas ya cargadas (para la barra superior), sin volver a pedirlas. */
 export function empresasEnMemoria() { return datos?.areas || null; }
 const empresa = id => datos.areas.find(a => a.id === id);
-const usuariosDe = id => datos.perfiles.filter(p => p.area_id === id);
+// Personas de una empresa: las que la tienen como empresa activa y las que pertenecen por membresía (usuarios de varias
+// empresas, migración 030). En estas últimas, rol, estado y «principal» son los de su membresía en esa empresa.
+const miembrosDe = id => (datos.miembros || []).filter(m => m.area_id === id);
+const usuariosDe = id => {
+  const activos = datos.perfiles.filter(p => p.area_id === id).map(p => ({ ...p, _area: id }));
+  const otros = miembrosDe(id).filter(m => !activos.some(p => p.id === m.usuario_id)).map(m => {
+    const p = datos.perfiles.find(x => x.id === m.usuario_id);
+    return p && { ...p, rol: m.rol, activo: m.activo, es_admin_principal: m.es_admin_principal, _area: id, _otra: true };
+  }).filter(Boolean);
+  return [...activos, ...otros];
+};
+const perteneceA = (usuarioId, areaId) => usuariosDe(areaId).some(p => p.id === usuarioId);
+// ¿Cuántas empresas tiene la persona? (para ofrecer «Quitar de esta empresa»)
+const empresasDe = usuarioId => datos.areas.filter(a => perteneceA(usuarioId, a.id));
 const principalDe = id => usuariosDe(id).find(p => p.es_admin_principal && !p.es_plataforma) || usuariosDe(id).find(p => p.es_admin_principal);
 const proyectosDe = id => datos.proyectos.filter(p => p.area_id === id);
 const lideresDe = proyId => datos.lideres.filter(l => l.proyecto_id === proyId).map(l => datos.perfiles.find(p => p.id === l.usuario_id)).filter(Boolean);
@@ -303,7 +316,7 @@ async function cambiarPrincipal(a) {
 // ════════════════════════════════════════════════════════════════
 export async function panelUsuariosPlataforma(el) {
   await cargarPlataforma();
-  el.innerHTML = cab('Usuarios de la plataforma', 'Usuarios de todas las empresas. Cada usuario pertenece a una sola empresa.',
+  el.innerHTML = cab('Usuarios de la plataforma', 'Usuarios de todas las empresas. Una persona puede pertenecer a varias empresas: aparece una vez por cada una, con su rol en ella.',
     `<button class="btn btn-primario" data-a="nuevo">+ Nuevo usuario</button>`) +
     `<div class="admin-filtros">
       <input class="inp" data-f="q" placeholder="Buscar nombre o correo...">
@@ -315,10 +328,11 @@ export async function panelUsuariosPlataforma(el) {
   const f = k => el.querySelector(`[data-f="${k}"]`).value;
   const pintar = () => {
     const q = f('q').trim().toLowerCase();
-    const lista = datos.perfiles.filter(p => (!q || `${p.nombre} ${p.email}`.toLowerCase().includes(q)) && (!f('empresa') || p.area_id === f('empresa')) &&
+    const todas = datos.areas.flatMap(a => usuariosDe(a.id));
+    const lista = todas.filter(p => (!q || `${p.nombre} ${p.email}`.toLowerCase().includes(q)) && (!f('empresa') || p._area === f('empresa')) &&
       (!f('rol') || p.rol === f('rol')) && (f('estado') === '' || String(Number(!!p.activo)) === f('estado')))
-      .sort((a, b) => (empresa(a.area_id)?.nombre || '').localeCompare(empresa(b.area_id)?.nombre || '') || (a.nombre || '').localeCompare(b.nombre || ''));
-    el.querySelector('[data-contador]').textContent = `${lista.length} de ${datos.perfiles.length}`;
+      .sort((a, b) => (empresa(a._area)?.nombre || '').localeCompare(empresa(b._area)?.nombre || '') || (a.nombre || '').localeCompare(b.nombre || ''));
+    el.querySelector('[data-contador]').textContent = `${lista.length} de ${todas.length}`;
     el.querySelector('[data-tabla]').innerHTML = tablaUsuarios(lista, true);
   };
   el.querySelectorAll('[data-f]').forEach(x => x.addEventListener(x.tagName === 'INPUT' ? 'input' : 'change', pintar));
@@ -336,27 +350,40 @@ function tablaUsuarios(lista, conEmpresa) {
   if (!lista.length) return '<p class="nota" style="padding:12px">Sin usuarios.</p>';
   return `<table class="simple"><thead><tr><th>NOMBRE</th><th>CORREO</th>${conEmpresa ? '<th>EMPRESA</th>' : ''}<th>ROL</th><th>ESTADO</th><th></th></tr></thead>
     <tbody>${lista.map(p => `<tr>
-      <td><b>${esc(p.nombre || '—')}</b>${p.es_admin_principal && !p.es_plataforma ? ' ' + badge('Principal', '#1A365D') : ''}${p.es_plataforma ? ' ' + badge('Propietario', '#B07AA1') : ''}</td>
+      <td><b>${esc(p.nombre || '—')}</b>${p.es_admin_principal && !p.es_plataforma ? ' ' + badge('Principal', '#1A365D') : ''}${p.es_plataforma ? ' ' + badge('Propietario', '#B07AA1') : ''}
+        ${empresasDe(p.id).length > 1 ? `<br><small class="nota">También en: ${esc(empresasDe(p.id).filter(a => a.id !== p._area).map(a => a.nombre).join(', '))}${p._otra ? ` · hoy trabaja en ${esc(empresa(p.area_id)?.nombre || '')}` : ''}</small>` : ''}</td>
       <td>${esc(p.email || '—')}</td>
-      ${conEmpresa ? `<td>${esc(empresa(p.area_id)?.nombre || '—')}</td>` : ''}
+      ${conEmpresa ? `<td>${esc(empresa(p._area)?.nombre || '—')}</td>` : ''}
       <td>${badge(ROLES[p.rol] || p.rol, COLOR_ROL[p.rol])}</td>
       <td>${p.activo ? badge('Activo', '#2e7d32') : badge('Inactivo', '#888')}</td>
-      <td class="acciones-fila"><button class="btn btn-xs" data-rol="${p.id}">Cambiar rol</button>
-        <button class="btn btn-xs" data-activo="${p.id}">${p.activo ? 'Desactivar' : 'Activar'}</button></td></tr>`).join('')}</tbody></table>`;
+      <td class="acciones-fila"><button class="btn btn-xs" data-rol="${p.id}" data-area="${p._area}">Cambiar rol</button>
+        <button class="btn btn-xs" data-activo="${p.id}" data-area="${p._area}">${p.activo ? 'Desactivar' : 'Activar'}</button>
+        ${empresasDe(p.id).length > 1 && !p.es_plataforma ? `<button class="btn btn-xs btn-peligro-borde" data-quitar-de="${p.id}" data-area="${p._area}" title="Deja de pertenecer a esta empresa; su cuenta y sus otras empresas siguen">Quitar de esta empresa</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
 }
 
 async function accionUsuario(t) {
-  const u = datos.perfiles.find(p => p.id === (t.dataset.rol || t.dataset.activo));
+  // Cada fila es una persona EN una empresa (data-area): su rol y estado son los de esa empresa
+  const area = t.dataset.area;
+  const id = t.dataset.rol || t.dataset.activo || t.dataset.quitarDe;
+  const u = area ? usuariosDe(area).find(p => p.id === id) : datos.perfiles.find(p => p.id === id);
   if (!u) return false;
+  const nomEmp = empresa(area)?.nombre || '';
+  if (t.dataset.quitarDe) {
+    if (!await confirmar(`¿Quitar a ${u.nombre} de ${nomEmp}? Su cuenta sigue y conserva sus otras empresas (${empresasDe(u.id).filter(a => a.id !== area).map(a => a.nombre).join(', ')}).`,
+      { titulo: 'Quitar de la empresa', texto: 'Quitar', peligro: true })) return false;
+    await api.adminUsuarios('usuario_plataforma', { usuario_id: u.id, area_id: area, quitar: true });
+    ok(`${u.nombre} ya no pertenece a ${nomEmp}.`);
+    return true;
+  }
   if (t.dataset.rol) {
     return pedirDatos({
-      titulo: `Rol de ${u.nombre}`, valores: { rol: u.rol },
+      titulo: `Rol de ${u.nombre}${nomEmp ? ` en ${nomEmp}` : ''}`, valores: { rol: u.rol },
       campos: [{ name: 'rol', label: 'Rol', type: 'select', required: true, full: true, options: Object.entries(ROLES).map(([value, label]) => ({ value, label })) }],
-      alGuardar: async d => { await api.adminUsuarios('usuario_plataforma', { usuario_id: u.id, rol: d.rol }); ok('Rol actualizado.'); },
+      alGuardar: async d => { await api.adminUsuarios('usuario_plataforma', { usuario_id: u.id, area_id: area, rol: d.rol }); ok('Rol actualizado.'); },
     });
   }
-  if (!await confirmar(`¿${u.activo ? 'Desactivar' : 'Activar'} a ${u.nombre}?`, { texto: u.activo ? 'Desactivar' : 'Activar', peligro: u.activo })) return false;
-  await api.adminUsuarios('usuario_plataforma', { usuario_id: u.id, activo: !u.activo });
+  if (!await confirmar(`¿${u.activo ? 'Desactivar' : 'Activar'} a ${u.nombre}${nomEmp ? ` en ${nomEmp}` : ''}?`, { texto: u.activo ? 'Desactivar' : 'Activar', peligro: u.activo })) return false;
+  await api.adminUsuarios('usuario_plataforma', { usuario_id: u.id, area_id: area, activo: !u.activo });
   ok(u.activo ? 'Usuario desactivado.' : 'Usuario activado.');
   return true;
 }
@@ -364,7 +391,7 @@ async function accionUsuario(t) {
 async function nuevoUsuario(areaId) {
   return pedirDatos({
     titulo: 'Nuevo usuario', texto: 'Crear',
-    antes: 'Deberá cambiar la contraseña en su primer ingreso.',
+    antes: 'Deberá cambiar la contraseña en su primer ingreso. Si el correo ya tiene cuenta en otra empresa, se agrega a esta empresa con el rol elegido (la contraseña no se cambia).',
     valores: { area_id: areaId, rol: 'lider' },
     campos: [
       { name: 'area_id', label: 'Empresa', type: 'select', required: true, full: true, options: datos.areas.map(a => ({ value: a.id, label: a.nombre })) },
@@ -373,7 +400,12 @@ async function nuevoUsuario(areaId) {
       { name: 'rol', label: 'Rol', type: 'select', required: true, options: Object.entries(ROLES).filter(([k]) => k !== 'pendiente').map(([value, label]) => ({ value, label })) },
       { name: 'clave', label: 'Contraseña temporal (mínimo 8 caracteres)', type: 'password', required: true },
     ],
-    alGuardar: async d => { await api.adminUsuarios('crear', d); ok(`Usuario creado en ${empresa(d.area_id)?.nombre || 'la empresa'}.`); },
+    alGuardar: async d => {
+      const r = await api.adminUsuarios('crear', d);
+      // Correo que ya tenía cuenta en otra empresa: se agrega a esta con el rol elegido (usuarios de varias empresas)
+      ok(r?.agregado ? `${d.email} ya tenía cuenta: se agregó a ${empresa(d.area_id)?.nombre || 'la empresa'} como ${ROLES[d.rol] || d.rol}. Entra con su misma contraseña y elige la empresa desde su menú.`
+        : `Usuario creado en ${empresa(d.area_id)?.nombre || 'la empresa'}.`);
+    },
   });
 }
 
@@ -617,7 +649,7 @@ async function editarNodo(tabla, x, { area, portafolio, programa, padre }) {
     const f = datos.portafolios.find(z => z.id === g.portafolio_id);
     return { value: g.id, label: [f?.nombre, g.nombre].filter(Boolean).join(' › ') };
   });
-  const responsables = id => datos.perfiles.filter(p => (!id || p.area_id === id) && p.activo && p.rol !== 'pendiente').map(p => ({ value: p.id, label: `${p.nombre} (${nombreCorto(p)})` }));
+  const responsables = id => (id ? usuariosDe(id) : datos.perfiles).filter(p => p.activo && p.rol !== 'pendiente').map(p => ({ value: p.id, label: `${p.nombre} (${nombreCorto(p)})` }));
   if (tabla === 'proyectos') {
     campos.push({ name: 'codigo', label: 'Código', required: true }, { name: 'nombre_corto', label: 'Nombre corto (menú)', required: true },
       { name: 'nombre_completo', label: 'Nombre completo', full: true },
@@ -671,13 +703,13 @@ function filtrarPorEmpresa() {
   const form = [...document.querySelectorAll('.modal')].pop();
   const selEmp = form?.querySelector('[name="area_id"]');
   if (!selEmp) return;
-  const areaDe = (campo, id) => campo === 'responsable_id' ? datos.perfiles.find(p => p.id === id)?.area_id
-    : datos[campo === 'portafolio_id' ? 'portafolios' : 'programas'].find(z => z.id === id)?.area_id;
+  const deOtra = (campo, id) => campo === 'responsable_id' ? !perteneceA(id, selEmp.value)
+    : datos[campo === 'portafolio_id' ? 'portafolios' : 'programas'].find(z => z.id === id)?.area_id !== selEmp.value;
   const aplicar = () => {
     for (const campo of ['portafolio_id', 'programa_id', 'responsable_id']) {
       const sel = form.querySelector(`[name="${campo}"]`);
       if (!sel) continue;
-      for (const o of sel.options) if (o.value) o.hidden = o.disabled = areaDe(campo, o.value) !== selEmp.value;
+      for (const o of sel.options) if (o.value) o.hidden = o.disabled = deOtra(campo, o.value);
       if (sel.selectedOptions[0]?.hidden) sel.value = '';
     }
   };
