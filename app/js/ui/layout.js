@@ -67,7 +67,7 @@ export function montarLayout(raiz, { alSalir }) {
   tiradorLateral(app);
   document.addEventListener('ruta', pintarNav);
   on('catalogo', () => { pintarProyectos(); });
-  on('proyecto', () => pintarProyectos());
+  on('proyecto', () => { pintarProyectos(); pintarNav(); });
 
   app.querySelector('.menu-proy input').addEventListener('input', e => { filtroProy = e.target.value; pintarProyectos(); });
   app.querySelector('.proy-lista').addEventListener('click', e => {
@@ -170,7 +170,12 @@ function pintarNav() {
   const admin = NAV.slice(0, corte);
   navAdmin.innerHTML = admin.some(n => !n.grupo && n.si()) ? pintar(admin) : '';
   navAdmin.classList.toggle('oculto', !navAdmin.innerHTML);
-  navModulos.innerHTML = pintar(NAV.slice(corte));
+  // s10: nombre del sub-proyecto activo como cabecera de los módulos
+  const proyActivo = store.proyectoSel ? store.proyectos.find(p => p.id === store.proyectoSel) : null;
+  const cabProy = proyActivo
+    ? `<div class="nav-proy-activo" title="${esc(proyActivo.nombre_completo || proyActivo.nombre_corto)}"><span class="ico">📋</span><span class="txt"><b>${esc(proyActivo.codigo || '')}</b>${proyActivo.codigo ? ' · ' : ''}${esc(proyActivo.nombre_corto)}</span></div>`
+    : '';
+  navModulos.innerHTML = cabProy + pintar(NAV.slice(corte));
   for (const nav of [navAdmin, navModulos]) nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => document.body.classList.remove('menu-abierto')));
 }
 
