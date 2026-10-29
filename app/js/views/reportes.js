@@ -357,4 +357,4 @@ async function generar(releer = true) {
   } finally { carg.classList.add('oculto'); }
 }
 
-export function destruir() { estado = null; ultimoHTML = ''; }
+export function destruir() { desuscribir.forEach(f => f()); desuscribir = []; estado = null; ultimoHTML = ''; }
