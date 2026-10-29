@@ -1,6 +1,6 @@
 // Estructura general: cabecera, navegación lateral y menú de proyectos (6.3), notificaciones y usuario. v1.1
 import { api, modoDemo } from '../data/api.js';
-import { store, on, esGestor, esStaff, esAdmin, puede, seleccionarProyecto, cargarCatalogo, rol } from '../core/store.js';
+import { store, on, esGestor, esStaff, esAdmin, puede, seleccionarProyecto, seleccionarNivel, cargarCatalogo, rol } from '../core/store.js';
 import { ROLES } from '../data/catalogos.js';
 import { esc, html, normalizar, fmtFechaHora } from '../core/util.js';
 import { ir } from '../core/router.js';
@@ -68,6 +68,13 @@ export function montarLayout(raiz, { alSalir }) {
 
   app.querySelector('.menu-proy input').addEventListener('input', e => { filtroProy = e.target.value; pintarProyectos(); });
   app.querySelector('.proy-lista').addEventListener('click', e => {
+    // Portafolio o programa: clic en el nombre lo elige (suma todo lo de abajo, pedido Q5); la flecha lo abre o cierra
+    const nivel = e.target.closest('[data-nivel]');
+    if (nivel && !e.target.closest('.arbol-flecha')) {
+      seleccionarNivel(nivel.dataset.nivel);
+      document.body.classList.remove('menu-abierto');
+      return;
+    }
     const r = e.target.closest('[data-rama]');
     if (r && (r.dataset.rama !== 'empresa' || e.target.closest('[data-solo-rama]'))) { alternarRama(r.dataset.rama); return; }
     const it = e.target.closest('.proy-item, .arbol-emp');
@@ -196,7 +203,8 @@ function pintarProyectos() {
   const rama = (clave, nivel, ico, nombre, codigo, n, hijos, clase) => {
     if (soloConProyectos && !n) return '';
     const ab = abierta(clave);
-    return `<div class="arbol-rama arbol-n${nivel} ${clase}" data-rama="${clave}" role="button" aria-expanded="${ab}" title="${esc(nombre)}">
+    const nivelSel = clave[0] + ':' + clave.slice(1);   // 'f<id>' → 'f:<id>'
+    return `<div class="arbol-rama arbol-n${nivel} ${clase}${store.nivelSel === nivelSel ? ' activo' : ''}" data-rama="${clave}" data-nivel="${nivelSel}" role="button" aria-expanded="${ab}" title="${esc(nombre)}: clic para ver todo lo que contiene; la flecha lo abre o cierra">
         <span class="arbol-flecha">${ab ? '▾' : '▸'}</span><span class="arbol-ico">${ico}</span>
         <span class="nom">${esc(nombre)} <small>(${n})</small></span><span class="cod">${esc(codigo || '')}</span></div>
       ${ab ? (hijos || `<div class="arbol-vacio arbol-n${nivel + 1}">Sin contenido</div>`) : ''}`;
@@ -214,7 +222,7 @@ function pintarProyectos() {
   const cuerpo = ramasPort + progSueltos + sueltos;
   const empresa = store.area?.nombre || 'Empresa';
   const abiertaEmp = abierta('empresa');
-  cont.innerHTML = `<div class="arbol-rama arbol-n0 arbol-emp proy-todos${!store.proyectoSel ? ' activo' : ''}" data-rama="empresa" data-id="" role="button" aria-expanded="${abiertaEmp}"
+  cont.innerHTML = `<div class="arbol-rama arbol-n0 arbol-emp proy-todos${!store.proyectoSel && !store.nivelSel ? ' activo' : ''}" data-rama="empresa" data-id="" role="button" aria-expanded="${abiertaEmp}"
       title="Todos los proyectos de ${esc(empresa)}"><span class="arbol-flecha" data-solo-rama>${abiertaEmp ? '▾' : '▸'}</span><span class="arbol-ico">🏢</span>
       <span class="nom">${esc(empresa)} <small>· todos (${lista.length})</small></span></div>` +
     (abiertaEmp ? (cuerpo || `<p class="nota" style="padding:8px">${f ? 'Sin resultados.' : 'Sin proyectos.'}</p>`) : '');

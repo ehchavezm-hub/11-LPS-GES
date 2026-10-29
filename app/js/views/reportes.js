@@ -2,7 +2,7 @@
 // "Todo en 1 hoja", nombre del archivo y Guardar PDF). Los datos se leen de la base con los mismos cálculos
 // que las pantallas (PAC, Pareto de CNC, capacidad…) para que el reporte coincida con lo que se ve en la app.
 import { api, mensajeError } from '../data/api.js';
-import { store, lideres, equipo, nombre, proyecto, etiqueta, textoEstado, colorEstado, param, valoresLista, esGestor, esStaff, visibleParaConsulta, semanasLookAhead, enProyectoSel } from '../core/store.js';
+import { store, lideres, equipo, nombre, proyecto, etiqueta, textoEstado, colorEstado, param, valoresLista, esGestor, esStaff, visibleParaConsulta, semanasLookAhead, enProyectoSel, haySeleccion, nombreSeleccion } from '../core/store.js';
 import { lunes, sumarSemanas, sumarDias, etiquetaSemana, esc, html, num, pct, fmtFecha, hoy, DIAS, agrupar } from '../core/util.js';
 import { error } from '../ui/ui.js';
 import { columnasActividad } from '../services/columnas.js';
@@ -52,14 +52,14 @@ async function seriePAC(f) {
     let r = resumenPAC(actsF.filter(a => a.semana === s));
     if (!r.comprometidas) {
       const h = hist.filter(x => x.semana === s && delResp(f)(x));
-      if (h.length && !store.proyectoSel && esStaff()) r = { ...resumenHistorico(h), comprometidas: 0 };   // igual que el Tablero
+      if (h.length && !haySeleccion() && esStaff()) r = { ...resumenHistorico(h), comprometidas: 0 };   // igual que el Tablero
     }
     return { semana: s, ...r };
   });
   return { acts: actsF, serie, desde };
 }
 
-const pieFiltro = f => `<p class="nota">${f.resp && f.resp !== 'todos' ? `Responsable: ${esc(nombre(f.resp))} · ` : 'Todo el equipo · '}${store.proyectoSel ? `Proyecto: ${esc(nombreProyectoActual())}` : 'Todos los proyectos'}</p>`;
+const pieFiltro = f => `<p class="nota">${f.resp && f.resp !== 'todos' ? `Responsable: ${esc(nombre(f.resp))} · ` : 'Todo el equipo · '}${haySeleccion() ? `${store.proyectoSel ? 'Proyecto' : 'Filtro'}: ${esc(nombreProyectoActual())}` : 'Todos los proyectos'}</p>`;
 
 // ---------- Catálogo de reportes ----------
 // filtros: 'semana' (semana de referencia), 'periodo' (n semanas hasta la de referencia), 'resp' (responsable)

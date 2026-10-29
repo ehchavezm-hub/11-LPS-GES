@@ -1,6 +1,6 @@
 // Resumen semanal en texto, listo para pegar en Teams o enviar por correo (reemplaza la macro ExportarResumen).
 import { api } from '../data/api.js';
-import { store, lideres, nombre, etiqueta, param, nombreProyecto, enProyectoSel } from '../core/store.js';
+import { store, lideres, nombre, etiqueta, param, nombreProyecto, enProyectoSel, nombreSeleccion } from '../core/store.js';
 import { etiquetaSemana, hoy, pct, esc, html, num } from '../core/util.js';
 import { resumenPAC, paretoCNC, resumenRestricciones, semanasPendiente } from './indicadores.js';
 import { modal, ok } from '../ui/ui.js';
@@ -11,12 +11,13 @@ export async function generarResumen(semana) {
     api.list('actividades', { eq: { area_id: area, semana } }),
     api.list('restricciones', { eq: { area_id: area } }),
   ]);
-  const filtradas = store.proyectoSel ? acts.filter(a => enProyectoSel(a.proyecto_id)) : acts;
+  const filtradas = acts.filter(a => enProyectoSel(a.proyecto_id));
   const r = resumenPAC(filtradas);
   const meta = Number(param('meta_pac'));
   const lineas = [];
   lineas.push(`📊 RESUMEN SEMANAL LPS-GES — ${etiquetaSemana(semana)}`);
   if (store.proyectoSel) lineas.push(`Proyecto: ${nombreProyecto(store.proyectoSel)}`);
+  else if (store.nivelSel) lineas.push(nombreSeleccion());
   lineas.push('');
   lineas.push(`PAC del equipo: ${pct(r.pac)} (meta ${pct(meta)}) ${r.pac == null ? '' : r.pac >= meta ? '✅' : '⚠️'}`);
   lineas.push(`Compromisos: ${r.comprometidas} · Completados: ${r.completadas} · No completados: ${r.noCompletadas} · Cancelados: ${r.canceladas}${r.pendientes ? ` · Sin estado: ${r.pendientes}` : ''}`);

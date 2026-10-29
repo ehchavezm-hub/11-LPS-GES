@@ -1,6 +1,6 @@
 // Formato estándar de PDF (sección 12.3): encabezado y pie de 6 pt en Urbanist, título de 12 pt #1A365D,
 // contenido en Manrope, márgenes de 10 mm, A4 vertical u horizontal, nombre PROYECTO-Módulo-DDMMAAAA.pdf.
-import { store, param, nombreProyecto } from '../core/store.js';
+import { store, param, nombreProyecto, nombreSeleccion } from '../core/store.js';
 import { esc } from '../core/util.js';
 
 function dosDig(n) { return String(n).padStart(2, '0'); }
@@ -16,7 +16,7 @@ export function nombreArchivo(reporte, d = new Date()) {
 }
 
 export function nombreProyectoActual() {
-  return store.proyectoSel ? nombreProyecto(store.proyectoSel) : 'Todos los proyectos';
+  return store.proyectoSel ? nombreProyecto(store.proyectoSel) : store.nivelSel ? nombreSeleccion() : 'Todos los proyectos';
 }
 
 // Estilos del documento PDF (encabezado y pie de página, tablas, KPIs). Se usan en la ventana de impresión

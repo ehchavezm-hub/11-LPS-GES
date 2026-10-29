@@ -20,6 +20,8 @@ export const store = {
   favoritos: new Set(),
   columnas: [],
   proyectoSel: localStorage.getItem('lpsgt-proyecto') || '',
+  // Portafolio o programa elegido en el árbol ('f:<id>' / 'g:<id>'): suma todos sus proyectos y sub-proyectos (pedido Q5)
+  nivelSel: localStorage.getItem('lpsgt-proyecto') ? '' : (localStorage.getItem('lpsgt-nivel') || ''),
   notificaciones: [],
 };
 
@@ -91,6 +93,7 @@ export async function cargarCatalogo() {
   store.portafolios = portafolios;
   store.programas = programas;
   if (store.proyectoSel && !proyectos.some(p => p.id === store.proyectoSel)) seleccionarProyecto('');
+  if (store.nivelSel && !nombreSeleccion()) seleccionarProyecto('');
   emit('catalogo');
 }
 
@@ -238,7 +241,25 @@ export function esContenedor(p) { return !!p && store.proyectos.some(x => x.padr
  *  Elegir un proyecto incluye sus sub-proyectos. */
 export function enProyectoSel(id) {
   const sel = store.proyectoSel;
-  return !sel || id === sel || (!!id && proyecto(id)?.padre_id === sel);
+  if (sel) return id === sel || (!!id && proyecto(id)?.padre_id === sel);
+  if (!store.nivelSel) return true;
+  // Agregación de abajo hacia arriba: sub-proyecto → proyecto → programa → portafolio → empresa
+  const p = id && proyecto(id);
+  if (!p) return false;
+  const [t, clave] = store.nivelSel.split(':');
+  const campo = t === 'f' ? 'portafolio_id' : 'programa_id';
+  const padre = p.padre_id && proyecto(p.padre_id);
+  return p[campo] === clave || (!!padre && padre[campo] === clave);
+}
+/** ¿Hay un proyecto, programa o portafolio elegido? (sin elección: toda la empresa) */
+export function haySeleccion() { return !!(store.proyectoSel || store.nivelSel); }
+/** Nombre de lo elegido en el árbol, para filtros, encabezados y PDF. */
+export function nombreSeleccion() {
+  if (store.proyectoSel) return proyecto(store.proyectoSel)?.nombre_corto || '';
+  if (!store.nivelSel) return '';
+  const [t, clave] = store.nivelSel.split(':');
+  const x = (t === 'f' ? store.portafolios : store.programas).find(z => z.id === clave);
+  return x ? `${t === 'f' ? 'Portafolio' : 'Programa'} ${x.nombre}` : '';
 }
 const nombreConPadre = p => { const padre = p.padre_id && proyecto(p.padre_id); return padre ? `${padre.nombre_corto} › ${p.nombre_corto}` : p.nombre_corto; };
 export function opcionesProyectos() {
@@ -262,6 +283,16 @@ export function lideresHeredados(id) {
 }
 export function seleccionarProyecto(id) {
   store.proyectoSel = id || '';
+  store.nivelSel = '';
   localStorage.setItem('lpsgt-proyecto', store.proyectoSel);
+  localStorage.removeItem('lpsgt-nivel');
   emit('proyecto', store.proyectoSel);
+}
+/** Elige un portafolio ('f:<id>') o programa ('g:<id>'): los módulos suman todo lo que tiene debajo. */
+export function seleccionarNivel(clave) {
+  store.proyectoSel = '';
+  store.nivelSel = clave || '';
+  localStorage.setItem('lpsgt-proyecto', '');
+  if (store.nivelSel) localStorage.setItem('lpsgt-nivel', store.nivelSel); else localStorage.removeItem('lpsgt-nivel');
+  emit('proyecto', '');
 }

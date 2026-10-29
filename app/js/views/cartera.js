@@ -1,6 +1,6 @@
 // Cartera de servicios por líder (6.5) y formulario de solicitudes de otras gerencias (M-01).
 import { api, mensajeError } from '../data/api.js';
-import { store, on, esGestor, esStaff, puede, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado, lideres, colorValor, opcionesServicio, semanaInicioLA, semanasLookAhead, enProyectoSel } from '../core/store.js';
+import { store, on, esGestor, esStaff, puede, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado, lideres, colorValor, opcionesServicio, semanaInicioLA, semanasLookAhead, enProyectoSel, haySeleccion, nombreSeleccion } from '../core/store.js';
 import { esc, html, hoy, fmtFecha, lunes, sumarSemanas, etiquetaSemana } from '../core/util.js';
 import { crearGrilla } from '../ui/grid.js';
 import { kpi, badge, pedirDatos, ok, error, vacio, toast } from '../ui/ui.js';
@@ -109,7 +109,7 @@ function puedeAceptar(c) {
 function pintarExtras() {
   const pag = document.querySelector('#contenido');
   if (!pag?.querySelector('[data-kpis]')) return;
-  pag.querySelector('[data-proy]').innerHTML = store.proyectoSel ? `<span class="chip-filtro">🏗 ${esc(proyecto(store.proyectoSel)?.nombre_corto || '')}</span>` : '';
+  pag.querySelector('[data-proy]').innerHTML = haySeleccion() ? `<span class="chip-filtro">🏗 ${esc(nombreSeleccion())}</span>` : '';
   const nuevas = estado.items.filter(c => c.estado === 'nueva');
   pag.querySelector('[data-nuevas]').innerHTML = nuevas.length ? `<div class="tarjeta" style="margin-bottom:12px;border-left:4px solid var(--arena)">
     <h2>Solicitudes nuevas por atender (${nuevas.length})</h2>

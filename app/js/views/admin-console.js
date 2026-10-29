@@ -128,8 +128,9 @@ function pintarMenu() {
   const item = m => m.sep ? '<hr class="admin-nav-sep">' : `<button class="admin-item${panelActivo === m.id ? ' activo' : ''}" data-panel="${m.id}">
       <span class="admin-ico">${m.ico}</span><span class="admin-txt">${esc(m.texto)}</span></button>`;
   const empresaItems = MENU.filter(m => !m.si || m.si());
-  nav.innerHTML = (esPlataforma() ? `<div class="admin-nav-grupo">Plataforma</div>${MENU_PLATAFORMA.map(item).join('')}<hr class="admin-nav-sep">` : '') +
-    `<div class="admin-nav-grupo" title="${esc(store.area?.nombre || '')}">Empresa: ${esc(store.area?.nombre || '')}</div>${empresaItems.map(item).join('')}`;
+  // Quién administra cada bloque (pedido q5): la plataforma, el propietario; la empresa, la del usuario
+  nav.innerHTML = (esPlataforma() ? `<div class="admin-nav-grupo" title="Solo los propietarios de la plataforma">Plataforma (Propietario)</div>${MENU_PLATAFORMA.map(item).join('')}<hr class="admin-nav-sep">` : '') +
+    `<div class="admin-nav-grupo" title="${esc(store.area?.nombre || '')}">Empresa (${esc(store.area?.nombre || '')})</div>${empresaItems.map(item).join('')}`;
 }
 
 function navegarA(id) {

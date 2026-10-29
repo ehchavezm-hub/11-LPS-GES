@@ -1,6 +1,6 @@
 // Look Ahead (6.7): actividades de las próximas semanas, estado LA, restricciones y carga vs capacidad.
 import { api, mensajeError } from '../data/api.js';
-import { store, equipo, on, esGestor, puede, puedeEditarActividad, lideres, nombre, proyecto, param, opciones, opcionesLideres, opcionesProyectos, enProyectoSel, esContenedor } from '../core/store.js';
+import { store, equipo, on, esGestor, puede, puedeEditarActividad, lideres, nombre, proyecto, param, opciones, opcionesLideres, opcionesProyectos, enProyectoSel, esContenedor, haySeleccion, nombreSeleccion } from '../core/store.js';
 import { lunes, sumarSemanas, etiquetaSemana, esc, html, num, sumarDias, DIAS, pct } from '../core/util.js';
 import { actualizarQuery } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -132,7 +132,7 @@ async function pintar() { await grilla.setDatos(estado.acts.filter(filtroFila));
 function pintarCabecera() {
   const pag = document.querySelector('#contenido');
   if (!pag) return;
-  pag.querySelector('[data-proy]').innerHTML = store.proyectoSel ? `<span class="chip-filtro">🏗 ${esc(proyecto(store.proyectoSel)?.nombre_corto || '')}</span>` : '';
+  pag.querySelector('[data-proy]').innerHTML = haySeleccion() ? `<span class="chip-filtro">🏗 ${esc(nombreSeleccion())}</span>` : '';
   const personas = estado.resp === 'todos' ? equipo(estado.acts) : lideres().filter(l => l.id === estado.resp);
   let sobrecargas = 0;
   const filas = personas.map(l => {

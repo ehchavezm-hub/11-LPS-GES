@@ -1,6 +1,6 @@
 // Log de restricciones (6.8) con indicadores de liberación a tiempo (M-08).
 import { api } from '../data/api.js';
-import { store, on, esStaff, opciones, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado, enProyectoSel } from '../core/store.js';
+import { store, on, esStaff, opciones, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado, enProyectoSel, haySeleccion, nombreSeleccion } from '../core/store.js';
 import { esc, html, hoy, fmtFecha, pct, num, agrupar } from '../core/util.js';
 import { crearGrilla } from '../ui/grid.js';
 import { kpi, badge } from '../ui/ui.js';
@@ -107,7 +107,7 @@ async function pintar() { await grilla.setDatos(estado.rests.filter(filtro)); pi
 function pintarKPIs() {
   const pag = document.querySelector('#contenido');
   if (!pag?.querySelector('[data-kpis]')) return;
-  pag.querySelector('[data-proy]').innerHTML = store.proyectoSel ? `<span class="chip-filtro">🏗 ${esc(proyecto(store.proyectoSel)?.nombre_corto || '')}</span>` : '';
+  pag.querySelector('[data-proy]').innerHTML = haySeleccion() ? `<span class="chip-filtro">🏗 ${esc(nombreSeleccion())}</span>` : '';
   const base = estado.rests.filter(r => enProyectoSel(r.proyecto_id));
   const r = resumenRestricciones(base);
   pag.querySelector('[data-kpis]').innerHTML = [

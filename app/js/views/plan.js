@@ -1,7 +1,7 @@
 // Plan semanal (6.9): compromisos de la semana, avance, cierre con CNC y HH reales, PAC.
 import { medir } from '../core/monitoreo.js';
 import { api, mensajeError } from '../data/api.js';
-import { store, on, esGestor, esAdmin, puede, puedeEditarActividad, lideres, nombre, proyecto, horasDia, enProyectoSel, esContenedor } from '../core/store.js';
+import { store, on, esGestor, esAdmin, puede, puedeEditarActividad, lideres, nombre, proyecto, horasDia, enProyectoSel, esContenedor, haySeleccion, nombreSeleccion } from '../core/store.js';
 import { lunes, sumarSemanas, etiquetaSemana, esc, html, hoy, pct, num, sumarDias, fmtFecha, DIAS } from '../core/util.js';
 import { actualizarQuery } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -193,8 +193,8 @@ function pintarCabecera() {
   const pag = document.querySelector('#contenido');
   if (!pag) return;
   pag.querySelector('[data-semana]').textContent = etiquetaSemana(estado.semana);
-  pag.querySelector('[data-proy]').innerHTML = store.proyectoSel
-    ? `<span class="chip-filtro">🏗 ${esc(proyecto(store.proyectoSel)?.nombre_corto || '')}<button title="Quitar filtro" data-quitar-proy>✕</button></span>` : '';
+  pag.querySelector('[data-proy]').innerHTML = haySeleccion()
+    ? `<span class="chip-filtro">🏗 ${esc(nombreSeleccion())}<button title="Quitar filtro" data-quitar-proy>✕</button></span>` : '';
   pag.querySelector('[data-quitar-proy]')?.addEventListener('click', () => import('../core/store.js').then(m => m.seleccionarProyecto('')));
 
   const resp = estado.resp === 'todos' ? null : estado.resp;

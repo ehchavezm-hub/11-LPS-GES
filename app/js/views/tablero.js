@@ -2,7 +2,7 @@
 // precisión de estimación, PAC ponderado y reconocimientos del mes (M-14).
 import { medir } from '../core/monitoreo.js';
 import { api } from '../data/api.js';
-import { store, on, esStaff, lideres, equipo, visibleParaConsulta, nombre, etiqueta, param, proyecto, valoresLista, enProyectoSel } from '../core/store.js';
+import { store, on, esStaff, lideres, equipo, visibleParaConsulta, nombre, etiqueta, param, proyecto, valoresLista, enProyectoSel, haySeleccion, nombreSeleccion } from '../core/store.js';
 import { lunes, sumarSemanas, numeroSemana, esc, html, pct, num, agrupar, sumarDias, etiquetaSemana, libGraficos } from '../core/util.js';
 import { kpi } from '../ui/ui.js';
 import { resumenPAC, resumenHistorico, colorPAC, paretoCNC, resumenRestricciones, capacidadSemana, colorCarga, semanasPendiente } from '../services/indicadores.js';
@@ -67,7 +67,7 @@ function serieSemanal(acts, hist) {
     let r = resumenPAC(de);
     if (!r.comprometidas) {
       const h = hist.filter(x => x.semana === s && (!estado.lider || x.responsable_id === estado.lider));
-      if (h.length && !estado.gerencia && !store.proyectoSel && esStaff()) r = { ...resumenHistorico(h), comprometidas: 0 };
+      if (h.length && !estado.gerencia && !haySeleccion() && esStaff()) r = { ...resumenHistorico(h), comprometidas: 0 };
     }
     return { semana: s, ...r };
   });
@@ -78,7 +78,7 @@ function pintar() {
   graficos.forEach(g => g.destroy()); graficos = [];
   const cont = document.querySelector('#contenido [data-cuerpo]');
   if (!cont) return;
-  document.querySelector('#contenido [data-proy]').innerHTML = store.proyectoSel ? `<span class="chip-filtro">🏗 ${esc(proyecto(store.proyectoSel)?.nombre_corto || '')}</span>` : '';
+  document.querySelector('#contenido [data-proy]').innerHTML = haySeleccion() ? `<span class="chip-filtro">🏗 ${esc(nombreSeleccion())}</span>` : '';
   const actsTodas = filtrarActs(estado.acts);
   const acts = actsTodas.filter(a => a.semana >= estado.desde && a.semana < lunes());
   const r = resumenPAC(acts);
