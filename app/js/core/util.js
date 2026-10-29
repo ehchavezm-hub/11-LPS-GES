@@ -143,3 +143,23 @@ export function html(str) {
 
 export function $(sel, root = document) { return root.querySelector(sel); }
 export function $$(sel, root = document) { return [...root.querySelectorAll(sel)]; }
+
+// Librerías pesadas que solo se usan en algunas acciones: se descargan la primera vez que se necesitan
+// (antes se cargaban en cada ingreso: Excel ~950 KB y gráficos ~200 KB)
+const librerias = new Map();
+function cargarScript(src, global) {
+  if (window[global]) return Promise.resolve(window[global]);
+  if (!librerias.has(src)) {
+    librerias.set(src, new Promise((ok, mal) => {
+      const s = document.createElement('script');
+      s.src = src; s.onload = () => ok(window[global]);
+      s.onerror = () => { librerias.delete(src); mal(new Error('No se pudo descargar la librería. Revise su conexión e intente nuevamente.')); };
+      document.head.append(s);
+    }));
+  }
+  return librerias.get(src);
+}
+/** Librería de Excel (SheetJS): importar, exportar y respaldos. */
+export const libExcel = () => cargarScript('vendor/xlsx.full.min.js', 'XLSX');
+/** Librería de gráficos (Chart.js): Tablero. */
+export const libGraficos = () => cargarScript('vendor/chart.umd.min.js', 'Chart');

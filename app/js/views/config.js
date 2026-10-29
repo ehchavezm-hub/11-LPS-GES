@@ -7,7 +7,7 @@ import { medir } from '../core/monitoreo.js';
 import { api, mensajeError, modoDemo } from '../data/api.js';
 import { store, on, cargarCatalogo, esAdmin, esSuperadmin, esGestor, puede, opciones, opcionesProyectos, nombre, valoresLista, configLookAhead, diasReunion, diasCierre } from '../core/store.js';
 import { ACCIONES, ROLES, PARAMETROS_INICIALES, PLANIFICADORES, COLOR_ROL, GRUPOS_LISTAS, grupoDeLista, LISTAS_RETIRADAS } from '../data/catalogos.js';
-import { esc, html, fmtFechaHora, fmtFecha, normalizar } from '../core/util.js';
+import { esc, html, fmtFechaHora, fmtFecha, normalizar, libExcel } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
 import { ok, error, confirmar, pedirDatos, modal, badge, toast } from '../ui/ui.js';
@@ -50,8 +50,10 @@ let dejarCatalogo = null;
 // ---------- Usuarios ----------
 async function usuarios(el) {
   // Los eliminados con historial se conservan solo como nombre en los registros pasados
-  const perfiles = (await api.list('profiles', { eq: { area_id: store.area.id }, order: [['nombre', true]] })).filter(p => !p.eliminado);
-  const historial = await api.list('delegado_historial', { eq: { area_id: store.area.id }, order: [['desde', false]] }).catch(() => []);
+  const [todos, historial] = await Promise.all([
+    api.list('profiles', { eq: { area_id: store.area.id }, order: [['nombre', true]] }),
+    api.list('delegado_historial', { eq: { area_id: store.area.id }, order: [['desde', false]] }).catch(() => [])]);
+  const perfiles = todos.filter(p => !p.eliminado);
   const pendientes = perfiles.filter(p => p.rol === 'pendiente' && p.activo);
   const principal = esSuperadmin();
   el.innerHTML = `
@@ -533,6 +535,7 @@ async function respaldo(el) {
         descargar(new Blob([JSON.stringify(datos, null, 1)], { type: 'application/json' }), `${nombreArchivo('Respaldo')}.json`);
       }
       if (a === 'excel') {
+        await libExcel();
         const wb = window.XLSX.utils.book_new();
         for (const t of ['proyectos', 'actividades', 'restricciones', 'cartera', 'cierres', 'acuerdos', 'pac_historico']) {
           const filas = await api.list(t, { eq: { area_id: store.area.id } });

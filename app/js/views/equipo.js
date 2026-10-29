@@ -53,13 +53,13 @@ export async function render(el, { query }) {
 }
 
 async function pintar() {
-  await heredarSemanaAnterior();
   const area = store.area.id;
   const fin = sumarDias(estado.semana, 6);
-  const [ubic, acts] = await Promise.all([
-    api.list('ubicaciones_dia', { eq: { area_id: area }, gte: { fecha: estado.semana }, lte: { fecha: fin } }),
-    api.list('actividades', { eq: { area_id: area, semana: estado.semana } }),
-  ]);
+  const leerUbic = () => api.list('ubicaciones_dia', { eq: { area_id: area }, gte: { fecha: estado.semana }, lte: { fecha: fin } });
+  // Herencia de la semana anterior y actividades en paralelo; si no se heredó nada, se reutiliza la lectura de la semana
+  const [heredada, acts] = await Promise.all([
+    heredarSemanaAnterior(), api.list('actividades', { eq: { area_id: area, semana: estado.semana } })]);
+  const ubic = heredada.actual && !heredada.copio ? heredada.actual : await leerUbic();
   estado.ubic = ubic;
   document.querySelector('[data-sem]').textContent = etiquetaSemana(estado.semana);
   const laborables = (param('dias_laborables') || [1, 2, 3, 4, 5]).map(Number);
@@ -97,7 +97,7 @@ async function pintar() {
 // ni lo ya registrado; solo personas que quien mira puede editar.
 const ES_AUSENCIA = v => !v || v.extra?.cuenta_capacidad === false || ['feriado', 'vacaciones'].includes(v.codigo);
 async function heredarSemanaAnterior() {
-  if (estado.semana < lunes() || estado.heredadas.has(estado.semana)) return;
+  if (estado.semana < lunes() || estado.heredadas.has(estado.semana)) return {};
   estado.heredadas.add(estado.semana);   // solo al abrir la semana: si luego alguien borra todo, no se vuelve a heredar
   const area = store.area.id, ant = sumarSemanas(estado.semana, -1);
   try {
@@ -108,11 +108,12 @@ async function heredarSemanaAnterior() {
     const conDatos = new Set(actual.map(u => u.usuario_id));
     const copias = prev.filter(u => !conDatos.has(u.usuario_id) && (esGestor() || u.usuario_id === store.usuario.id) && !ES_AUSENCIA(store.valores.get(u.ubicacion_id)))
       .map(u => ({ area_id: area, usuario_id: u.usuario_id, fecha: sumarDias(u.fecha, 7), ubicacion_id: u.ubicacion_id }));
-    if (!copias.length) return;
+    if (!copias.length) return { actual };
     await api.insert('ubicaciones_dia', copias);
     const personas = new Set(copias.map(c => c.usuario_id)).size;
     ok(`Se heredó la semana anterior para ${personas} persona(s). Cambie solo lo que sea distinto.`);
-  } catch (e) { error(mensajeError(e)); }
+    return { copio: true };
+  } catch (e) { error(mensajeError(e)); return {}; }
 }
 
 async function copiar() {

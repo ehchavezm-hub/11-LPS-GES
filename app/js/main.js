@@ -13,6 +13,14 @@ const raiz = document.getElementById('raiz');
 async function borrarDatosLocales() {
   try { await caches.delete('lpsgt-datos'); } catch { /* sin Cache API */ }
 }
+// Datos del perfil que definen qué catálogo se carga (empresa, rol y gerencias de consulta)
+const CLAVES_PERFIL = ['id', 'area_id', 'rol', 'gerencia_ids', 'activo'];
+function perfilLocal(id) {
+  try { const p = JSON.parse(localStorage.getItem('lpsgt-perfil') || 'null'); return p?.id === id ? p : null; } catch { return null; }
+}
+function guardarPerfilLocal(u) {
+  try { localStorage.setItem('lpsgt-perfil', JSON.stringify(Object.fromEntries(CLAVES_PERFIL.map(k => [k, u[k]])))); } catch { /* opcional */ }
+}
 async function verificarUsuarioLocal(id) {
   let anterior = null;
   try { anterior = localStorage.getItem('lpsgt-usuario-local'); localStorage.setItem('lpsgt-usuario-local', id); } catch { /* sin almacenamiento */ }
@@ -45,6 +53,16 @@ async function arrancar() {
   iniciarMonitoreo();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
+    // Versión nueva publicada: el service worker la descarga en segundo plano y toma el control. Si la página se
+    // acaba de abrir se recarga sola; si la persona ya está trabajando, se le avisa para no interrumpirla.
+    const habia = !!navigator.serviceWorker.controller, inicio = Date.now();
+    let avisado = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!habia || avisado) return;
+      avisado = true;
+      if (Date.now() - inicio < 20000) location.reload();
+      else toast('Hay una versión nueva del aplicativo. Pulse «Actualizar» (arriba a la derecha) o recargue la página para usarla.', 'info', 30000);
+    });
   }
   api.auth.alCambiar((evento) => {
     if (evento === 'PASSWORD_RECOVERY') mostrarNuevaClave(raiz);
@@ -57,6 +75,14 @@ async function arrancar() {
   if (!usuario) return mostrarLogin(raiz, arrancar);
   await verificarUsuarioLocal(usuario.id);
 
+  // El catálogo se pide en paralelo con el perfil usando la empresa y el rol de la sesión anterior; si cambiaron,
+  // se vuelve a pedir (antes: perfil y luego catálogo, una espera de red más en cada ingreso)
+  const previo = perfilLocal(usuario.id);
+  let catalogoAnticipado = null;
+  if (previo) {
+    store.usuario = previo;
+    catalogoAnticipado = cargarCatalogo().then(() => true, () => false);
+  }
   try {
     await cargarPerfil(usuario.id);
   } catch (e) {
@@ -74,7 +100,12 @@ async function arrancar() {
     return mostrarNuevaClave(raiz, 'El administrador le asignó una contraseña temporal. Defina su propia contraseña para continuar.');
   }
   usuarioMonitoreo(store.usuario, store.usuario.area_id);
-  try { await medir('catalogo.cargar', cargarCatalogo); } catch (e) { error(mensajeError(e)); }
+  const vigente = previo && CLAVES_PERFIL.every(k => JSON.stringify(previo[k]) === JSON.stringify(store.usuario[k]));
+  const anticipadoOk = await catalogoAnticipado;   // siempre se espera: así no pisa al catálogo nuevo si hay que repetirlo
+  if (!(vigente && anticipadoOk)) {
+    try { await medir('catalogo.cargar', cargarCatalogo); } catch (e) { error(mensajeError(e)); }
+  }
+  guardarPerfilLocal(store.usuario);
   // Empresa desactivada por el administrador de la plataforma (pedido 113): sus usuarios no ingresan
   if (store.area && store.area.activa === false && !store.usuario.es_plataforma) {
     return mostrarPendiente(raiz, `La empresa "${store.area.nombre}" está desactivada. Comuníquese con el administrador de la plataforma.`);

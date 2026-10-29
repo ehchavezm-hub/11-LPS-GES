@@ -3,7 +3,7 @@
 import { medir } from '../core/monitoreo.js';
 import { api } from '../data/api.js';
 import { store, on, esStaff, lideres, equipo, visibleParaConsulta, nombre, etiqueta, param, proyecto, valoresLista, enProyectoSel } from '../core/store.js';
-import { lunes, sumarSemanas, numeroSemana, esc, html, pct, num, agrupar, sumarDias, etiquetaSemana } from '../core/util.js';
+import { lunes, sumarSemanas, numeroSemana, esc, html, pct, num, agrupar, sumarDias, etiquetaSemana, libGraficos } from '../core/util.js';
 import { kpi } from '../ui/ui.js';
 import { resumenPAC, resumenHistorico, colorPAC, paretoCNC, resumenRestricciones, capacidadSemana, colorCarga, semanasPendiente } from '../services/indicadores.js';
 import { imprimirPDF, tablaPDF, kpisPDF, tablaDePantalla } from '../services/pdf.js';
@@ -32,7 +32,8 @@ export async function render(el) {
   desuscribir.push(on('proyecto', () => pintar()));
   let t;
   desuscribir.push(api.subscribe(['actividades', 'cierres', 'restricciones'], () => { clearTimeout(t); t = setTimeout(cargar, 1500); }));
-  await cargar();
+  await Promise.all([cargar(), libGraficos()]);
+  pintar();
 }
 
 export function destruir() { graficos.forEach(g => g.destroy()); graficos = []; desuscribir.forEach(f => f && f()); desuscribir = []; }
@@ -73,6 +74,7 @@ function serieSemanal(acts, hist) {
 }
 
 function pintar() {
+  if (!window.Chart || !estado.acts) return;   // se pinta cuando llegan los datos y la librería de gráficos
   graficos.forEach(g => g.destroy()); graficos = [];
   const cont = document.querySelector('#contenido [data-cuerpo]');
   if (!cont) return;

@@ -586,5 +586,14 @@ export function crearAdaptadorDemo() {
   };
   // Semana de referencia del seed (para reconstruir datos si cambia la semana)
   api.semanaDemo = () => db._semana || lunes();
+  // Medición de rendimiento (solo pruebas): simula la demora de red de Supabase y cuenta las llamadas
+  const latencia = Number(localStorage.getItem('lpsgt-latencia')) || 0;
+  if (latencia) {
+    window.__llamadas = [];
+    for (const m of ['list', 'insert', 'upsert', 'update', 'updateWhere', 'remove', 'removeWhere', 'rpc', 'adminUsuarios']) {
+      const orig = api[m].bind(api);
+      api[m] = async (...a) => { window.__llamadas.push(`${m} ${typeof a[0] === 'string' ? a[0] : ''}`); (window.__linea ||= []).push(`${Math.round(performance.now())} ${m} ${typeof a[0] === 'string' ? a[0] : ''} ${m === 'adminUsuarios' ? a[0] : ''}`); await new Promise(r => setTimeout(r, latencia)); return orig(...a); };
+    }
+  }
   return api;
 }

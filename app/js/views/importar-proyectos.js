@@ -3,7 +3,7 @@
 // (mismo código) con los datos que traiga el archivo y ofrece agregar a las listas las gerencias, fases o países nuevos.
 import { api, mensajeError } from '../data/api.js';
 import { store, cargarCatalogo, valoresLista, puede, esGestor } from '../core/store.js';
-import { esc, html, normalizar, parseFecha, fmtFecha } from '../core/util.js';
+import { esc, html, normalizar, parseFecha, fmtFecha, libExcel } from '../core/util.js';
 import { modal, ok, error, toast } from '../ui/ui.js';
 
 // Campo del proyecto ← títulos posibles en el Excel (normalizados)
@@ -122,6 +122,7 @@ function analizar(hoja) {
 export async function importarProyectos(archivo) {
   let hojas;
   try {
+    await libExcel();
     const wb = window.XLSX.read(await archivo.arrayBuffer(), { type: 'array', cellDates: true });
     hojas = leerHojas(wb);
   } catch (e) { return error('No se pudo leer el archivo: ' + e.message); }

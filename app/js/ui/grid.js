@@ -4,11 +4,22 @@
 // vistas guardadas, guardado automático por celda y cambios de otros usuarios en tiempo real.
 import { api, mensajeError } from '../data/api.js';
 import { store, etiqueta, esGestor, puede, cargarCatalogo } from '../core/store.js';
-import { esc, html, normalizar, parseFecha, fmtFecha, num, debounce } from '../core/util.js';
+import { esc, html, normalizar, parseFecha, fmtFecha, num, debounce, libExcel } from '../core/util.js';
 import { toast, error, confirmar, modal } from './ui.js';
 import { nombreArchivo } from '../services/pdf.js';
 
 const SOLO_LOCAL = k => k.startsWith('_');
+// Vistas de cada grilla en memoria: al volver a una pantalla no se vuelven a pedir al servidor
+const cacheVistas = new Map();
+function pedirVistas(grillaId) {
+  if (!grillaId || !store.area) return Promise.resolve([]);
+  const clave = `${store.area.id}|${grillaId}`;
+  if (!cacheVistas.has(clave)) {
+    cacheVistas.set(clave, api.list('vistas', { eq: { grilla: grillaId, area_id: store.area.id } })
+      .catch(() => { cacheVistas.delete(clave); return []; }));
+  }
+  return cacheVistas.get(clave);
+}
 
 /**
  * Editor de texto de varias líneas (como en Excel): la caja crece hacia abajo mientras se escribe,
@@ -205,6 +216,7 @@ export function parseTSV(texto) {
 }
 
 export function crearGrilla(contenedor, cfg) {
+  const vistasPedidas = pedirVistas(cfg.id);   // en paralelo con los datos de la pantalla
   const columnasCfg = cfg.columnas.filter(Boolean);
   const porCampo = new Map(columnasCfg.map(c => [c.field, c]));
   const servidor = new Map();              // id → copia de la fila tal como está guardada
@@ -871,9 +883,15 @@ export function crearGrilla(contenedor, cfg) {
       tabla.setGroupBy(cfgVista.agrupar || false);
     } catch (e) { console.warn('Vista no aplicable', e); }
   }
+  // Solo se guarda cuando la persona cambia la disposición: antes cada carga de datos (evento dataSorted) la
+  // volvía a escribir en la base, y si se adelantaba a cargarVistas creaba filas duplicadas
+  let vistasCargadas = false, ultimaGuardada = '';
   const guardarVistaAuto = debounce(async () => {
-    if (!store.area || !cfg.id) return;
+    if (!store.area || !cfg.id || !vistasCargadas) return;
     const datos = { area_id: store.area.id, usuario_id: usuarioId(), grilla: cfg.id, nombre: '__auto__', config: estadoVista() };
+    const firma = JSON.stringify(datos.config);
+    if (firma === ultimaGuardada) return;
+    ultimaGuardada = firma;
     const ex = vistas.find(v => v.nombre === '__auto__' && v.usuario_id === usuarioId());
     try {
       if (ex) Object.assign(ex, await api.update('vistas', ex.id, { config: datos.config }));
@@ -882,10 +900,12 @@ export function crearGrilla(contenedor, cfg) {
   }, 1200);
   async function cargarVistas() {
     if (!cfg.id || !store.area) return;
-    try { vistas = await api.list('vistas', { eq: { grilla: cfg.id, area_id: store.area.id } }); } catch { vistas = []; }
+    vistas = await vistasPedidas;
     const auto = vistas.find(v => v.nombre === '__auto__' && v.usuario_id === usuarioId());
     const estandar = vistas.find(v => v.nombre === '__estandar__' && !v.usuario_id);
     aplicarVista((auto || estandar)?.config);
+    ultimaGuardada = JSON.stringify(estadoVista());
+    vistasCargadas = true;
   }
   function menuVistas(boton) {
     const propias = vistas.filter(v => v.usuario_id === usuarioId() && !v.nombre.startsWith('__'));
@@ -903,7 +923,7 @@ export function crearGrilla(contenedor, cfg) {
       const b = e.target.closest('button');
       if (!b) return;
       if (b.dataset.id) { aplicarVista(vistas.find(v => v.id === b.dataset.id)?.config); guardarVistaAuto(); m.cerrar(); }
-      if (b.dataset.borrar) { await api.remove('vistas', b.dataset.borrar); vistas = vistas.filter(v => v.id !== b.dataset.borrar); m.cerrar(); }
+      if (b.dataset.borrar) { await api.remove('vistas', b.dataset.borrar); const i = vistas.findIndex(v => v.id === b.dataset.borrar); if (i >= 0) vistas.splice(i, 1); m.cerrar(); }
       if (b.dataset.v === 'estandar') { aplicarVista(estandar.config); guardarVistaAuto(); m.cerrar(); }
       if (b.dataset.v === 'restablecer') {
         tabla.setColumns(columnasCfg.map(colTabulator)); tabla.clearSort(); tabla.setGroupBy(false);
@@ -918,7 +938,7 @@ export function crearGrilla(contenedor, cfg) {
       }
       if (b.dataset.v === 'estandarizar') {
         try {
-          if (estandar) await api.update('vistas', estandar.id, { config: estadoVista() });
+          if (estandar) Object.assign(estandar, await api.update('vistas', estandar.id, { config: estadoVista() }));
           else vistas.push(...await api.insert('vistas', { area_id: store.area.id, usuario_id: null, grilla: cfg.id, nombre: '__estandar__', config: estadoVista() }));
           toast('Vista estándar del equipo actualizada.', 'ok');
         } catch (err) { error(mensajeError(err)); }
@@ -955,9 +975,10 @@ export function crearGrilla(contenedor, cfg) {
     }));
   }, 250));
 
-  function exportarExcel() {
+  async function exportarExcel() {
     if (cfg.exportar === false) return;
     const nombre = nombreArchivo(cfg.titulo || cfg.id || 'Datos') + '.xlsx';   // misma regla que los PDF
+    try { await libExcel(); } catch (e) { error(e.message); return; }
     tabla.download('xlsx', nombre, { sheetName: (cfg.titulo || 'Datos').slice(0, 30) });
   }
 

@@ -11,7 +11,7 @@ import { resumenPAC, colorPAC, capacidadSemana, colorCarga, restriccionesActivas
 import { abrirDetalle, abrirRestricciones, confirmarRestricciones } from './detalle.js';
 import { mostrarResumen } from '../services/resumen.js';
 import { imprimirPDF, tablaPDF, kpisPDF } from '../services/pdf.js';
-import { etiqueta, textoEstado, servicioDeProyecto, semanaEnPlanificacion } from '../core/store.js';
+import { etiqueta, textoEstado, servicioDeProyecto, semanaEnPlanificacion, conteoColaboracion } from '../core/store.js';
 
 let grilla, desuscribir = [], estado;
 
@@ -146,20 +146,16 @@ async function cargar() { return medir('plan.cargar', cargarDatos); }
 
 async function cargarDatos() {
   const area = store.area.id;
-  const [acts, rests, cierres, ubic] = await Promise.all([
+  const [acts, rests, cierres, ubic, colab] = await Promise.all([
     api.list('actividades', { eq: { area_id: area, semana: estado.semana }, order: [['orden', true], ['created_at', true]] }),
     api.list('restricciones', { eq: { area_id: area }, neq: { estado: 'levantada' } }),
     api.list('cierres', { eq: { area_id: area, semana: estado.semana } }),
     api.list('ubicaciones_dia', { eq: { area_id: area }, gte: { fecha: estado.semana }, lte: { fecha: sumarDias(estado.semana, 6) } }),
+    conteoColaboracion(),
   ]);
   Object.assign(estado, { acts, rests, cierres, ubic });
-  try {
-    const ids = new Set(acts.map(a => a.id));
-    const [coms, enls] = await Promise.all([
-      api.list('comentarios', { eq: { entidad: 'actividad' } }), api.list('enlaces', { eq: { entidad: 'actividad' } })]);
-    estado.colab.clear();
-    for (const c of [...coms, ...enls]) if (ids.has(c.entidad_id)) estado.colab.set(c.entidad_id, (estado.colab.get(c.entidad_id) || 0) + 1);
-  } catch { /* opcional */ }
+  estado.colab.clear();
+  for (const [id, n] of colab) estado.colab.set(id, n);
   await grilla.inicializar(acts.filter(filtroFila));
   pintarCabecera();
   pintarKPIs();

@@ -9,7 +9,7 @@ import { columnasActividad, derivarActividad, CAMPOS_CALC_ACT } from '../service
 import { capacidadSemana, colorCarga, restriccionesActivas } from '../services/indicadores.js';
 import { abrirDetalle, abrirRestricciones, confirmarRestricciones } from './detalle.js';
 import { imprimirPDF, tablaPDF } from '../services/pdf.js';
-import { textoEstado, servicioDeProyecto, semanasLookAhead, configLookAhead, diaLookAhead } from '../core/store.js';
+import { textoEstado, servicioDeProyecto, semanasLookAhead, configLookAhead, diaLookAhead, conteoColaboracion } from '../core/store.js';
 
 let grilla, desuscribir = [], estado;
 
@@ -115,20 +115,15 @@ async function cargar() {
 }
 async function leer() {
   const area = store.area.id;
-  const [acts, rests, ubic] = await Promise.all([
+  const [acts, rests, ubic, colab] = await Promise.all([
     api.list('actividades', { eq: { area_id: area }, gte: { semana: estado.semanas[0] }, lte: { semana: estado.semanas.at(-1) }, order: [['orden', true]] }),
     api.list('restricciones', { eq: { area_id: area }, neq: { estado: 'levantada' } }),
     api.list('ubicaciones_dia', { eq: { area_id: area }, gte: { fecha: estado.semanas[0] }, lte: { fecha: sumarDias(estado.semanas.at(-1), 6) } }),
+    conteoColaboracion(),   // columna 💬, igual que en el Plan semanal
   ]);
   Object.assign(estado, { acts, rests, ubic });
-  // Cantidad de comentarios y enlaces de cada actividad (columna 💬), igual que en el Plan semanal
-  try {
-    const ids = new Set(acts.map(a => a.id));
-    const [coms, enls] = await Promise.all([
-      api.list('comentarios', { eq: { entidad: 'actividad' } }), api.list('enlaces', { eq: { entidad: 'actividad' } })]);
-    estado.colab.clear();
-    for (const c of [...coms, ...enls]) if (ids.has(c.entidad_id)) estado.colab.set(c.entidad_id, (estado.colab.get(c.entidad_id) || 0) + 1);
-  } catch { /* opcional */ }
+  estado.colab.clear();
+  for (const [id, n] of colab) estado.colab.set(id, n);
 }
 async function cargarSilencioso() { try { await leer(); pintarCabecera(); grilla.refrescar(); } catch { /* reintento en el próximo cambio */ } }
 async function recargar() { await cargarSilencioso(); }

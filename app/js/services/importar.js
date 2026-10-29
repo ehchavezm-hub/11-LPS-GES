@@ -3,7 +3,7 @@
 // de datos: nunca pasan por el repositorio.
 import { api } from '../data/api.js';
 import { store, valoresLista, lideres, idPorCodigo } from '../core/store.js';
-import { normalizar, parseFecha, lunes, hoy, DIAS } from '../core/util.js';
+import { normalizar, parseFecha, lunes, hoy, DIAS, libExcel } from '../core/util.js';
 
 const SIN = {
   semana: ['semana', 'fecha'],
@@ -37,6 +37,7 @@ function similitud(a, b) {
 
 /** Lee el archivo y devuelve las hojas con filas como objetos {encabezado normalizado → valor}. */
 export async function leerLibro(archivo) {
+  await libExcel();
   const buf = await archivo.arrayBuffer();
   const wb = window.XLSX.read(buf, { type: 'array', cellDates: true });
   const hojas = [];
@@ -235,6 +236,7 @@ export async function importar(analisis, mapa, progreso = () => {}) {
 
 /** Importación de proyectos desde una hoja con columnas Código / Proyecto / Nombre completo / Gerencia. */
 export async function leerProyectos(archivo) {
+  await libExcel();
   const buf = await archivo.arrayBuffer();
   const wb = window.XLSX.read(buf, { type: 'array' });
   const out = [];

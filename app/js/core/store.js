@@ -36,6 +36,18 @@ export async function cargarPerfil(userId) {
   return store.usuario;
 }
 
+/** Cantidad de comentarios y enlaces por actividad (columna 💬): solo la columna entidad_id y solo de la empresa,
+ *  en lugar del texto completo de todos los comentarios. Se pide en paralelo con las actividades. */
+export async function conteoColaboracion() {
+  const f = { eq: { entidad: 'actividad', area_id: store.area.id }, select: 'entidad_id' };
+  const n = new Map();
+  try {
+    const [coms, enls] = await Promise.all([api.list('comentarios', f), api.list('enlaces', f)]);
+    for (const c of [...coms, ...enls]) n.set(c.entidad_id, (n.get(c.entidad_id) || 0) + 1);
+  } catch { /* opcional */ }
+  return n;
+}
+
 export async function cargarCatalogo() {
   const u = store.usuario;
   const [areas, listas, valores, params, permisos, perfiles, proyectos, lideres, favs, columnas, portafolios, programas] = await Promise.all([

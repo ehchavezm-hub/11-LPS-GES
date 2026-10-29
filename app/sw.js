@@ -7,6 +7,7 @@ const ARCHIVOS = [
   'config.js',
   'manifest.webmanifest',
   'css/app.css',
+  'css/admin.css',
   'js/main.js',
   'js/ui/grid.js',
   'js/ui/layout.js',
@@ -36,6 +37,8 @@ const ARCHIVOS = [
   'js/views/importar-proyectos.js',
   'js/views/traer-demo.js',
   'js/views/reportes.js',
+  'js/views/admin-console.js',
+  'js/views/admin-plataforma.js',
   'js/data/adapter-demo.js',
   'js/data/adapter-supabase.js',
   'js/data/api.js',
@@ -78,17 +81,12 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (url.origin !== location.origin && !url.hostname.endsWith('fonts.googleapis.com') && !url.hostname.endsWith('fonts.gstatic.com')) return;
-  // Librerías y fuentes: primero la caché. Código del aplicativo: primero la red (para recibir actualizaciones).
-  const primeroCache = url.pathname.includes('/vendor/') || url.hostname.includes('fonts.');
-  if (primeroCache) {
-    e.respondWith(caches.match(req).then(r => r || fetch(req).then(res => {
-      const copia = res.clone(); caches.open(VERSION).then(c => c.put(req, copia)); return res;
-    })));
-  } else {
-    // GitHub Pages permite al navegador reutilizar archivos 10 minutos: 'no-cache' obliga a confirmar con el servidor
-    e.respondWith(fetch(req, { cache: 'no-cache' }).then(res => {
-      if (res.ok) { const copia = res.clone(); caches.open(VERSION).then(c => c.put(req, copia)); }
-      return res;
-    }).catch(() => caches.match(req).then(r => r || caches.match('index.html'))));
-  }
+  // Aplicativo, librerías y fuentes: primero la caché de esta versión. Antes el código se confirmaba con el servidor
+  // en cada carga (unas 45 consultas encadenadas a GitHub Pages). Cada publicación cambia VERSION: el navegador
+  // detecta el sw.js nuevo, descarga todo de nuevo en segundo plano y la página se actualiza sola (main.js).
+  const navegar = req.mode === 'navigate';
+  e.respondWith(caches.open(VERSION).then(c => c.match(req, { ignoreSearch: navegar }).then(r => r || fetch(req).then(res => {
+    if (res.ok) c.put(req, res.clone());
+    return res;
+  }))).catch(() => navegar ? caches.match('index.html') : Response.error()));
 });

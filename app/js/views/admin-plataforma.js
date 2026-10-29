@@ -5,7 +5,7 @@
 import { api, mensajeError } from '../data/api.js';
 import { store, cargarCatalogo } from '../core/store.js';
 import { ROLES, COLOR_ROL } from '../data/catalogos.js';
-import { esc, fmtFechaHora } from '../core/util.js';
+import { esc, fmtFechaHora, libExcel } from '../core/util.js';
 import { ok, error, confirmar, pedirDatos, modal, badge } from '../ui/ui.js';
 
 // ---------- Datos de la plataforma ----------
@@ -729,8 +729,8 @@ export async function panelReportesPlataforma(el, ctx) {
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'imprimir') ctx.imprimir(el, 'Reportes de la plataforma');
     if (a === 'excel') {
-      const XLSX = window.XLSX;
-      if (!XLSX) return error('La librería de Excel no está disponible.');
+      let XLSX;
+      try { XLSX = await libExcel(); } catch (err) { return error(err.message); }
       const libro = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet([cabs, ...filas]), 'Empresas');
       XLSX.writeFile(libro, 'Plataforma_empresas.xlsx');

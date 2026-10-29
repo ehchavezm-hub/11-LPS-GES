@@ -567,3 +567,21 @@ do $$ begin
 end $$;
 
 \echo 'Todas las pruebas pasaron'
+
+-- 028: una sola vista automática por persona y grilla
+do $$
+declare v_area uuid; v_u uuid;
+begin
+  select area_id, id into v_area, v_u from public.profiles limit 1;
+  if v_u is null then raise notice '028: sin perfiles para probar'; return; end if;
+  delete from public.vistas where grilla = 'prueba028';
+  insert into public.vistas (area_id, usuario_id, grilla, nombre) values (v_area, v_u, 'prueba028', '__auto__');
+  begin
+    insert into public.vistas (area_id, usuario_id, grilla, nombre) values (v_area, v_u, 'prueba028', '__auto__');
+    raise exception '028 FALLA: se permitió una vista automática duplicada';
+  exception when unique_violation then null;
+  end;
+  insert into public.vistas (area_id, usuario_id, grilla, nombre) values (v_area, v_u, 'prueba028', 'Mi vista');   -- las vistas con nombre siguen libres
+  delete from public.vistas where grilla = 'prueba028';
+  raise notice '028 OK';
+end $$;

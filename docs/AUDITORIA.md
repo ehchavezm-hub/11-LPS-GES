@@ -50,9 +50,27 @@ alter policy act_upd on public.actividades
 -- un índice por cada llave foránea sin índice (bloque DO genérico)
 ```
 
-## Cómo aplicar 025, 026 y 027
+## Velocidad (pedido 21)
+
+Medición: cada módulo en modo demostración con 200 ms de demora por llamada (lo que tarda Supabase desde Lima).
+En Supabase las consultas del aplicativo tardan 1–10 ms: **la base no es el cuello de botella**; lo son la cantidad
+de esperas de red encadenadas y la carga de archivos.
+
+| Hallazgo | Criticidad | Impacto | Solución | Antes → después |
+|---|---|---|---|---|
+| La grilla guardaba su disposición en la base en cada carga de datos (evento `dataSorted`) y, si se adelantaba a la lectura, creaba filas duplicadas (430 escrituras, 44 duplicados) | **Crítico** | Una escritura por pantalla abierta | Solo guarda si la persona cambia columnas, orden o agrupación; 028 limpia duplicados y lo impide con un índice único | Restricciones 717 → 73 ms |
+| Arranque: perfil → catálogo → datos → comentarios → vistas (5 esperas seguidas) | **Medio** | ~1 s más en cada ingreso | Catálogo en paralelo con el perfil (empresa y rol de la sesión anterior; si cambiaron, se vuelve a pedir); comentarios y vistas en paralelo con los datos | 1342 → 781 ms (2 esperas) |
+| Plan semanal y Look Ahead descargaban **todos** los comentarios y enlaces (texto completo, de todas las semanas) para contarlos, y después de las actividades | **Medio** | Crece con el uso | Solo la columna `entidad_id` de la empresa, en paralelo | Plan 479 → 43 ms; Look Ahead 688 → 162 ms |
+| Vistas de la grilla pedidas al final y en cada visita | **Bajo** | Una espera más por pantalla | Se piden al crear la grilla y quedan en memoria | — |
+| Excel (950 KB) y gráficos (200 KB) se descargaban y procesaban en cada ingreso | **Medio** | Arranque más lento, sobre todo en equipos modestos | Se cargan la primera vez que se exporta/importa o se abre el Tablero | −1,1 MB al arrancar |
+| El service worker confirmaba con GitHub Pages cada archivo del aplicativo en cada carga (~45 consultas encadenadas) | **Medio** | 0,5–1,5 s por carga | Código desde la caché de la versión; al publicar, la versión nueva se descarga sola y la página se actualiza (si la persona ya está trabajando, se le avisa) | 20 de 20 módulos sin ir a la red |
+| Configuración › Usuarios y Equipo y capacidad: consultas seguidas que podían ir juntas | **Bajo** | 1–2 esperas extra | En paralelo | Usuarios 896 → 309 ms |
+
+Para medir de nuevo: en modo demostración, `localStorage.setItem('lpsgt-latencia', 200)` simula la demora y cuenta las llamadas (`window.__llamadas`).
+
+## Cómo aplicar 025, 026, 027 y 028
 
 Supabase pide tu aprobación para ejecutar SQL que modifica la base. Dos opciones:
 1. En Claude: Configuración › Conectores › Supabase › permitir siempre *apply_migration* / *execute_sql*, y pedirme que las aplique; o
 2. En Supabase › SQL Editor: pegar y ejecutar, en este orden, `supabase/migrations/025_eliminar_empresa.sql`,
-   `026_eliminar_proyecto_plataforma.sql` y `027_auditoria_seguridad_rendimiento.sql`.
+   `026_eliminar_proyecto_plataforma.sql`, `027_auditoria_seguridad_rendimiento.sql` y `028_vistas_sin_duplicados.sql`.
