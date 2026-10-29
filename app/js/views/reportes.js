@@ -270,7 +270,10 @@ const REPORTES = [
 let estado, desuscribir = [];
 
 export async function render(el) {
-  const semanas = Array.from({ length: 20 }, (_, i) => sumarSemanas(lunes(), i - 13)).reverse();
+  // 5 años atrás + 6 semanas adelante, agrupadas por año
+  const _semRango = Array.from({ length: 5 * 52 + 6 }, (_, i) => sumarSemanas(lunes(), i - (5 * 52 - 1)));
+  const _semPorAnio = _semRango.reduce((acc, s) => { const y = new Date(s).getFullYear(); (acc[y] = acc[y] || []).push(s); return acc; }, {});
+  const semanas = _semRango; // kept for compat (filter uses .map later)
   let opciones = { papel: 'A4', unaHoja: false };
   try { opciones = { ...opciones, ...JSON.parse(localStorage.getItem('lpsgt-reportes') || '{}') }; } catch { /* sin almacenamiento */ }
   // Cada rol ve los reportes de las pantallas a las que tiene acceso (Consulta: los del Tablero)
@@ -287,8 +290,15 @@ export async function render(el) {
         <label>Papel <select data-o="papel">${Object.keys(PAPELES).map(p => `<option>${p}</option>`).join('')}</select></label>
         <span class="seg"><button data-ori="landscape">▭ Horizontal</button><button data-ori="portrait">▯ Vertical</button></span>
         <label><input type="checkbox" data-o="unaHoja"> Todo en 1 hoja</label>
-        <span data-f="semana"><label>Semana <select data-fl="semana">${semanas.map(s => `<option value="${s}">${esc(etiquetaSemana(s))}${s === lunes() ? ' (actual)' : ''}</option>`).join('')}</select></label></span>
-        <span data-f="periodo"><label>Periodo <select data-fl="periodo">${[4, 8, 12, 26].map(n => `<option value="${n}">${n} semanas</option>`).join('')}</select></label></span>
+        <span data-f="semana"><label>Semana <select data-fl="semana">${
+          Object.entries(_semPorAnio).sort(([a],[b]) => b - a)
+            .map(([anio, sems]) => `<optgroup label="${anio}">${[...sems].reverse().map(s => `<option value="${s}">${esc(etiquetaSemana(s))}${s === lunes() ? ' ◀ actual' : ''}</option>`).join('')}</optgroup>`)
+            .join('')
+        }</select></label></span>
+        <span data-f="periodo"><label>Periodo <select data-fl="periodo">${
+          [[4,'4 sem.'],[8,'8 sem.'],[12,'12 sem.'],[26,'26 sem.'],[52,'1 año'],[104,'2 años'],[156,'3 años'],[260,'5 años'],[520,'10 años']]
+            .map(([v,t]) => `<option value="${v}">${t}</option>`).join('')
+        }</select></label></span>
         <span data-f="resp"><label>Responsable <select data-fl="resp"><option value="todos">Todo el equipo</option>${lideres().map(l => `<option value="${l.id}">${esc(l.nombre)}</option>`).join('')}</select></label></span>
         <label class="archivo">📁 <input data-o="archivo"></label>
         <span class="flex"></span>

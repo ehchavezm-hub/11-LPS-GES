@@ -15,7 +15,12 @@ export async function render(el) {
   estado = { semanas: Number(localStorage.getItem('lpsgt-tablero-semanas') || 12), gerencia: '', lider: '' };
   const pag = html(`<div>
     <div class="pagina-cab"><h1>Tablero</h1>
-      <select class="sel" data-sem>${[1, 2, 3, 4, 8, 12, 26, 52].map(n => `<option value="${n}">${n === 1 ? 'Última semana' : `Últimas ${n} semanas`}</option>`).join('')}<option value="0">Personalizado…</option></select>
+      <select class="sel" data-sem>${
+        [[1,'Última semana'],[2,'Últimas 2 semanas'],[3,'Últimas 3 semanas'],[4,'Últimas 4 semanas'],
+         [8,'Últimas 8 semanas'],[12,'Últimas 12 semanas'],[26,'Últimas 26 semanas'],
+         [52,'1 año'],[104,'2 años'],[156,'3 años'],[260,'5 años'],[520,'10 años']]
+        .map(([v,t]) => `<option value="${v}">${t}</option>`).join('')
+      }<option value="0">Personalizado…</option></select>
       <select class="sel" data-ger><option value="">Todas las gerencias</option>${valoresLista('gerencias').map(v => `<option value="${v.id}">${esc(v.codigo || v.valor)}</option>`).join('')}</select>
       ${esStaff() ? `<select class="sel" data-lid><option value="">Todo el equipo</option>${lideres().map(l => `<option value="${l.id}">${esc(l.nombre)}</option>`).join('')}</select>` : ''}
       <span data-proy></span><span class="flex"></span>
@@ -38,12 +43,12 @@ export async function render(el) {
       const { pedirDatos } = await import('../ui/ui.js');
       const r = await pedirDatos({
         titulo: 'Período personalizado',
-        campos: [{ name: 'semanas', label: 'Número de semanas', type: 'number', min: 1, max: 260, required: true, value: estado.semanas }],
+        campos: [{ name: 'semanas', label: 'Número de semanas', type: 'number', min: 1, max: 520, required: true, value: estado.semanas }],
         texto: 'Aplicar',
         ancho: 360,
       });
       if (!r) { selSem.value = String(estado.semanas); return; } // canceló
-      estado.semanas = Math.max(1, Math.min(260, Number(r.semanas) || 4));
+      estado.semanas = Math.max(1, Math.min(520, Number(r.semanas) || 4));
       // Agregar opción temporal con el valor personalizado
       let optPersonal = selSem.querySelector('option[data-custom]');
       if (!optPersonal) { optPersonal = document.createElement('option'); optPersonal.setAttribute('data-custom', '1'); selSem.insertBefore(optPersonal, selSem.lastElementChild); }
