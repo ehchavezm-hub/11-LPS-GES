@@ -497,22 +497,22 @@ export async function panelEstructuraTodas(el, ctx, { area = '' } = {}) {
       if (d.a === 'xl-export') { try { await exportarEstructura(area); } catch (err) { error(mensajeError(err)); } return; }
       if (d.a === 'expandir') { contraidos.clear(); pintarTodo(); return; }
       if (d.a === 'contraer') { datos.areas.forEach(a => contraidos.add('a' + a.id)); datos.portafolios.forEach(f => contraidos.add('f' + f.id)); datos.programas.forEach(g => contraidos.add('g' + g.id)); datos.proyectos.forEach(p => contraidos.add('p' + p.id)); pintarTodo(); return; }
-      let cambio = false, area = null;
+      let cambio = false, areaId = null;
       if (d.a === 'nuevo-sub') {
         // Nivel Sub-proyecto (pedido Q2): primero se elige el proyecto al que pertenece
         const padre = await elegirProyectoPadre();
         if (!padre) return;
-        const r = await editarNodo('proyectos', null, { area: padre.area_id, padre: padre.id }); cambio = !!r; area = r?.area_id;
+        const r = await editarNodo('proyectos', null, { area: padre.area_id, padre: padre.id }); cambio = !!r; areaId = r?.area_id;
       }
-      if (d.nuevo) { const r = await editarNodo(d.nuevo, null, { area: d.area, portafolio: d.portafolio, programa: d.programa, padre: d.padre }); cambio = !!r; area = r?.area_id; }
-      if (d.editar) { const x = datos[d.tabla].find(r => r.id === d.editar); cambio = !!await editarNodo(d.tabla, x, {}); area = x?.area_id; }
-      if (d.eliminar) { const x = datos[d.tabla].find(r => r.id === d.eliminar); cambio = await eliminarNodo(d.tabla, x); area = x?.area_id; }
-      if (d.lideres) { const p = datos.proyectos.find(r => r.id === d.lideres); cambio = !!await miembrosProyecto(p); area = p?.area_id; }
+      if (d.nuevo) { const r = await editarNodo(d.nuevo, null, { area: d.area, portafolio: d.portafolio, programa: d.programa, padre: d.padre }); cambio = !!r; areaId = r?.area_id; }
+      if (d.editar) { const x = datos[d.tabla].find(r => r.id === d.editar); cambio = !!await editarNodo(d.tabla, x, {}); areaId = x?.area_id; }
+      if (d.eliminar) { const x = datos[d.tabla].find(r => r.id === d.eliminar); cambio = await eliminarNodo(d.tabla, x); areaId = x?.area_id; }
+      if (d.lideres) { const p = datos.proyectos.find(r => r.id === d.lideres); cambio = !!await miembrosProyecto(p); areaId = p?.area_id; }
       if (d.eliminarEmpresa) { cambio = await eliminarEmpresas([d.eliminarEmpresa]); }
-      if (d.activo) { const [tipo, id] = d.activo.split(':'); cambio = await cambiarActivo(tipo, id); area = tipo === 'empresa' ? id : null; }
-      if (d.editarEmpresa) { const a = empresa(d.editarEmpresa); cambio = !!await editarEmpresa(a); area = a?.id; if (cambio) ctx.repintarCabecera(); }
+      if (d.activo) { const [tipo, id] = d.activo.split(':'); cambio = await cambiarActivo(tipo, id); areaId = tipo === 'empresa' ? id : null; }
+      if (d.editarEmpresa) { const a = empresa(d.editarEmpresa); cambio = !!await editarEmpresa(a); areaId = a?.id; if (cambio) ctx.repintarCabecera(); }
       if (d.usuarios) { await gestionarUsuarios(empresa(d.usuarios), () => refrescar(d.usuarios).then(pintarTodo)); }
-      if (cambio) { await refrescar(area); pintarTodo(); }
+      if (cambio) { await refrescar(areaId); pintarTodo(); }
     } catch (err) { error(mensajeError(err)); }
   });
   el.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('.org-caja')) e.target.click(); });
