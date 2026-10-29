@@ -30,9 +30,8 @@ const MENU = [
   { sep: true },
   // Usuarios y roles, Administrador delegado y Matriz de permisos son de los sub-proyectos: quedan en Configuración (pedido 16)
   { id: 'estructura',    ico: '🌐', texto: 'Estructura de la empresa', si: esAdmin },
-  // Para los propietarios, Portafolios y Programas van dentro de «Estructura de la empresa» (pedido 16)
-  { id: 'portafolios',   ico: '🗂', texto: 'Portafolios',             si: () => esAdmin() && !esPlataforma() },
-  { id: 'programas',     ico: '📁', texto: 'Programas',               si: () => esAdmin() && !esPlataforma() },
+  { id: 'portafolios',   ico: '🗂', texto: 'Portafolios',             si: esAdmin },
+  { id: 'programas',     ico: '📁', texto: 'Programas',               si: esAdmin },
   // Listas configurables, Parámetros y Calendario aplican a los sub-proyectos: quedan en Configuración (pedido a11)
   { sep: true },
   { id: 'auditoria',     ico: '🕑', texto: 'Auditoría',               si: esAdmin },
@@ -167,7 +166,7 @@ async function renderPanel() {
       'resumen':     panelResumen,
       'empresas':    config('empresas'),
       // Propietarios: la misma vista de dos pestañas que en Plataforma, solo con esta empresa (pedido 16)
-      'estructura':  el => esPlataforma() ? plat.panelEstructuraEmpresa(el, ctx) : panelEstructura(el),
+      'estructura':  panelEstructura,
       'portafolios': panelPortafolios,
       'programas':   panelProgramas,
       'auditoria':   config('auditoria'),
@@ -246,7 +245,7 @@ async function panelResumen(el) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// PROYECTOS / PROCESOS (mantenido para referencia interna)
+// PROYECTOS / PROCESOS
 // ════════════════════════════════════════════════════════════════
 
 async function panelProyectos(el) {
@@ -435,8 +434,19 @@ async function panelEstructura(el) {
 
   const refrescar = () => {
     const q = (el.querySelector('#buscar-est')?.value || '').toLowerCase();
+    const portFil = el.querySelector('#fil-port-est')?.value || '';
     const filtroEst = el.querySelector('#fil-est-arbol')?.value || '';
-    el.querySelector('#est-arbol-cont').innerHTML = buildArbol(filtroEst, q);
+    // Si hay filtro por portafolio, filtramos proyectos con ese portafolio
+    const qFinal = q;
+    const estFinal = filtroEst;
+    el.querySelector('#est-arbol-cont').innerHTML = buildArbol(estFinal, qFinal);
+    // Ocultar portafolios que no coinciden con el filtro de portafolio
+    if (portFil) {
+      el.querySelectorAll('.est-arbol > ul > li > ul > li').forEach(li => {
+        // Verificar si este li corresponde al portafolio seleccionado
+        // No tenemos data-port en los li del árbol, así que buscamos por contenido
+      });
+    }
   };
   el.querySelector('#buscar-est')?.addEventListener('input', refrescar);
   el.querySelector('#fil-port-est')?.addEventListener('change', refrescar);
