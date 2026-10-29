@@ -475,7 +475,7 @@ export async function panelEstructuraTodas(el, ctx, { area = '' } = {}) {
       area ? 'Portafolio › Programa › Proyecto › Sub-proyecto de esta empresa (en el sub-proyecto se registra el LPS). Es la misma estructura que se ve en Plataforma › «Estructura de todas las empresas».'
         : 'Empresa › Portafolio › Programa › Proyecto › Sub-proyecto (en el sub-proyecto se registra el LPS). Es la misma estructura que cada empresa ve en «Estructura de la empresa»: lo que cambie aquí se refleja allá.',
       `<button class="btn" data-nuevo="portafolios"${enArea}>+ Portafolio</button><button class="btn" data-nuevo="programas"${enArea}>+ Programa</button><button class="btn" data-nuevo="proyectos"${enArea}>+ Proyecto</button><button class="btn btn-primario" data-a="nuevo-sub">+ Sub-proyecto</button>
-       <button class="btn" data-a="xl-export">⬇ Descargar XLS</button><label class="btn" title="Cargar proyectos desde XLS">⬆ Cargar XLS<input type="file" accept=".xlsx,.xls" data-a="xl-import" style="display:none"></label>`) +
+       <button class="btn" data-a="xl-export">⬇ Descargar XLS</button><button class="btn btn-sec" data-a="backup-completo" title="Descargar respaldo XLS de toda la estructura (todas las empresas)">⬇ Backup completo</button><label class="btn" title="Cargar proyectos desde XLS">⬆ Cargar XLS<input type="file" accept=".xlsx,.xls" data-a="xl-import" style="display:none"></label>`) +
       `<div class="chips-cifras">
         ${area ? '' : `<span class="chip-cifra"><b>${datos.areas.length}</b> Empresas</span>`}<span class="chip-cifra"><b>${vis(datos.portafolios).length}</b> Portafolios</span>
         <span class="chip-cifra"><b>${vis(datos.programas).length}</b> Programas</span><span class="chip-cifra"><b>${vis(datos.proyectos).filter(p => !p.padre_id).length}</b> Proyectos</span>
@@ -495,6 +495,11 @@ export async function panelEstructuraTodas(el, ctx, { area = '' } = {}) {
       if (d.vista) { vistaEstructura = d.vista; pintarTodo(); return; }
       if (d.toggle) { contraidos.has(d.toggle) ? contraidos.delete(d.toggle) : contraidos.add(d.toggle); pintarTodo(); return; }
       if (d.a === 'xl-export') { try { await exportarEstructura(area); } catch (err) { error(mensajeError(err)); } return; }
+      if (d.a === 'backup-completo') {
+        const btn = e.target; btn.disabled = true; const t0 = btn.textContent; btn.textContent = '⏳ Exportando...';
+        try { await exportarEstructura(''); } catch (err) { error(mensajeError(err)); } finally { btn.disabled = false; btn.textContent = t0; }
+        return;
+      }
       if (d.a === 'expandir') { contraidos.clear(); pintarTodo(); return; }
       if (d.a === 'contraer') { datos.areas.forEach(a => contraidos.add('a' + a.id)); datos.portafolios.forEach(f => contraidos.add('f' + f.id)); datos.programas.forEach(g => contraidos.add('g' + g.id)); datos.proyectos.forEach(p => contraidos.add('p' + p.id)); pintarTodo(); return; }
       let cambio = false, areaId = null;
@@ -676,6 +681,7 @@ async function exportarEstructura(soloAreaId = '') {
   const XLSX = window.XLSX;
   const cabecera = ['Empresa', 'Portafolio', 'Programa', 'Proyecto', 'Código Proyecto', 'Sub-proyecto', 'Código Sub-proyecto', 'Estado'];
   const filas = [cabecera];
+  const esBackupTotal = !soloAreaId;
   const areas = soloAreaId ? datos.areas.filter(a => a.id === soloAreaId) : datos.areas;
   for (const a of areas) {
     const ports = datos.portafolios.filter(f => f.area_id === a.id);
@@ -698,7 +704,8 @@ async function exportarEstructura(soloAreaId = '') {
   ws['!cols'] = cabecera.map((_, i) => ({ wch: [20, 20, 20, 25, 16, 25, 18, 12][i] }));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Estructura');
-  XLSX.writeFile(wb, `estructura-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const fecha = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, esBackupTotal ? `backup-lpsges-${fecha}.xlsx` : `estructura-${fecha}.xlsx`);
 }
 
 async function importarEstructura(file, soloAreaId, alTerminar) {
