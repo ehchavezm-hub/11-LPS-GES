@@ -172,6 +172,7 @@ Estado de cada observación al 25/10/2026.
 | 144 (q6) | Subir la sección PROYECTOS debajo de Administración | ✅ Menú: Administración → PROYECTOS (árbol con su propio desplazamiento) → Planificación, Seguimiento y Más. Sin Administración, PROYECTOS queda arriba | `q6.js`; humo 160 pantallas | ✅ |
 | 145 (q7) | Mejoras del aplicativo a la vista de todos los usuarios de todas las empresas, al final del menú | ✅ Último grupo del menú («Todas las empresas»). Lista las solicitudes de todas las empresas (empresa y autor); cualquiera crea las suyas; las gestionan los propietarios (y cada empresa las suyas). admin-usuarios v10 | `q7.js` (propietario y líder) | ✅ |
 | 146 (q10) | Menú lateral: «PROYECTOS» → «SUB-PROYECTOS» y «+ Agregar» crea sub-proyectos | ✅ El formulario pide el proyecto al que pertenece (sugiere el elegido en el menú; si no hay, es obligatorio escogerlo) y hereda gerencia, país, portafolio y programa | `q10.js`; humo 160 pantallas | ✅ |
+| 147 (14) | Migración: CET/Servicios de GT al proyecto GT_OT; eliminar el GT-OT antiguo de Cumbra; no restaurar actividades borradas | ✅ Aplicativo: los sub-proyectos heredan los CET/Servicios de su proyecto (Plan, Look Ahead, Plantillas, Cartera) y en Configuración › Servicios se puede asociar un proyecto con sub-proyectos. ⏳ Base: el cambio de los 55 registros va en el SQL para aplicar (pidió aprobación) | `q14.js`; humo 160 pantallas | Pendiente de aplicar en la base |
 
 ## Lo que encontró la reconfirmación
 

@@ -213,9 +213,14 @@ export function horasDia(id) { return Number(perfil(id)?.horas_dia ?? param('hor
 // ---------- Proyectos ----------
 export function proyecto(id) { return store.proyectos.find(p => p.id === id); }
 /** CET / Servicio asociado a un proyecto (columna Proyecto de la lista "CET / Servicio"), si hay uno solo. */
+/** ¿El CET / Servicio del proyecto «deServicio» sirve al proyecto «proyectoId»? Los sub-proyectos heredan los de su
+ *  proyecto (pedido 14: los CET/Servicios de GT_OT sirven a Gestion y ConstruIA). */
+export function servicioSirve(deServicio, proyectoId) {
+  return !!deServicio && !!proyectoId && (deServicio === proyectoId || proyecto(proyectoId)?.padre_id === deServicio);
+}
 export function servicioDeProyecto(p) {
   if (!p) return null;
-  const asociados = valoresLista('servicios').filter(v => v.extra?.proyecto_id === p.id);
+  const asociados = valoresLista('servicios').filter(v => servicioSirve(v.extra?.proyecto_id, p.id));
   return asociados.length === 1 ? asociados[0].id : null;
 }
 /** Proyecto al que pertenece un CET / Servicio (columna Proyecto de la lista), o null. */
@@ -226,7 +231,7 @@ export function proyectoDeServicio(id) { return (id && store.valores.get(id)?.ex
  */
 export function opcionesServicio({ proyectoId = null, etiqueta: etq = v => (v.codigo ? `${v.codigo} · ${v.valor}` : v.valor), vacio = true } = {}) {
   let vs = valoresLista('servicios');
-  if (proyectoId && vs.some(v => v.extra?.proyecto_id === proyectoId)) vs = vs.filter(v => !v.extra?.proyecto_id || v.extra.proyecto_id === proyectoId);
+  if (proyectoId && vs.some(v => servicioSirve(v.extra?.proyecto_id, proyectoId))) vs = vs.filter(v => !v.extra?.proyecto_id || servicioSirve(v.extra.proyecto_id, proyectoId));
   const ops = vs.map(v => ({ value: v.id, label: etq(v) }));
   return vacio ? [{ value: null, label: '—' }, ...ops] : ops;
 }
@@ -262,9 +267,10 @@ export function nombreSeleccion() {
   return x ? `${t === 'f' ? 'Portafolio' : 'Programa'} ${x.nombre}` : '';
 }
 const nombreConPadre = p => { const padre = p.padre_id && proyecto(p.padre_id); return padre ? `${padre.nombre_corto} › ${p.nombre_corto}` : p.nombre_corto; };
-export function opcionesProyectos() {
-  // Solo proyectos sin sub-proyectos y sub-proyectos: es donde se registra el LPS
-  return [{ value: null, label: '—' }, ...proyectosActivos().filter(p => !esContenedor(p)).map(p => ({
+export function opcionesProyectos({ contenedores = false } = {}) {
+  // Solo proyectos sin sub-proyectos y sub-proyectos: es donde se registra el LPS.
+  // contenedores: también los proyectos con sub-proyectos (p. ej. para asociarles CET / Servicios que heredan sus sub-proyectos)
+  return [{ value: null, label: '—' }, ...proyectosActivos().filter(p => contenedores || !esContenedor(p)).map(p => ({
     value: p.id, label: `${p.codigo} · ${nombreConPadre(p)}${p.estado === 'propuesto' ? ' (por aprobar)' : ''}` }))];
 }
 export function misProyectos() {
