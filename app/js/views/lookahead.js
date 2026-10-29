@@ -73,7 +73,8 @@ export async function render(el, { query }) {
     // una vez reportada en el Plan (completada, no completada o cancelada) queda bloqueada
     puedeEditarFila: a => puedeEditarActividad(a) && (!a.comprometida || a.estado === 'programado'),
     campoInicial: 'descripcion',
-    listaParaCrear: a => !!((a.descripcion && a.descripcion.trim()) || a.proyecto_id || Number(a.hh_total)),
+    listaParaCrear: a => !!(a.descripcion && a.descripcion.trim()),
+    crear: async datos => api.insert('actividades', { ...datos, descripcion: datos.descripcion || '' }),
     nuevaFila: () => {
       const p = store.proyectoSel && !esContenedor(proyecto(store.proyectoSel)) ? proyecto(store.proyectoSel) : null;   // con sub-proyectos: se elige uno
       return { area_id: store.area.id, semana: estado.semanas[0], responsable_id: estado.resp !== 'todos' ? estado.resp : store.usuario.id,

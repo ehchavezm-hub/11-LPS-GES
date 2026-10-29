@@ -75,7 +75,8 @@ export async function render(el, { query }) {
     puedeEditarFila: a => puedeEditarActividad(a) && !cerrada(a.responsable_id),
     nuevaFila,
     campoInicial: 'descripcion',
-    listaParaCrear: a => !!((a.descripcion && a.descripcion.trim()) || a.proyecto_id || Number(a.hh_total)),
+    listaParaCrear: a => !!(a.descripcion && a.descripcion.trim()),
+    crear: async datos => api.insert('actividades', { ...datos, descripcion: datos.descripcion || '' }),
     derivar: derivarActividad,
     alDuplicar: () => ({ estado: 'programado', cnc_id: null, hh_real: null, origen: 'manual' }),
     claseFila: a => {
