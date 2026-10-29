@@ -709,9 +709,9 @@ async function importarEstructura(file, soloAreaId, alTerminar) {
   // Caché local para no re-crear lo que ya existe o ya creamos en esta sesión
   const portCache = new Map(); // "areaId:nombre" → id
   const progCache = new Map(); // "areaId:portId:nombre" → id
-  const proyCache = new Map(); // "areaId:codigo|nombre" → id
+  // Proyectos: por código (si tiene) Y por nombre, ambos en cache → evita crear duplicados
+  const proyCache = new Map(); // "areaId:codigo" o "areaId:nombre" → id
 
-  const v = k => String(rows[0][k] !== undefined ? k : Object.keys(rows[0]).find(h => h.trim() === k) || k);
   const col = (row, ...names) => String(names.reduce((acc, n) => acc || row[n] || '', '')).trim();
 
   // Precargar existentes en caché
@@ -721,74 +721,91 @@ async function importarEstructura(file, soloAreaId, alTerminar) {
     progCache.set(`${g.area_id}:${portId}:${g.nombre}`, g.id);
   }
   for (const p of datos.proyectos.filter(x => !x.padre_id)) {
-    proyCache.set(`${p.area_id}:${p.codigo || p.nombre_corto}`, p.id);
+    if (p.codigo) proyCache.set(`${p.area_id}:cod:${p.codigo}`, p.id);
+    proyCache.set(`${p.area_id}:nom:${p.nombre_corto}`, p.id);
   }
 
   let creados = 0, omitidos = 0;
+  const errores = [];
+
   const crearNodo = async (tabla, areaId, campos) => {
     const res = await api.adminUsuarios('estructura', { tabla, area_id: areaId, datos: campos });
-    if (tabla === 'portafolios') datos.portafolios.push(res.registro);
-    else if (tabla === 'programas') datos.programas.push(res.registro);
-    else datos.proyectos.push(res.registro);
+    const reg = res.registro || res;
+    if (tabla === 'portafolios') datos.portafolios.push(reg);
+    else if (tabla === 'programas') datos.programas.push(reg);
+    else datos.proyectos.push(reg);
     creados++;
-    return res.registro;
+    return reg;
   };
 
-  for (const row of rows) {
-    const nomEmp  = col(row, 'Empresa');
-    const nomPort = col(row, 'Portafolio');
-    const nomProg = col(row, 'Programa');
-    const nomProy = col(row, 'Proyecto');
-    const codProy = col(row, 'Código Proyecto', 'Codigo Proyecto');
-    const nomSub  = col(row, 'Sub-proyecto');
-    const codSub  = col(row, 'Código Sub-proyecto', 'Codigo Sub-proyecto');
-    const estado  = col(row, 'Estado') || 'activo';
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    try {
+      const nomEmp  = col(row, 'Empresa');
+      const nomPort = col(row, 'Portafolio');
+      const nomProg = col(row, 'Programa');
+      const nomProy = col(row, 'Proyecto');
+      const codProy = col(row, 'Código Proyecto', 'Codigo Proyecto');
+      const nomSub  = col(row, 'Sub-proyecto');
+      const codSub  = col(row, 'Código Sub-proyecto', 'Codigo Sub-proyecto');
+      const estado  = col(row, 'Estado') || 'activo';
 
-    const areaId = soloAreaId || datos.areas.find(a => a.nombre === nomEmp)?.id;
-    if (!areaId) { omitidos++; continue; }
+      // La empresa se determina por la columna "Empresa" cuando no hay filtro por empresa
+      const areaId = soloAreaId || datos.areas.find(a => a.nombre === nomEmp)?.id;
+      if (!areaId) { omitidos++; continue; }
 
-    // Portafolio
-    let portId = null;
-    if (nomPort) {
-      const clave = `${areaId}:${nomPort}`;
-      portId = portCache.get(clave);
-      if (!portId) {
-        const r = await crearNodo('portafolios', areaId, { nombre: nomPort, estado: 'activo' });
-        portId = r.id; portCache.set(clave, portId);
+      // Portafolio
+      let portId = null;
+      if (nomPort) {
+        const clave = `${areaId}:${nomPort}`;
+        portId = portCache.get(clave);
+        if (!portId) {
+          const r = await crearNodo('portafolios', areaId, { nombre: nomPort, estado: 'activo' });
+          portId = r.id; portCache.set(clave, portId);
+        }
       }
-    }
 
-    // Programa
-    let progId = null;
-    if (nomProg) {
-      const clave = `${areaId}:${portId || ''}:${nomProg}`;
-      progId = progCache.get(clave);
-      if (!progId) {
-        const r = await crearNodo('programas', areaId, { nombre: nomProg, portafolio_id: portId || null, estado: 'activo' });
-        progId = r.id; progCache.set(clave, progId);
+      // Programa
+      let progId = null;
+      if (nomProg) {
+        const clave = `${areaId}:${portId || ''}:${nomProg}`;
+        progId = progCache.get(clave);
+        if (!progId) {
+          const r = await crearNodo('programas', areaId, { nombre: nomProg, portafolio_id: portId || null, estado: 'activo' });
+          progId = r.id; progCache.set(clave, progId);
+        }
       }
+
+      // Proyecto: buscamos primero por código (más fiable), luego por nombre
+      if (!nomProy && !codProy) { omitidos++; continue; }
+      let proyId = (codProy && proyCache.get(`${areaId}:cod:${codProy}`))
+               || (!codProy && proyCache.get(`${areaId}:nom:${nomProy}`))
+               || null;
+      if (!proyId) {
+        const r = await crearNodo('proyectos', areaId, { nombre_corto: nomProy, codigo: codProy || null, programa_id: progId || null, portafolio_id: portId || null, estado });
+        proyId = r.id;
+        if (codProy) proyCache.set(`${areaId}:cod:${codProy}`, proyId);
+        proyCache.set(`${areaId}:nom:${nomProy}`, proyId);
+      } else { if (!nomSub) omitidos++; }
+
+      // Sub-proyecto
+      if (!nomSub && !codSub) continue;
+      const subExiste = datos.proyectos.some(p => p.padre_id === proyId && (codSub ? p.codigo === codSub : p.nombre_corto === nomSub));
+      if (!subExiste) {
+        await crearNodo('proyectos', areaId, { nombre_corto: nomSub, codigo: codSub || null, padre_id: proyId, estado });
+      } else { omitidos++; }
+    } catch (err) {
+      const fila = Object.values(row).filter(Boolean).slice(0, 4).join(' | ');
+      errores.push(`Fila ${i + 2}: ${mensajeError(err)} — ${fila}`);
     }
-
-    // Proyecto
-    if (!nomProy && !codProy) { omitidos++; continue; }
-    const claveProy = `${areaId}:${codProy || nomProy}`;
-    let proyId = proyCache.get(claveProy);
-    if (!proyId) {
-      const r = await crearNodo('proyectos', areaId, { nombre_corto: nomProy, codigo: codProy || null, programa_id: progId || null, portafolio_id: portId || null, estado });
-      proyId = r.id; proyCache.set(claveProy, proyId);
-    } else { if (!nomSub) omitidos++; }
-
-    // Sub-proyecto
-    if (!nomSub && !codSub) continue;
-    const claveSub = `${areaId}:${proyId}:${codSub || nomSub}`;
-    const subExiste = datos.proyectos.some(p => p.padre_id === proyId && (codSub ? p.codigo === codSub : p.nombre_corto === nomSub));
-    if (!subExiste) {
-      await crearNodo('proyectos', areaId, { nombre_corto: nomSub, codigo: codSub || null, padre_id: proyId, estado });
-    } else { omitidos++; }
   }
 
-  ok(`Importación completa: ${creados} elemento(s) creado(s), ${omitidos} ya existían o se omitieron.`);
-  await alTerminar();
+  if (errores.length) {
+    error(`Importación con errores (${errores.length} fila(s) omitidas):\n${errores.join('\n')}`);
+  } else {
+    ok(`Importación completa: ${creados} elemento(s) creado(s), ${omitidos} ya existían o se omitieron.`);
+  }
+  if (creados > 0) await alTerminar();
 }
 
 // ---------- Altas, ediciones y bajas (pasan por el servidor: pueden ser de cualquier empresa) ----------
