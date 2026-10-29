@@ -31,7 +31,7 @@ for (let i = 0; i < usuarios.length; i++) {
   await pagina.waitForSelector('.usuarios-demo button');
   await pagina.click(`.usuarios-demo button:nth-child(${i + 1})`);
   await pagina.waitForSelector('.usuarios-demo', { state: 'detached', timeout: 15000 });
-  await pagina.waitForSelector('nav, .login', { timeout: 15000 });
+  await pagina.waitForSelector('nav.nav-modulos, .login', { timeout: 15000 });
   if (!(await pagina.$('nav'))) {           // cuenta pendiente o desactivada: solo ve el aviso
     console.log(`✔ ${usuarios[i]} (sin acceso a pantallas)`);
     continue;

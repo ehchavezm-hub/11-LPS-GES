@@ -46,13 +46,14 @@ export function montarLayout(raiz, { alSalir }) {
       <button class="usuario-btn" data-a="usuario"><span class="avatar">${esc(iniciales)}</span><span class="nom">${esc(u.nombre)}</span></button>
     </header>
     <aside class="lateral"><div class="lateral-tirador" title="Arrastre para cambiar el ancho del menú (doble clic: ancho normal)"></div>
-      <nav class="nav" aria-label="Navegación principal"></nav>
+      <nav class="nav nav-admin" aria-label="Administración"></nav>
       <section class="menu-proy" aria-label="Menú de proyectos">
         <div class="menu-proy-cab"><h3>Proyectos</h3>
           ${esGestor() || puede('crear_cartera') ? `<button class="btn btn-sm btn-primario btn-agregar-proy" data-a="nuevo-proy" title="Agregar un proyecto nuevo (lo verá todo el equipo)">＋ ${esGestor() ? 'Agregar' : 'Proponer'}</button>` : ''}</div>
         <input type="search" placeholder="Buscar código o nombre…" aria-label="Buscar proyecto">
         <div class="proy-lista"></div>
       </section>
+      <nav class="nav nav-modulos" aria-label="Navegación principal"></nav>
     </aside>
     <main class="contenido" id="contenido" tabindex="-1"></main>
   </div>`);
@@ -156,13 +157,19 @@ function tiradorLateral(app) {
 }
 
 function pintarNav() {
-  const nav = document.querySelector('.nav');
-  if (!nav) return;
+  const navAdmin = document.querySelector('.nav-admin'), navModulos = document.querySelector('.nav-modulos');
+  if (!navAdmin || !navModulos) return;
   const actual = location.hash.replace(/^#/, '').split('?')[0];
-  nav.innerHTML = NAV.filter(n => n.grupo || n.si()).map(n => n.grupo
+  const pintar = lista => lista.filter(n => n.grupo || n.si()).map(n => n.grupo
     ? `<div class="nav-grupo">${esc(n.grupo)}</div>`
     : `<a href="#${n.ruta}" title="${esc(n.texto)}" class="${actual === n.ruta || actual.startsWith((n.prefijo || n.ruta) + '/') ? 'activo' : ''}"><span class="ico">${n.ico}</span><span class="txt">${esc(n.texto)}</span></a>`).join('');
-  nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => document.body.classList.remove('menu-abierto')));
+  // Administración arriba, luego el árbol PROYECTOS y después los módulos (pedido q6)
+  const corte = NAV.findIndex((n, i) => i > 0 && n.grupo);
+  const admin = NAV.slice(0, corte);
+  navAdmin.innerHTML = admin.some(n => !n.grupo && n.si()) ? pintar(admin) : '';
+  navAdmin.classList.toggle('oculto', !navAdmin.innerHTML);
+  navModulos.innerHTML = pintar(NAV.slice(corte));
+  for (const nav of [navAdmin, navModulos]) nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => document.body.classList.remove('menu-abierto')));
 }
 
 // Ramas contraídas del árbol de proyectos (por computadora)

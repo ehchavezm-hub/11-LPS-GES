@@ -88,6 +88,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .pestanas button.activo { background: var(--surface); color: var(--azul-ejec); box-shadow: var(--sombra); }
 .menu-proy input[type=search] { width: 100%; padding: 6px 9px; border: 1px solid var(--borde); border-radius: 7px; margin-bottom: 6px; }
 .proy-lista { overflow-y: auto; flex: 1; }
+/* PROYECTOS va entre Administración y los módulos (pedido q6): su árbol se desplaza solo, sin empujar el menú */
+.lateral .menu-proy { flex: 0 0 auto; min-height: 0; border-bottom: 1px solid var(--borde); }
+.lateral .proy-lista { max-height: 42vh; }
+.nav-modulos { border-bottom: 0; }
 .proy-grupo { font-size: 11px; font-weight: 700; color: var(--azul); margin: 8px 4px 2px; }
 .proy-item { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border-radius: 6px; cursor: pointer; font-size: 12.5px; }
 .proy-item:hover { background: var(--surface-2); }
