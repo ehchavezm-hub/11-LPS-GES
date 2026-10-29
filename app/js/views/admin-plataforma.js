@@ -188,6 +188,54 @@ async function editarEmpresa(a) {
   });
 }
 
+// ---------- Desactivar / Reactivar (pedido 15) ----------
+// No borra nada: oculta el nivel de menús y selectores y conserva su historial (PAC, actividades). En cascada hacia abajo:
+// al desactivar un portafolio, programa o proyecto se desactiva lo que tiene debajo; al reactivar se pregunta si también.
+const inactivo = (tipo, x) => tipo === 'empresa' ? !activa(x) : ['portafolio', 'programa'].includes(tipo) ? x.estado === 'inactivo' : x.estado === 'cerrado';
+function botonActivo(tipo, x) {
+  if (tipo === 'empresa' && x.id === datos.mi_area) return '';
+  return inactivo(tipo, x)
+    ? `<button class="btn btn-xs btn-azul" data-activo="${tipo}:${x.id}" title="Volver a mostrarlo en menús y selectores">Reactivar</button>`
+    : `<button class="btn btn-xs" data-activo="${tipo}:${x.id}" title="Ocultarlo sin borrar nada (se puede reactivar)">Desactivar</button>`;
+}
+async function cambiarActivo(tipo, id) {
+  const TABLA = { portafolio: 'portafolios', programa: 'programas', proyecto: 'proyectos', subproyecto: 'proyectos' };
+  if (tipo === 'empresa') return estadoEmpresa(empresa(id));
+  const x = datos[TABLA[tipo]].find(r => r.id === id);
+  if (!x) return false;
+  const reactivar = inactivo(tipo, x);
+  // Lo que está debajo
+  const progs = tipo === 'portafolio' ? datos.programas.filter(g => g.portafolio_id === id) : [];
+  const idsProg = new Set(progs.map(g => g.id));
+  let proys = tipo === 'portafolio' ? datos.proyectos.filter(p => p.portafolio_id === id || idsProg.has(p.programa_id))
+    : tipo === 'programa' ? datos.proyectos.filter(p => p.programa_id === id)
+    : tipo === 'proyecto' ? datos.proyectos.filter(p => p.padre_id === id) : [];
+  const idsP = new Set(proys.map(p => p.id));
+  proys = [...proys, ...datos.proyectos.filter(p => idsP.has(p.padre_id) && !idsP.has(p.id))];
+  // Solo los que cambian de estado
+  const progsCambian = progs.filter(g => (g.estado === 'inactivo') === reactivar);
+  const proysCambian = proys.filter(p => reactivar ? p.estado === 'cerrado' : !['cerrado', 'rechazado'].includes(p.estado));
+  const debajo = progsCambian.length + proysCambian.length;
+  const nombreX = x.nombre || x.nombre_corto;
+  const que = { portafolio: 'el portafolio', programa: 'el programa', proyecto: 'el proyecto', subproyecto: 'el sub-proyecto' }[tipo];
+  let conHijos = true;
+  if (reactivar) {
+    if (!await confirmar(`¿Reactivar ${que} "${nombreX}"? Volverá a aparecer en los menús y selectores.`,
+      { titulo: 'Reactivar', texto: 'Reactivar' })) return false;
+    if (debajo) conHijos = await confirmar(`¿Reactivar también lo que tiene debajo (${debajo})?`, { titulo: 'Reactivar lo de abajo', texto: 'Sí, también' });
+  } else if (!await confirmar(`¿Desactivar ${que} "${nombreX}"${debajo ? ` y lo que tiene debajo (${debajo})` : ''}? No se borra nada: deja de aparecer en menús y selectores, `
+      + 'conserva su historial y el PAC, y se puede reactivar cuando quiera.', { titulo: 'Desactivar', texto: 'Desactivar', peligro: true })) return false;
+  const estadoNivel = r => reactivar ? 'activo' : 'inactivo', estadoProy = () => reactivar ? 'activo' : 'cerrado';
+  const actualizar = (tabla, r, estado) => api.adminUsuarios('estructura', { tabla, id: r.id, datos: { estado } });
+  await actualizar(TABLA[tipo], x, TABLA[tipo] === 'proyectos' ? estadoProy() : estadoNivel());
+  if (conHijos) {
+    for (const g of progsCambian) await actualizar('programas', g, estadoNivel());
+    for (const p of proysCambian) await actualizar('proyectos', p, estadoProy());
+  }
+  ok(`${reactivar ? 'Reactivado' : 'Desactivado'}: ${nombreX}${conHijos && debajo ? ` y ${debajo} elemento(s) de abajo` : ''}.`);
+  return true;
+}
+
 async function estadoEmpresa(a) {
   const activar = !activa(a);
   if (!await confirmar(activar ? `¿Activar la empresa "${a.nombre}"? Sus usuarios podrán volver a ingresar.`
@@ -391,6 +439,7 @@ export async function panelEstructuraTodas(el, ctx) {
       if (d.eliminar) { const x = datos[d.tabla].find(r => r.id === d.eliminar); cambio = await eliminarNodo(d.tabla, x); area = x?.area_id; }
       if (d.lideres) { const p = datos.proyectos.find(r => r.id === d.lideres); cambio = !!await miembrosProyecto(p); area = p?.area_id; }
       if (d.eliminarEmpresa) { cambio = await eliminarEmpresas([d.eliminarEmpresa]); }
+      if (d.activo) { const [tipo, id] = d.activo.split(':'); cambio = await cambiarActivo(tipo, id); area = tipo === 'empresa' ? id : null; }
       if (d.editarEmpresa) { const a = empresa(d.editarEmpresa); cambio = !!await editarEmpresa(a); area = a?.id; if (cambio) ctx.repintarCabecera(); }
       if (d.usuarios) { await gestionarUsuarios(empresa(d.usuarios), () => refrescar(d.usuarios).then(pintarTodo)); }
       if (cambio) { await refrescar(area); pintarTodo(); }
@@ -423,6 +472,7 @@ function pintarTabla(cuerpo) {
       acciones: `${sub ? '' : `<button class="btn btn-xs" data-nuevo="proyectos" data-area="${p.area_id}" data-padre="${p.id}">+ Sub-proyecto</button>`}
         <button class="btn btn-xs" data-editar="${p.id}" data-tabla="proyectos">Editar</button>
         <button class="btn btn-xs" data-lideres="${p.id}">Miembros y permisos</button>
+        ${botonActivo(sub ? 'subproyecto' : 'proyecto', p)}
         <button class="btn btn-xs btn-peligro-borde" data-eliminar="${p.id}" data-tabla="proyectos">Eliminar</button>`,
     }, 'p' + p.id, hijos.length);
     if (abierto) hijos.forEach(h => filaProyecto(h, nivel + 1));
@@ -435,6 +485,7 @@ function pintarTabla(cuerpo) {
       admin: esc(g.responsable_id ? nombreCorto(datos.perfiles.find(u => u.id === g.responsable_id)) : ''),
       acciones: `<button class="btn btn-xs" data-nuevo="proyectos" data-area="${g.area_id}" data-programa="${g.id}">+ Proyecto</button>
         <button class="btn btn-xs" data-editar="${g.id}" data-tabla="programas">Editar</button>
+        ${botonActivo('programa', g)}
         <button class="btn btn-xs btn-peligro-borde" data-eliminar="${g.id}" data-tabla="programas">Eliminar</button>`,
     }, 'g' + g.id, ps.length)) ps.forEach(p => filaProyecto(p, nivel + 1));
   };
@@ -449,7 +500,8 @@ function pintarTabla(cuerpo) {
       acciones: `<button class="btn btn-xs" data-nuevo="portafolios" data-area="${a.id}">+ Portafolio</button>
         <button class="btn btn-xs" data-nuevo="programas" data-area="${a.id}">+ Programa</button>
         <button class="btn btn-xs" data-nuevo="proyectos" data-area="${a.id}">+ Proyecto</button>
-        <button class="btn btn-xs" data-usuarios="${a.id}">Usuarios</button>`,
+        <button class="btn btn-xs" data-usuarios="${a.id}">Usuarios</button>
+        ${botonActivo('empresa', a)}`,
     }, 'a' + a.id, ports.length + progSueltos.length + proySueltos.length);
     if (!abierta) continue;
     for (const f of ports) {
@@ -462,6 +514,7 @@ function pintarTabla(cuerpo) {
         acciones: `<button class="btn btn-xs" data-nuevo="programas" data-area="${a.id}" data-portafolio="${f.id}">+ Programa</button>
           <button class="btn btn-xs" data-nuevo="proyectos" data-area="${a.id}" data-portafolio="${f.id}">+ Proyecto</button>
           <button class="btn btn-xs" data-editar="${f.id}" data-tabla="portafolios">Editar</button>
+          ${botonActivo('portafolio', f)}
           <button class="btn btn-xs btn-peligro-borde" data-eliminar="${f.id}" data-tabla="portafolios">Eliminar</button>`,
       }, 'f' + f.id, gs.length + ps.length)) { gs.forEach(g => filaPrograma(g, 2)); ps.forEach(p => filaProyecto(p, 2)); }
     }

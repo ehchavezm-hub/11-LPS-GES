@@ -173,6 +173,7 @@ Estado de cada observación al 25/10/2026.
 | 145 (q7) | Mejoras del aplicativo a la vista de todos los usuarios de todas las empresas, al final del menú | ✅ Último grupo del menú («Todas las empresas»). Lista las solicitudes de todas las empresas (empresa y autor); cualquiera crea las suyas; las gestionan los propietarios (y cada empresa las suyas). admin-usuarios v10 | `q7.js` (propietario y líder) | ✅ |
 | 146 (q10) | Menú lateral: «PROYECTOS» → «SUB-PROYECTOS» y «+ Agregar» crea sub-proyectos | ✅ El formulario pide el proyecto al que pertenece (sugiere el elegido en el menú; si no hay, es obligatorio escogerlo) y hereda gerencia, país, portafolio y programa | `q10.js`; humo 160 pantallas | ✅ |
 | 147 (14) | Migración: CET/Servicios de GT al proyecto GT_OT; eliminar el GT-OT antiguo de Cumbra; no restaurar actividades borradas | ✅ Aplicativo: los sub-proyectos heredan los CET/Servicios de su proyecto (Plan, Look Ahead, Plantillas, Cartera) y en Configuración › Servicios se puede asociar un proyecto con sub-proyectos. ⏳ Base: el cambio de los 55 registros va en el SQL para aplicar (pidió aprobación) | `q14.js`; humo 160 pantallas | Pendiente de aplicar en la base |
+| 148 (15) | «Desactivar» antes de «Eliminar» para empresa, portafolio, programa, proyecto y sub-proyecto | ✅ Botón Desactivar / Reactivar en cada fila. No borra nada. En cascada hacia abajo; al reactivar pregunta si también lo de abajo. La empresa en uso no se puede desactivar | `q15.js`; humo 160 pantallas y pruebas de Administración | ✅ |
 
 ## Lo que encontró la reconfirmación
 
