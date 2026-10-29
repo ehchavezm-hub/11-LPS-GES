@@ -1,4 +1,3 @@
-// Consola de Administración — sección PLATAFORMA (administrador de la plataforma: profiles.es_plataforma).
 // Empresas, usuarios, estructura (Empresa → Portafolio → Programa → Proyecto), propietarios, auditoría y reportes
 // de TODAS las empresas. Los datos que cruzan empresas pasan solo por la Edge Function "admin-usuarios":
 // en las pantallas normales cada usuario (también el de la plataforma) ve únicamente la empresa en la que trabaja.
@@ -316,7 +315,7 @@ async function cambiarPrincipal(a) {
 // ════════════════════════════════════════════════════════════════
 export async function panelUsuariosPlataforma(el) {
   await cargarPlataforma();
-  el.innerHTML = cab('Usuarios de la plataforma', 'Usuarios de todas las empresas. Una persona puede pertenecer a varias empresas: aparece una vez por cada una, con su rol en ella.',
+  el.innerHTML = cab('Usuarios de la plataforma', 'Usuarios de todas las empresas, agrupados por empresa.',
     `<button class="btn btn-primario" data-a="nuevo">+ Nuevo usuario</button>`) +
     `<div class="admin-filtros">
       <input class="inp" data-f="q" placeholder="Buscar nombre o correo...">
@@ -324,22 +323,37 @@ export async function panelUsuariosPlataforma(el) {
       <select class="inp" data-f="rol"><option value="">Rol: todos</option>${Object.entries(ROLES).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select>
       <select class="inp" data-f="estado"><option value="">Estado: todos</option><option value="1">Activos</option><option value="0">Inactivos</option></select>
       <span class="flex"></span><span class="nota" data-contador></span></div>
-    <div class="tarjeta admin-tabla-wrap" data-tabla></div>`;
+    <div data-tabla></div>`;
   const f = k => el.querySelector(`[data-f="${k}"]`).value;
   const pintar = () => {
     const q = f('q').trim().toLowerCase();
     const todas = datos.areas.flatMap(a => usuariosDe(a.id));
-    const lista = todas.filter(p => (!q || `${p.nombre} ${p.email}`.toLowerCase().includes(q)) && (!f('empresa') || p._area === f('empresa')) &&
-      (!f('rol') || p.rol === f('rol')) && (f('estado') === '' || String(Number(!!p.activo)) === f('estado')))
-      .sort((a, b) => (empresa(a._area)?.nombre || '').localeCompare(empresa(b._area)?.nombre || '') || (a.nombre || '').localeCompare(b.nombre || ''));
-    el.querySelector('[data-contador]').textContent = `${lista.length} de ${todas.length}`;
-    el.querySelector('[data-tabla]').innerHTML = tablaUsuarios(lista, true);
+    const filtroEmp = f('empresa');
+    const areas = filtroEmp ? datos.areas.filter(a => a.id === filtroEmp) : datos.areas;
+    let total = 0, gruposHtml = '';
+    for (const a of areas) {
+      const lista = usuariosDe(a.id).filter(p =>
+        (!q || `${p.nombre} ${p.email}`.toLowerCase().includes(q)) &&
+        (!f('rol') || p.rol === f('rol')) &&
+        (f('estado') === '' || String(Number(!!p.activo)) === f('estado'))
+      ).sort((x, y) => (x.nombre || '').localeCompare(y.nombre || ''));
+      if (!lista.length) continue;
+      total += lista.length;
+      gruposHtml += `<div class="empresa-grupo" style="margin-bottom:14px">
+        <div class="empresa-grupo-cab"><span>🏢 ${esc(a.nombre)}</span><small class="nota"> · ${lista.length} usuario${lista.length !== 1 ? 's' : ''}</small>
+          <span class="flex"></span><button class="btn btn-sm btn-primario" data-nuevo-en="${esc(a.id)}">+ Agregar usuario</button></div>
+        <div class="tarjeta" style="border-radius:0 0 10px 10px">${tablaUsuarios(lista, false)}</div>
+      </div>`;
+    }
+    el.querySelector('[data-contador]').textContent = `${total} de ${todas.length}`;
+    el.querySelector('[data-tabla]').innerHTML = gruposHtml || '<p class="nota" style="padding:12px">Sin usuarios.</p>';
   };
   el.querySelectorAll('[data-f]').forEach(x => x.addEventListener(x.tagName === 'INPUT' ? 'input' : 'change', pintar));
   el.addEventListener('click', async e => {
     const t = e.target.closest('button'); if (!t) return;
     try {
       if (t.dataset.a === 'nuevo') { if (await nuevoUsuario(f('empresa') || datos.mi_area)) { await refrescar(); pintar(); } }
+      if (t.dataset.nuevoEn) { if (await nuevoUsuario(t.dataset.nuevoEn)) { await refrescar(); pintar(); } }
       if (await accionUsuario(t)) { await refrescar(); pintar(); }
     } catch (err) { error(mensajeError(err)); }
   });
@@ -348,7 +362,7 @@ export async function panelUsuariosPlataforma(el) {
 
 function tablaUsuarios(lista, conEmpresa) {
   if (!lista.length) return '<p class="nota" style="padding:12px">Sin usuarios.</p>';
-  return `<table class="simple"><thead><tr><th>NOMBRE</th><th>CORREO</th>${conEmpresa ? '<th>EMPRESA</th>' : ''}<th>ROL</th><th>ESTADO</th><th></th></tr></thead>
+  return `<table class="simple"><thead><tr><th>NOMBRE</th><th>CORREO</th>${conEmpresa ? '<th>EMPRESA</th>' : ''}<th>ROL</th><th>ESTADO</th><th>ACCIONES</th><th>ELIMINAR</th></tr></thead>
     <tbody>${lista.map(p => `<tr>
       <td><b>${esc(p.nombre || '—')}</b>${p.es_admin_principal && !p.es_plataforma ? ' ' + badge('Principal', '#1A365D') : ''}${p.es_plataforma ? ' ' + badge('Propietario', '#B07AA1') : ''}
         ${empresasDe(p.id).length > 1 ? `<br><small class="nota">También en: ${esc(empresasDe(p.id).filter(a => a.id !== p._area).map(a => a.nombre).join(', '))}${p._otra ? ` · hoy trabaja en ${esc(empresa(p.area_id)?.nombre || '')}` : ''}</small>` : ''}</td>
@@ -358,16 +372,24 @@ function tablaUsuarios(lista, conEmpresa) {
       <td>${p.activo ? badge('Activo', '#2e7d32') : badge('Inactivo', '#888')}</td>
       <td class="acciones-fila"><button class="btn btn-xs" data-rol="${p.id}" data-area="${p._area}">Cambiar rol</button>
         <button class="btn btn-xs" data-activo="${p.id}" data-area="${p._area}">${p.activo ? 'Desactivar' : 'Activar'}</button>
-        ${empresasDe(p.id).length > 1 && !p.es_plataforma ? `<button class="btn btn-xs btn-peligro-borde" data-quitar-de="${p.id}" data-area="${p._area}" title="Deja de pertenecer a esta empresa; su cuenta y sus otras empresas siguen">Quitar de esta empresa</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
+        ${empresasDe(p.id).length > 1 && !p.es_plataforma ? `<button class="btn btn-xs btn-peligro-borde" data-quitar-de="${p.id}" data-area="${p._area}" title="Deja de pertenecer a esta empresa; su cuenta y sus otras empresas siguen">Quitar de esta empresa</button>` : ''}</td>
+      <td>${!p.es_plataforma ? `<button class="btn btn-xs btn-peligro" data-eliminar="${p.id}" data-area="${p._area}" title="Eliminar usuario del sistema completamente">🗑 Eliminar</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
 }
 
 async function accionUsuario(t) {
   // Cada fila es una persona EN una empresa (data-area): su rol y estado son los de esa empresa
   const area = t.dataset.area;
-  const id = t.dataset.rol || t.dataset.activo || t.dataset.quitarDe;
+  const id = t.dataset.rol || t.dataset.activo || t.dataset.quitarDe || t.dataset.eliminar;
   const u = area ? usuariosDe(area).find(p => p.id === id) : datos.perfiles.find(p => p.id === id);
   if (!u) return false;
   const nomEmp = empresa(area)?.nombre || '';
+  if (t.dataset.eliminar) {
+    if (!await confirmar(`¿Eliminar a ${u.nombre} del sistema? Esto borrará su cuenta de todas las empresas y no se puede deshacer.`,
+      { titulo: 'Eliminar usuario', texto: 'Eliminar', peligro: true })) return false;
+    await api.adminUsuarios('eliminar_usuario', { usuario_id: u.id });
+    ok(`${u.nombre} fue eliminado del sistema.`);
+    return true;
+  }
   if (t.dataset.quitarDe) {
     if (!await confirmar(`¿Quitar a ${u.nombre} de ${nomEmp}? Su cuenta sigue y conserva sus otras empresas (${empresasDe(u.id).filter(a => a.id !== area).map(a => a.nombre).join(', ')}).`,
       { titulo: 'Quitar de la empresa', texto: 'Quitar', peligro: true })) return false;
@@ -423,7 +445,7 @@ async function gestionarUsuarios(a, alCambiar) {
     } catch (err) { error(mensajeError(err)); }
   });
   pintar();
-  modal({ titulo: `Usuarios de ${a.nombre}`, cuerpo, ancho: 860, botones: [{ texto: 'Cerrar' }] });
+  modal({ titulo: `Usuarios de ${a.nombre}`, cuerpo, ancho: 1100, botones: [{ texto: 'Cerrar' }] });
 }
 
 // ════════════════════════════════════════════════════════════════
