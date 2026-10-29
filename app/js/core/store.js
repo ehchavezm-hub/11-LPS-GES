@@ -53,18 +53,18 @@ export async function conteoColaboracion() {
 export async function cargarCatalogo() {
   const u = store.usuario;
   const [areas, listas, valores, params, permisos, perfiles, proyectos, lideres, favs, columnas, portafolios, programas, miembros] = await Promise.all([
-    api.list('areas', { eq: { id: u.area_id } }),
-    api.list('listas', {}),
-    api.list('lista_valores', { order: [['orden', true]] }),
-    api.list('parametros', { eq: { area_id: u.area_id } }),
-    api.list('permisos', { eq: { area_id: u.area_id } }),
+    api.list('areas', { eq: { id: u.area_id } }).catch(() => []),
+    api.list('listas', {}).catch(() => []),
+    api.list('lista_valores', { order: [['orden', true]] }).catch(() => []),
+    api.list('parametros', { eq: { area_id: u.area_id } }).catch(() => []),
+    api.list('permisos', { eq: { area_id: u.area_id } }).catch(() => []),
     // Sin filtrar por empresa: la base devuelve solo los visibles (la propia persona y los de su empresa, incluidos los
     // miembros que hoy trabajan en otra empresa, migración 030); abajo se dejan los de esta empresa
-    api.list('profiles', { order: [['nombre', true]] }),
-    api.list('proyectos', { eq: { area_id: u.area_id }, order: [['codigo', true]] }),
-    u.rol === 'consulta' ? Promise.resolve([]) : api.list('proyecto_lideres', {}),
-    api.list('proyecto_favoritos', { eq: { usuario_id: u.id } }),
-    api.list('columnas_personalizadas', { eq: { area_id: u.area_id }, order: [['orden', true]] }),
+    api.list('profiles', { order: [['nombre', true]] }).catch(() => []),
+    api.list('proyectos', { eq: { area_id: u.area_id }, order: [['codigo', true]] }).catch(() => []),
+    u.rol === 'consulta' ? Promise.resolve([]) : api.list('proyecto_lideres', {}).catch(() => []),
+    api.list('proyecto_favoritos', { eq: { usuario_id: u.id } }).catch(() => []),
+    api.list('columnas_personalizadas', { eq: { area_id: u.area_id }, order: [['orden', true]] }).catch(() => []),
     // Jerarquía de la empresa (menú de proyectos en árbol): Portafolio → Programa → Proyecto
     api.list('portafolios', { eq: { area_id: u.area_id }, order: [['nombre', true]] }).catch(() => []),
     api.list('programas', { eq: { area_id: u.area_id }, order: [['nombre', true]] }).catch(() => []),

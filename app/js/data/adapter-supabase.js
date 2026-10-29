@@ -41,7 +41,11 @@ export function crearAdaptadorSupabase(url, key) {
         }
         return filas;
       }
-      return ok(await q);
+      const resultado = ok(await q);
+      if (resultado.length === f.limit) {
+        console.warn(`[api] list('${tabla}'): result hit limit=${f.limit}; there may be more records. Consider removing limit or using pagination.`);
+      }
+      return resultado;
     },
     async insert(tabla, filas) {
       const arr = Array.isArray(filas) ? filas : [filas];
