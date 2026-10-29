@@ -821,17 +821,14 @@ async function importarEstructura(file, soloAreaId, alTerminar) {
 
   const total = cPorts + cProgs + cProys + cSubs;
 
-  // Actualizar la vista antes de mostrar el resumen
-  if (total > 0) await alTerminar();
-
-  // Modal con resumen (no desaparece solo como el toast)
+  // Mostrar modal PRIMERO (antes de refrescar), para que aparezca aunque alTerminar falle
   const lineas = [
     total
-      ? `<p style="color:var(--verde,#2e7d32);margin:0 0 6px"><b>Creados: ${cPorts} portafolio(s), ${cProgs} programa(s), ${cProys} proyecto(s), ${cSubs} sub-proyecto(s)</b></p>`
-      : `<p style="margin:0 0 6px">Sin elementos nuevos.</p>`,
-    omitidos ? `<p style="margin:0 0 6px;color:var(--texto-suave,#666)">⏭ Ya existían (omitidos): <b>${omitidos}</b></p>` : '',
+      ? `<p style="color:#2e7d32;margin:0 0 6px"><b>Creados: ${cPorts} portafolio(s), ${cProgs} programa(s), ${cProys} proyecto(s), ${cSubs} sub-proyecto(s)</b></p>`
+      : `<p style="margin:0 0 6px">Sin elementos nuevos que importar.</p>`,
+    omitidos ? `<p style="margin:0 0 6px;color:#555">⏭ Ya existían (omitidos): <b>${omitidos}</b></p>` : '',
     errores.length
-      ? `<p style="color:var(--rojo,#c62828);margin:0 0 4px"><b>Errores (${errores.length}):</b></p><pre style="font-size:12px;white-space:pre-wrap;max-height:200px;overflow:auto;background:#fef2f2;padding:8px;border-radius:4px">${esc(errores.join('\n'))}</pre>`
+      ? `<p style="color:#c62828;margin:0 0 4px"><b>Errores (${errores.length}):</b></p><pre style="font-size:12px;white-space:pre-wrap;max-height:200px;overflow:auto;background:#fef2f2;padding:8px;border-radius:4px">${esc(errores.join('\n'))}</pre>`
       : '',
   ].join('');
 
@@ -840,6 +837,11 @@ async function importarEstructura(file, soloAreaId, alTerminar) {
     cuerpo: lineas,
     botones: [{ texto: 'Cerrar', clase: 'btn-primario' }],
   });
+
+  // Refrescar la vista después (si falla no oculta el modal ya mostrado)
+  if (total > 0) {
+    try { await alTerminar(); } catch (e) { console.error('[import] alTerminar error:', e); }
+  }
 }
 
 // ---------- Altas, ediciones y bajas (pasan por el servidor: pueden ser de cualquier empresa) ----------
