@@ -422,6 +422,16 @@
 .tabla-estructura td:nth-child(4) { white-space: nowrap; }
 .est-n-sub { color: #1A365D; font-weight: 600; }
 .org-subproyecto { background: #1f2f5c; border-color: #1A365D; color: #fff; }
+/* Proyectos en columna (pedido 20): una caja debajo de otra, unidas por una línea vertical */
+.org-arbol ul.org-v { flex-direction: column; align-items: center; justify-content: flex-start; }
+.org-arbol ul.org-v > li { padding: 10px 0 0; }
+.org-arbol ul.org-v > li:first-child { padding-top: 0; }
+.org-arbol ul.org-v > li::after { display: none; }
+.org-arbol ul.org-v > li::before { border: 0; border-left: 1.5px solid #7fb3c8; width: 0; height: 10px; left: 50%; right: auto; }
+.org-arbol ul.org-v > li:first-child::before { display: none; }
+.org-arbol ul.org-v ul.org-v { padding-top: 10px; }
+.org-arbol ul.org-v ul.org-v::before { height: 10px; border-left-style: dashed; }
+.org-arbol li.org-grupo { padding-left: 8px; padding-right: 8px; }
 .admin-quien { border: 1px solid #cfe0ea; background: #f3f9fc; border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; }
 .admin-quien > .nota { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 2px; }
 .org-caja[role="button"] { cursor: pointer; transition: box-shadow .15s, transform .15s; }

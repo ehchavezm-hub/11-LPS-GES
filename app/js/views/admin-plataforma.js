@@ -491,22 +491,27 @@ function pintarOrganigrama(cuerpo) {
       ${tipo === 'empresa' ? `data-editar-empresa="${id}"` : `data-editar="${id}" data-tabla="${TABLA[tipo]}"`}><b>${esc(titulo)}</b><small>${esc(sub)}</small>
       ${tipo === 'empresa' && id === datos.mi_area ? '' : `<button class="org-borrar" title="Eliminar" aria-label="Eliminar ${esc(titulo)}"
         ${tipo === 'empresa' ? `data-eliminar-empresa="${id}"` : `data-eliminar="${id}" data-tabla="${TABLA[tipo]}"`}>🗑</button>`}</div>`;
-  const nodo = (htmlCaja, hijos) => `<li>${htmlCaja}${hijos.length ? `<ul>${hijos.join('')}</ul>` : ''}</li>`;
+  // Portafolios y programas se abren en horizontal; los proyectos (y sus sub-proyectos) se apilan en vertical (pedido 20)
+  const columna = items => `<ul class="org-v">${items.join('')}</ul>`;
+  const nodo = (htmlCaja, hijos, proyectos = []) => {
+    const ramas = [...hijos, ...(hijos.length && proyectos.length ? [`<li class="org-grupo">${columna(proyectos)}</li>`] : [])];
+    return `<li>${htmlCaja}${ramas.length ? `<ul>${ramas.join('')}</ul>` : proyectos.length ? columna(proyectos) : ''}</li>`;
+  };
   const sub = p => nodo(caja('subproyecto', p.nombre_corto, 'Sub-proyecto', p.id), []);
-  const proy = p => nodo(caja('proyecto', p.nombre_corto, `Proyecto${lideresDe(p.id).length ? ' · ' + lideresDe(p.id).map(nombreCorto).join(', ') : ''}`, p.id), subDe(p).map(sub));
+  const proy = p => nodo(caja('proyecto', p.nombre_corto, `Proyecto${lideresDe(p.id).length ? ' · ' + lideresDe(p.id).map(nombreCorto).join(', ') : ''}`, p.id), [], subDe(p).map(sub));
   const raiz = arr => arr.filter(p => !p.padre_id);
-  const prog = g => nodo(caja('programa', g.nombre, 'Programa', g.id), raiz(datos.proyectos.filter(p => p.programa_id === g.id)).map(proy));
+  const prog = g => nodo(caja('programa', g.nombre, 'Programa', g.id), [], raiz(datos.proyectos.filter(p => p.programa_id === g.id)).map(proy));
   const arboles = datos.areas.map(a => {
     const hijos = [
-      ...datos.portafolios.filter(f => f.area_id === a.id).map(f => nodo(caja('portafolio', f.nombre, 'Portafolio', f.id), [
-        ...datos.programas.filter(g => g.portafolio_id === f.id).map(prog),
-        ...raiz(datos.proyectos.filter(p => p.portafolio_id === f.id && !p.programa_id)).map(proy)])),
+      ...datos.portafolios.filter(f => f.area_id === a.id).map(f => nodo(caja('portafolio', f.nombre, 'Portafolio', f.id),
+        datos.programas.filter(g => g.portafolio_id === f.id).map(prog),
+        raiz(datos.proyectos.filter(p => p.portafolio_id === f.id && !p.programa_id)).map(proy))),
       ...datos.programas.filter(g => g.area_id === a.id && !g.portafolio_id).map(prog),
-      ...raiz(proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id)).map(proy),
     ];
-    return `<div class="org-arbol"><ul>${nodo(caja('empresa', a.nombre, 'Empresa', a.id), hijos)}</ul></div>`;
+    return `<div class="org-arbol"><ul>${nodo(caja('empresa', a.nombre, 'Empresa', a.id), hijos,
+      raiz(proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id)).map(proy))}</ul></div>`;
   });
-  cuerpo.innerHTML = `<p class="nota">Haga clic en una tarjeta para editarla; 🗑 la elimina. Desplácese horizontalmente para ver toda la estructura. Las cajas naranjas son proyectos (con su administrador) y las azul oscuro, sus sub-proyectos, donde se registra el LPS.</p>
+  cuerpo.innerHTML = `<p class="nota">Haga clic en una tarjeta para editarla; 🗑 la elimina. Los proyectos se listan en columna bajo su programa, portafolio o empresa. Las cajas naranjas son proyectos (con su administrador) y las azul oscuro, sus sub-proyectos, donde se registra el LPS.</p>
     <div class="org-lienzo">${arboles.join('')}</div>`;
 }
 
