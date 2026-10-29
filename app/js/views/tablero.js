@@ -15,7 +15,7 @@ export async function render(el) {
   estado = { semanas: Number(localStorage.getItem('lpsgt-tablero-semanas') || 12), gerencia: '', lider: '' };
   const pag = html(`<div>
     <div class="pagina-cab"><h1>Tablero</h1>
-      <select class="sel" data-sem>${[4, 8, 12, 26, 52].map(n => `<option value="${n}">Últimas ${n} semanas</option>`).join('')}</select>
+      <select class="sel" data-sem>${[1, 2, 3, 4, 8, 12, 26, 52].map(n => `<option value="${n}">${n === 1 ? 'Última semana' : `Últimas ${n} semanas`}</option>`).join('')}<option value="0">Personalizado…</option></select>
       <select class="sel" data-ger><option value="">Todas las gerencias</option>${valoresLista('gerencias').map(v => `<option value="${v.id}">${esc(v.codigo || v.valor)}</option>`).join('')}</select>
       ${esStaff() ? `<select class="sel" data-lid><option value="">Todo el equipo</option>${lideres().map(l => `<option value="${l.id}">${esc(l.nombre)}</option>`).join('')}</select>` : ''}
       <span data-proy></span><span class="flex"></span>
@@ -23,8 +23,41 @@ export async function render(el) {
       <button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <div data-cuerpo><div class="cargando"><span class="spinner"></span> Calculando indicadores…</div></div></div>`);
   el.append(pag);
-  pag.querySelector('[data-sem]').value = String(estado.semanas);
-  pag.querySelector('[data-sem]').onchange = e => { estado.semanas = Number(e.target.value); localStorage.setItem('lpsgt-tablero-semanas', e.target.value); cargar(); };
+  const selSem = pag.querySelector('[data-sem]');
+  selSem.value = String(estado.semanas);
+  if (selSem.value !== String(estado.semanas)) {
+    // Valor guardado es personalizado (no está en la lista estándar) — agregar opción temporal
+    const optP = document.createElement('option');
+    optP.value = String(estado.semanas); optP.setAttribute('data-custom', '1');
+    optP.textContent = `${estado.semanas === 1 ? 'Última semana' : `Últimas ${estado.semanas} semanas`} (custom)`;
+    selSem.insertBefore(optP, selSem.lastElementChild);
+    selSem.value = String(estado.semanas);
+  }
+  selSem.onchange = async e => {
+    if (e.target.value === '0') {
+      const { pedirDatos } = await import('../ui/ui.js');
+      const r = await pedirDatos({
+        titulo: 'Período personalizado',
+        campos: [{ name: 'semanas', label: 'Número de semanas', type: 'number', min: 1, max: 260, required: true, value: estado.semanas }],
+        texto: 'Aplicar',
+        ancho: 360,
+      });
+      if (!r) { selSem.value = String(estado.semanas); return; } // canceló
+      estado.semanas = Math.max(1, Math.min(260, Number(r.semanas) || 4));
+      // Agregar opción temporal con el valor personalizado
+      let optPersonal = selSem.querySelector('option[data-custom]');
+      if (!optPersonal) { optPersonal = document.createElement('option'); optPersonal.setAttribute('data-custom', '1'); selSem.insertBefore(optPersonal, selSem.lastElementChild); }
+      optPersonal.value = String(estado.semanas);
+      optPersonal.textContent = `${estado.semanas === 1 ? 'Última semana' : `Últimas ${estado.semanas} semanas`} (custom)`;
+      selSem.value = String(estado.semanas);
+    } else {
+      // Quitar opción custom anterior si el usuario volvió a una estándar
+      selSem.querySelector('option[data-custom]')?.remove();
+      estado.semanas = Number(e.target.value);
+    }
+    localStorage.setItem('lpsgt-tablero-semanas', String(estado.semanas));
+    cargar();
+  };
   pag.querySelector('[data-ger]').onchange = e => { estado.gerencia = e.target.value; pintar(); };
   pag.querySelector('[data-lid]')?.addEventListener('change', e => { estado.lider = e.target.value; pintar(); });
   pag.querySelector('[data-a="pdf"]').onclick = pdf;
