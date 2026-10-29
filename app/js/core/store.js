@@ -17,6 +17,7 @@ export const store = {
   portafolios: [],
   programas: [],
   proyectoLideres: [],
+  supervisiones: [],     // { supervisor_id, subordinado_id, proyecto_id } por sub-proyecto
   favoritos: new Set(),
   columnas: [],
   proyectoSel: localStorage.getItem('lpsgt-proyecto') || '',
@@ -52,7 +53,7 @@ export async function conteoColaboracion() {
 
 export async function cargarCatalogo() {
   const u = store.usuario;
-  const [areas, listas, valores, params, permisos, perfiles, proyectos, lideres, favs, columnas, portafolios, programas, miembros] = await Promise.all([
+  const [areas, listas, valores, params, permisos, perfiles, proyectos, lideres, favs, columnas, portafolios, programas, miembros, supervisiones] = await Promise.all([
     api.list('areas', { eq: { id: u.area_id } }).catch(() => []),
     api.list('listas', {}).catch(() => []),
     api.list('lista_valores', { order: [['orden', true]] }).catch(() => []),
@@ -70,6 +71,8 @@ export async function cargarCatalogo() {
     api.list('programas', { eq: { area_id: u.area_id }, order: [['nombre', true]] }).catch(() => []),
     // Usuarios de varias empresas (030): sin la migración aplicada, lista vacía y todo funciona como antes
     api.list('empresa_miembros', {}).catch(() => []),
+    // Supervisiones por sub-proyecto (s40): supervisor puede ver y editar actividades del subordinado en ese sub-proyecto
+    api.list('supervisiones', { eq: { area_id: u.area_id } }).catch(() => []),
   ]);
   store.area = areas[0] || null;
   api.fijarArea?.(store.area?.id);
@@ -100,6 +103,7 @@ export async function cargarCatalogo() {
   store.proyectos = u.rol === 'consulta'
     ? proyectos.filter(p => p.estado === 'activo' && (u.gerencia_ids || []).includes(p.gerencia_id)) : proyectos;
   store.proyectoLideres = lideres;
+  store.supervisiones = supervisiones.filter(s => s.activo !== false);
   store.favoritos = new Set(favs.map(f => f.proyecto_id));
   store.columnas = columnas;
   store.portafolios = portafolios;
@@ -133,7 +137,23 @@ export function puedeEditarProyecto(p) {
   return esGestor() || (p.estado === 'propuesto' && p.propuesto_por === yo);
 }
 export function puedeEditarActividad(a) {
-  return a.responsable_id === store.usuario?.id || esGestor();
+  return a.responsable_id === store.usuario?.id || esGestor() || esSupervisorDe(a.responsable_id, a.proyecto_id);
+}
+/** ¿El usuario actual supervisa al subordinado en ese sub-proyecto? */
+export function esSupervisorDe(subordinadoId, proyectoId) {
+  if (!subordinadoId || !proyectoId) return false;
+  const yo = store.usuario?.id;
+  return store.supervisiones.some(s => s.supervisor_id === yo && s.subordinado_id === subordinadoId && s.proyecto_id === proyectoId);
+}
+/** ¿El usuario actual supervisa a alguien (en algún sub-proyecto)? */
+export function esSupervisorAlguno() {
+  const yo = store.usuario?.id;
+  return store.supervisiones.some(s => s.supervisor_id === yo);
+}
+/** IDs de los subordinados del usuario actual en un sub-proyecto dado. */
+export function subordinadosEn(proyectoId) {
+  const yo = store.usuario?.id;
+  return store.supervisiones.filter(s => s.supervisor_id === yo && s.proyecto_id === proyectoId).map(s => s.subordinado_id);
 }
 
 // ---------- Listas ----------

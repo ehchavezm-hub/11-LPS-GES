@@ -513,6 +513,7 @@ export async function panelEstructuraTodas(el, ctx, { area = '' } = {}) {
       if (d.editar) { const x = datos[d.tabla].find(r => r.id === d.editar); cambio = !!await editarNodo(d.tabla, x, {}); areaId = x?.area_id; }
       if (d.eliminar) { const x = datos[d.tabla].find(r => r.id === d.eliminar); cambio = await eliminarNodo(d.tabla, x); areaId = x?.area_id; }
       if (d.lideres) { const p = datos.proyectos.find(r => r.id === d.lideres); cambio = !!await miembrosProyecto(p); areaId = p?.area_id; }
+      if (d.supervisiones) { const p = datos.proyectos.find(r => r.id === d.supervisiones); await gestionarSupervisiones(p); areaId = p?.area_id; }
       if (d.eliminarEmpresa) { cambio = await eliminarEmpresas([d.eliminarEmpresa]); }
       if (d.activo) { const [tipo, id] = d.activo.split(':'); cambio = await cambiarActivo(tipo, id); areaId = tipo === 'empresa' ? id : null; }
       if (d.editarEmpresa) { const a = empresa(d.editarEmpresa); cambio = !!await editarEmpresa(a); areaId = a?.id; if (cambio) ctx.repintarCabecera(); }
@@ -558,6 +559,7 @@ function pintarTabla(cuerpo) {
       acciones: `${sub ? '' : `<button class="btn btn-xs" data-nuevo="proyectos" data-area="${p.area_id}" data-padre="${p.id}">+ Sub-proyecto</button>`}
         <button class="btn btn-xs" data-editar="${p.id}" data-tabla="proyectos">Editar</button>
         <button class="btn btn-xs" data-lideres="${p.id}">Miembros y permisos</button>
+        ${sub ? `<button class="btn btn-xs" data-supervisiones="${p.id}" title="Configurar quién puede ver y editar las actividades de otra persona en este sub-proyecto">👥 Supervisiones</button>` : ''}
         ${botonActivo(sub ? 'subproyecto' : 'proyecto', p)}
         <button class="btn btn-xs btn-peligro-borde" data-eliminar="${p.id}" data-tabla="proyectos">Eliminar</button>`,
     }, 'p' + p.id, hijos.length);
@@ -983,6 +985,62 @@ async function miembrosProyecto(p) {
     campos: [{ name: 'usuarios', label: 'Líderes / administradores del proyecto', type: 'multiselect', full: true,
       options: candidatos.map(u => ({ value: u.id, label: `${u.nombre} · ${ROLES[u.rol] || u.rol}` })) }],
     alGuardar: async d => { await api.adminUsuarios('lideres', { proyecto_id: p.id, usuario_ids: d.usuarios || [] }); ok('Miembros actualizados.'); },
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+// SUPERVISIONES POR SUB-PROYECTO (s40)
+// ════════════════════════════════════════════════════════════════
+async function gestionarSupervisiones(p) {
+  if (!p) return;
+  const areaId = p.area_id;
+  const candidatos = usuariosDe(areaId).filter(u => u.activo && u.rol !== 'pendiente');
+  let actuales = [];
+  try { actuales = await api.list('supervisiones', { eq: { area_id: areaId, proyecto_id: p.id } }); } catch { /* tabla aún no creada */ }
+  const opts = candidatos.map(u => `<option value="${u.id}">${esc(u.nombre)}</option>`).join('');
+  const filasSup = actuales.filter(s => s.activo !== false).map(s => {
+    const sup = candidatos.find(u => u.id === s.supervisor_id);
+    const sub = candidatos.find(u => u.id === s.subordinado_id);
+    return sup && sub ? `<tr><td>${esc(sup.nombre)}</td><td style="padding:0 8px">→</td><td>${esc(sub.nombre)}</td>
+      <td><button class="btn btn-xs btn-peligro-borde" data-quitar-s="${s.id}">Quitar</button></td></tr>` : '';
+  }).join('');
+  let huboambios = false;
+  const m = modal({
+    titulo: `👥 Supervisiones — ${p.nombre_corto}`,
+    ancho: 620,
+    cuerpo: `<p class="nota">Un supervisor puede ver y editar las actividades del subordinado en este sub-proyecto.</p>
+      <table class="simple" style="width:100%;margin-bottom:12px">
+        <thead><tr><th>Supervisor</th><th></th><th>Subordinado</th><th></th></tr></thead>
+        <tbody data-filas-s>${filasSup || '<tr><td colspan="4" class="nota">Sin supervisiones configuradas.</td></tr>'}</tbody>
+      </table>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <select data-sel-sup class="inp" style="flex:1"><option value="">— Supervisor —</option>${opts}</select>
+        <span>→</span>
+        <select data-sel-sub class="inp" style="flex:1"><option value="">— Subordinado —</option>${opts}</select>
+        <button class="btn btn-azul" data-a-agregar>Agregar</button>
+      </div>`,
+    botones: [{ texto: 'Cerrar' }],
+    alCerrar: () => { if (huboambios) refrescar(areaId); },
+  });
+  m.cuerpo.addEventListener('click', async e => {
+    const qs = e.target.closest('[data-quitar-s]');
+    if (qs) {
+      try { await api.remove('supervisiones', qs.dataset.quitarS); huboambios = true; ok('Supervisión eliminada.'); qs.closest('tr').remove(); } catch (err) { error(mensajeError(err)); }
+    }
+    if (e.target.closest('[data-a-agregar]')) {
+      const supId = m.cuerpo.querySelector('[data-sel-sup]').value;
+      const subId = m.cuerpo.querySelector('[data-sel-sub]').value;
+      if (!supId || !subId) { error('Elige supervisor y subordinado.'); return; }
+      if (supId === subId) { error('El supervisor y el subordinado deben ser distintos.'); return; }
+      try {
+        await api.insert('supervisiones', { area_id: areaId, proyecto_id: p.id, supervisor_id: supId, subordinado_id: subId, activo: true });
+        huboambios = true; ok('Supervisión agregada.');
+        const sup = candidatos.find(u => u.id === supId), sub = candidatos.find(u => u.id === subId);
+        const tbody = m.cuerpo.querySelector('[data-filas-s]');
+        if (tbody.querySelector('[colspan]')) tbody.innerHTML = '';
+        tbody.insertAdjacentHTML('beforeend', `<tr><td>${esc(sup.nombre)}</td><td style="padding:0 8px">→</td><td>${esc(sub.nombre)}</td><td><small class="nota">✓</small></td></tr>`);
+      } catch (err) { error(mensajeError(err)); }
+    }
   });
 }
 
