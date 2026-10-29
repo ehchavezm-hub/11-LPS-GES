@@ -30,8 +30,7 @@ const MENU = [
   { sep: true },
   // Usuarios y roles, Administrador delegado y Matriz de permisos son de los sub-proyectos: quedan en Configuración (pedido 16)
   { id: 'estructura',    ico: '🌐', texto: 'Estructura de la empresa', si: esAdmin },
-  { id: 'portafolios',   ico: '🗂', texto: 'Portafolios',             si: esAdmin },
-  { id: 'programas',     ico: '📁', texto: 'Programas',               si: esAdmin },
+  // Portafolios y Programas van dentro de «Estructura de la empresa» (con las mismas dos pestañas de Plataforma)
   // Listas configurables, Parámetros y Calendario aplican a los sub-proyectos: quedan en Configuración (pedido a11)
   { sep: true },
   { id: 'auditoria',     ico: '🕑', texto: 'Auditoría',               si: esAdmin },
@@ -166,9 +165,7 @@ async function renderPanel() {
       'resumen':     panelResumen,
       'empresas':    config('empresas'),
       // Propietarios: la misma vista de dos pestañas que en Plataforma, solo con esta empresa (pedido 16)
-      'estructura':  panelEstructura,
-      'portafolios': panelPortafolios,
-      'programas':   panelProgramas,
+      'estructura':  el => plat.panelEstructuraEmpresa(el, ctx),
       'auditoria':   config('auditoria'),
     };
     const fn = mapa[panelActivo];
