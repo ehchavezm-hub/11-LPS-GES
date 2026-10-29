@@ -359,6 +359,37 @@
 .est-prog { font-weight: 600; }
 .est-proy { font-size: .92em; }
 
+/* Árbol de proyectos con acciones (fusión Proyectos/Procesos en Estructura) */
+.est-proy-fila {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 3px 0;
+}
+.est-proy-nombre {
+  flex: 0 0 auto;
+  min-width: 160px;
+}
+.est-proy-meta {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.est-proy-acc {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.est-proy:hover > .est-proy-fila .est-proy-acc,
+.est-proy:focus-within > .est-proy-fila .est-proy-acc {
+  opacity: 1;
+}
+
 /* ---------- Barra superior: Plataforma › Empresa › Proyecto ---------- */
 .admin-migas { display: flex; align-items: center; gap: 6px; margin-left: 14px; flex-wrap: wrap; }
 .admin-miga-plat { border: 1px solid #5fb8c9; background: #e3f6fa; color: #0b6f86; font-weight: 700; border-radius: 6px; padding: 5px 12px; cursor: pointer; }
