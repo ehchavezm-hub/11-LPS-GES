@@ -38,16 +38,23 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
     { field: 'responsable_id', title: 'Resp. 1', tipo: 'lista', ancho: 130, opciones: opcionesLideres, editable: () => esGestor(),
       ayuda: 'Responsable (el PAC se atribuye a esta persona)' },
     { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 95, opciones: () => opciones('gerencias').map(o => ({ ...o, label: o.value ? (store.valores.get(o.value)?.codigo || o.label) : o.label })) },
-    { field: 'proyecto_id', title: 'Proyecto / Proceso', tipo: 'lista', ancho: 190, opciones: opcionesProyectos },
+    // Pedido d7: la actividad la registra un Grupo LPS (proyecto_id) y atiende al proyecto de su CET (Actividad → CET → Proyecto)
+    { field: 'proyecto_id', title: 'Grupo LPS', tipo: 'lista', ancho: 190, opciones: opcionesProyectos,
+      ayuda: 'Grupo LPS que registra la actividad (el elegido en el menú)' },
+    { field: '_proyecto', title: 'Proyecto', tipo: 'lista', ancho: 190, posicionFija: true,
+      ayuda: 'Proyecto del CET (al elegir el CET se completa solo; al elegir un proyecto, el CET se elige entre los suyos)',
+      valor: d => d._proyecto || proyectoDeServicio(d.servicio_id) || null,
+      opciones: () => [{ value: null, label: '—' }, ...store.proyectos.filter(p => !p.padre_id)
+        .map(p => ({ value: p.id, label: `${p.codigo} · ${p.nombre_corto}` })).sort((a, b) => a.label.localeCompare(b.label))] },
     // CET y Servicio van juntos (como nombre y apellido): son el mismo valor de la lista "CET / Servicio" visto por su código
     // o por su nombre. Elegir o pegar uno completa el otro.
     { field: '_cet', title: 'CET', tipo: 'lista', ancho: 100, posicionFija: true, ayuda: 'CET del servicio (al elegirlo se completa el Servicio)',
       valor: d => d.servicio_id ?? null,
       opciones: () => [{ value: null, label: '—' }, ...valoresLista('servicios', { inactivos: true }).map(v => ({ value: v.id, label: v.codigo || '' }))],
       // Al editar: los CET del proyecto de la fila (y los que no tienen proyecto)
-      opcionesEdicion: d => opcionesServicio({ proyectoId: d?.proyecto_id }).filter(o => o.value == null || store.valores.get(o.value)?.codigo) },
+      opcionesEdicion: d => opcionesServicio({ proyectoId: d?.proyecto_id }).filter(o => o.value == null || store.valores.get(o.value)?.codigo).filter(delProyecto(d)) },
     { field: 'servicio_id', title: 'Servicio', tipo: 'lista', ancho: 180, opciones: () => opciones('servicios'),
-      opcionesEdicion: d => opcionesServicio({ proyectoId: d?.proyecto_id, etiqueta: v => v.valor }) },
+      opcionesEdicion: d => opcionesServicio({ proyectoId: d?.proyecto_id, etiqueta: v => v.valor }).filter(delProyecto(d)) },
     { field: 'descripcion', title: 'Actividad', tipo: 'textoLargo', ancho: 300, minAncho: 160 },   // varias líneas: la fila crece
     ...dias,
     { field: 'hh_total', title: 'HH', tipo: 'numero', ancho: 64, calc: true, total: true, filtro: false },
@@ -95,6 +102,9 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
   return cols.filter(Boolean);
 }
 
+// CET / Servicio que se ofrecen en una fila: si se eligió un Proyecto, solo los de ese proyecto
+const delProyecto = d => o => !d?._proyecto || o.value == null || proyectoDeServicio(o.value) === d._proyecto;
+
 /**
  * Proyecto, Gerencia y CET / Servicio van juntos (Plan, Look Ahead, Plantillas y Cartera):
  * al elegir un proyecto se completan su gerencia y su CET / Servicio (si la lista tiene uno solo asociado);
@@ -102,6 +112,11 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
  */
 export function derivarProyectoServicio(fila, cambios) {
   const d = {};
+  // Proyecto elegido a mano (d7): si el CET de la fila es de otro proyecto, se limpia para elegir uno de este proyecto
+  if ('_proyecto' in cambios) {
+    const sv = 'servicio_id' in cambios ? cambios.servicio_id : fila.servicio_id;
+    if (cambios._proyecto && sv && proyectoDeServicio(sv) !== cambios._proyecto) d.servicio_id = null;
+  }
   if ('proyecto_id' in cambios && cambios.proyecto_id) {
     const p = proyecto(cambios.proyecto_id);
     if (p?.gerencia_id) d.gerencia_id = p.gerencia_id;
@@ -112,6 +127,9 @@ export function derivarProyectoServicio(fila, cambios) {
   }
   // Tabulator devuelve "" al limpiar un list-editor; usar || null en vez de ?? null para convertirlo a null.
   if ('_cet' in cambios) d.servicio_id = cambios._cet || null;            // CET elegido → su Servicio
+  // CET elegido: el Proyecto es el de ese CET
+  const svNuevo = 'servicio_id' in d ? d.servicio_id : 'servicio_id' in cambios ? cambios.servicio_id : undefined;
+  if (svNuevo && '_proyecto' in fila) d._proyecto = null;
   // Servicio de un proyecto elegido en una fila sin proyecto: se completan el proyecto y su gerencia
   const servElegido = '_cet' in cambios ? cambios._cet : 'servicio_id' in cambios ? cambios.servicio_id : undefined;
   if (servElegido && !fila.proyecto_id && !('proyecto_id' in cambios)) {

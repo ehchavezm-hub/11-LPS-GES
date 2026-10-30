@@ -68,7 +68,7 @@ export async function render(el, { query }) {
       },
     }),
     camposCalc: CAMPOS_CALC_ACT,
-    agrupar: [{ field: 'semana', label: 'Semana' }, { field: 'responsable_id', label: 'Responsable' }, { field: 'proyecto_id', label: 'Proyecto' }, { field: 'estado_la', label: 'Estado LA' }],
+    agrupar: [{ field: 'semana', label: 'Semana' }, { field: 'responsable_id', label: 'Responsable' }, { field: 'proyecto_id', label: 'Grupo LPS' }, { field: 'estado_la', label: 'Estado LA' }],
     // Una comprometida sigue editable mientras no tenga estado final (p. ej. para volver de "Trasladada" a "Lista");
     // una vez reportada en el Plan (completada, no completada o cancelada) queda bloqueada
     puedeEditarFila: a => puedeEditarActividad(a) && (!a.comprometida || a.estado === 'programado'),
@@ -182,7 +182,7 @@ const acciones = {
       titulo: 'Aplicar plantilla de servicio', texto: 'Generar actividades',
       campos: [
         { name: 'plantilla', label: 'Plantilla', type: 'select', required: true, options: plantillas.map(p => ({ value: p.id, label: p.nombre })) },
-        { name: 'proyecto', label: 'Proyecto', type: 'select', required: true, options: opcionesProyectos(), value: store.proyectoSel },
+        { name: 'proyecto', label: 'Grupo LPS', type: 'select', required: true, options: opcionesProyectos(), value: store.proyectoSel },
         { name: 'responsable', label: 'Responsable', type: 'select', required: true, options: opcionesLideres(), value: estado.resp !== 'todos' ? estado.resp : store.usuario.id },
         { name: 'semana', label: 'Semana de inicio', type: 'select', required: true, options: estado.semanas.map(s => ({ value: s, label: etiquetaSemana(s) })) },
       ],
