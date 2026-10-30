@@ -256,7 +256,9 @@ async function listas(el, claveSel) {
       ${del.filter(l => !['gerencias', 'servicios'].includes(l.clave)).map(opcion).join('')}</optgroup>`;
   }).join('');
   el.innerHTML = `<div class="barra" style="margin-bottom:10px"><label>Lista: <select class="sel" data-l>${opcionesGrupo}</select></label>
-    ${editable ? '<button class="btn btn-sm" data-a="grupo" title="Cambiar el grupo de esta lista">✎ Grupo</button><button class="btn btn-sm" data-a="nueva">＋ Nueva lista</button>' : ''}<span class="flex"></span>
+    ${editable ? '<button class="btn btn-sm" data-a="grupo" title="Cambiar el grupo de esta lista">✎ Grupo</button><button class="btn btn-sm" data-a="nueva">＋ Nueva lista</button>' : ''}
+    <button class="btn btn-sm btn-excel" data-a="xls-exp" title="Descargar esta lista en Excel">⬇ Exportar XLS</button>
+    ${editable ? '<button class="btn btn-sm btn-excel" data-a="xls-imp" title="Cargar cambios desde Excel: agrega y actualiza, nunca borra">⬆ Importar XLS</button>' : ''}<span class="flex"></span>
     <span class="nota">🔒 = valor usado por los cálculos: puede renombrarse, no eliminarse.</span></div><div data-g></div>`;
   el.querySelector('[data-l]').onchange = e => {
     listas(el, e.target.value);
@@ -283,6 +285,12 @@ async function listas(el, claveSel) {
       alGuardar: async v => { await api.update('listas', l.id, { grupo: (v.grupo_nuevo || '').trim() || v.grupo }); await cargarCatalogo(); } });
     if (d) listas(el, sel);
   });
+  // Pedido d9: exportar / importar la lista por Excel (Proyectos y Grupos LPS tienen los suyos en su catálogo)
+  const xls = () => import('../services/excel-listas.js');
+  const bExp = el.querySelector('[data-a="xls-exp"]'), bImp = el.querySelector('[data-a="xls-imp"]');
+  if (sel === '__proyectos' || sel === '__grupos') { bExp?.remove(); bImp?.remove(); }
+  bExp?.addEventListener('click', () => xls().then(m => m.exportarLista(sel)).catch(e => error(mensajeError(e))));
+  bImp?.addEventListener('click', () => xls().then(m => m.importarLista(sel, () => listas(el, sel))));
   // Proyectos / Procesos: el catálogo completo (tres ventanas, importar, eliminar) se dibuja aquí mismo
   if (sel === '__proyectos' || sel === '__grupos') {
     grilla?.destruir(); grilla = null;

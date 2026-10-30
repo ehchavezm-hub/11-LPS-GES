@@ -437,3 +437,6 @@ html.letra-grande .aviso, html.letra-grande .nota { font-size: 14.5px; }
 /* ---------- Grupos de empresa en panel de usuarios (s12) ---------- */
 .empresa-grupo-cab { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--borde); font-weight: 700; font-size: 14px; color: var(--azul-ejec); background: var(--azul-claro); border-radius: 10px 10px 0 0; }
 .empresa-grupo-cab .nota { font-weight: 500; }
+/* Pedido d9: botones de Excel (exportar / importar) en verde, distintos del resto */
+.btn-excel { background: #1D6F42; border-color: #1D6F42; color: #fff; }
+.btn-excel:hover { background: #155734; border-color: #155734; }

@@ -44,7 +44,8 @@ export async function render(el, params) {
         : 'Catálogo de proyectos: alimenta el menú de selección y las listas de todas las grillas (los Grupos LPS tienen su propio catálogo)'}</span>
       <span class="flex"></span>
       ${puedeCrear || puede('crear_cartera') ? `<button class="btn btn-primario" data-a="nuevo">＋ ${modoGrupos ? (puedeCrear ? 'Nuevo Grupo LPS' : 'Proponer Grupo LPS') : puedeCrear ? 'Nuevo proyecto' : 'Proponer proyecto'}</button>` : ''}
-      ${puede('importar_datos') && !modoGrupos ? '<button class="btn btn-sm" data-a="importar">⬆ Importar desde Excel</button>' : ''}
+      <button class="btn btn-sm btn-excel" data-a="xls-exp" title="Descargar el catálogo en Excel">⬇ Exportar XLS</button>
+      ${puede('importar_datos') ? '<button class="btn btn-sm btn-excel" data-a="importar" title="Cargar desde Excel: agrega y actualiza, nunca borra">⬆ Importar XLS</button>' : ''}
       <button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <div data-propuestos></div>
     ${VENTANAS.map(([e, t]) => `<section class="ventana-estado ventana-${e}" data-ventana="${e}">
@@ -52,7 +53,9 @@ export async function render(el, params) {
   </div>`);
   el.append(pag);
   pag.querySelector('[data-a="nuevo"]')?.addEventListener('click', () => formularioProyecto(null, { sub: modoGrupos }));
-  pag.querySelector('[data-a="importar"]')?.addEventListener('click', () => elegirArchivoProyectos());
+  const xls = () => import('../services/excel-listas.js');
+  pag.querySelector('[data-a="importar"]')?.addEventListener('click', () => (modoGrupos ? xls().then(m => m.importarGrupos(refrescarCatalogo)) : elegirArchivoProyectos()));
+  pag.querySelector('[data-a="xls-exp"]')?.addEventListener('click', () => xls().then(m => m.exportarCatalogo(modoGrupos)).catch(e => error(mensajeError(e))));
   pag.querySelector('[data-a="pdf"]').addEventListener('click', () => imprimirPDF(modoGrupos ? 'Catálogo de Grupos LPS' : 'Catálogo de proyectos', tablaPDF(
     // Mismas columnas y anchos que las ventanas de proyectos en pantalla
     grillas.activo?.columnasPDF?.() || [
