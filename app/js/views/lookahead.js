@@ -76,7 +76,7 @@ export async function render(el, { query }) {
     listaParaCrear: a => !!(a.descripcion && a.descripcion.trim()),
     crear: async datos => api.insert('actividades', { ...datos, descripcion: datos.descripcion || '' }),
     nuevaFila: () => {
-      const p = store.proyectoSel && !esContenedor(proyecto(store.proyectoSel)) ? proyecto(store.proyectoSel) : null;   // con sub-proyectos: se elige uno
+      const p = store.proyectoSel ? proyecto(store.proyectoSel) : null;
       return { area_id: store.area.id, semana: estado.semanas[0], responsable_id: estado.resp !== 'todos' ? estado.resp : store.usuario.id,
         comprometida: false, tipo: 'programada', estado: 'programado', estado_la: 'pendiente', origen: 'manual',
         proyecto_id: p?.id || null, gerencia_id: p?.gerencia_id || null, servicio_id: servicioDeProyecto(p),

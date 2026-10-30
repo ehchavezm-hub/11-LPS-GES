@@ -132,7 +132,7 @@ function filtroFila(a) {
 function respNuevo() { return estado.resp !== 'todos' ? estado.resp : store.usuario.id; }
 
 function nuevaFila() {
-  const p = store.proyectoSel && !esContenedor(proyecto(store.proyectoSel)) ? proyecto(store.proyectoSel) : null;   // con sub-proyectos: se elige uno
+  const p = store.proyectoSel ? proyecto(store.proyectoSel) : null;
   // Programada mientras la semana se esté planificando (con Look Ahead de la misma semana: hasta el día de registro)
   const empezo = !semanaEnPlanificacion(estado.semana);
   return {
