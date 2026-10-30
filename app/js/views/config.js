@@ -306,14 +306,12 @@ async function listas(el, claveSel) {
   if (!lista) return;
   grilla?.destruir();
   grilla = crearGrilla(el.querySelector('[data-g]'), {
-    // "_v2" en CET / Servicio: descarta el orden de columnas recordado antes de reordenarlas (Proyecto, Código, Servicio)
-    id: `lista_valores_${sel}${sel === 'servicios' ? '_v2' : ''}`, tabla: 'lista_valores', titulo: lista.nombre, altura: 'calc(100vh - 330px)', puedeCrear: editable,
+    // "_v3" en CET / Servicio: descarta la vista recordada que aún tenía la columna Proyecto (retirada en r2)
+    id: `lista_valores_${sel}${sel === 'servicios' ? '_v3' : ''}`, tabla: 'lista_valores', titulo: lista.nombre, altura: 'calc(100vh - 330px)', puedeCrear: editable,
     columnas: [
       { field: '_p', title: '', tipo: 'texto', ancho: 36, calc: true, filtro: false, formato: (v, x) => x.protegido ? '🔒' : '' },
       ...(sel === 'servicios' ? [
-        // CET / Servicio: Proyecto (del catálogo de Proyectos), Código (CET) y Servicio; sin descripción ni color
-        { field: '_proyecto', title: 'Proyecto', tipo: 'lista', ancho: 300, opciones: () => opcionesProyectos({ contenedores: true }),
-          ayuda: 'Se elige del catálogo de Proyectos (se actualiza al instante). Al elegir ese proyecto en una actividad, el CET / Servicio se completa solo' },
+        // CET / Servicio: Código (CET) y Servicio; sin proyecto (r2: un CET atiende a varios proyectos), descripción ni color
         { field: 'codigo', title: 'CET', tipo: 'texto', ancho: 140, editable: x => !x.protegido },
         { field: 'valor', title: 'Servicio', tipo: 'texto', ancho: 340 },
       ] : [

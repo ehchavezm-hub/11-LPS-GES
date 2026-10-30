@@ -187,6 +187,7 @@ Estado de cada observación al 25/10/2026.
 | 159 (d11) | Al elegir el Proyecto, en CET solo sus CET; al elegir el CET, aparece su proyecto | ✅ (también en Servicio) | `d7.js`, `d10.js` | ✅ |
 | 160 | Compatibilización y auditoría 3 | ✅ Ver `docs/AUDITORIA.md` › Auditoría 3: «Desde la cartera» e importar Excel dejan la actividad en el Grupo LPS elegido (el proyecto de origen queda como Proyecto); Supr en Proyecto / CET ahora se guarda; borrar el Proyecto borra su CET. Base: 10 de 11 chequeos de integridad en 0 | `aud3.js`, `imp.js` (con Excel privado), regresión, base | ✅ |
 | 161 (r1) | Desvincular el Proyecto del CET / Servicio en Plan semanal y Look Ahead (revierte d7/d11) | ✅ El Proyecto se elige libre y se guarda en la actividad; el CET ofrece todos los CET y cambiarlo no cambia el Proyecto (ni al revés). Las filas antiguas conservan el proyecto que mostraban. Se mantiene Proyecto → Gerencia (d10) | `d7.js`, `aud3.js`, `d10.js` | ✅ |
+| 162 (r2) | En la lista CET / Servicio, los CET no están vinculados a un proyecto (un proyecto usa varios CET y un CET atiende a varios proyectos) | ✅ Se retiró solo la columna «Proyecto» de la lista (pedido del dueño: nada más). Los datos guardados no se tocan | regresión | ✅ |
 
 ## Lo que encontró la reconfirmación
 
