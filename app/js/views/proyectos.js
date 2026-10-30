@@ -213,7 +213,7 @@ async function eliminarProyecto(p, { confirmaciones = 2 } = {}) {
   if (!esGestor()) throw new Error('No tiene permiso para eliminar proyectos.');
   const hijos = subproyectos(p.id);
   if (hijos.length) {
-    error(`"${p.codigo}" tiene ${hijos.length} sub-proyecto(s). Elimínelos o muévalos primero, o elimínelo con todo desde Administración › Estructura.`);
+    error(`"${p.codigo}" tiene ${hijos.length} Grupo(s) LPS. Elimínelos o muévalos primero, o elimínelo con todo desde Administración › Estructura.`);
     return false;
   }
   const usos = await usosDeProyecto(p.id);
@@ -296,13 +296,13 @@ export async function nuevoCETServicio({ proyectoId = null } = {}) {
 }
 
 /** Alta de proyecto: crea (administrador, delegado o líder con "agregar_proyecto") o propone. */
-// sub: alta de un sub-proyecto (botón «+ Agregar» del menú SUB-PROYECTOS, pedido q10): se elige el proyecto al que
+// sub: alta de un Grupo LPS (botón «+ Agregar» del menú GRUPOS LPS, pedido q10): se elige el proyecto al que
 // pertenece y hereda de él la gerencia, el portafolio y el programa
 export async function formularioProyecto(p = null, { sub = false } = {}) {
   const crea = puedeAgregarProyecto();
   const raices = store.proyectos.filter(x => !x.padre_id && x.id !== p?.id && !['cerrado', 'rechazado'].includes(x.estado));
-  if (sub && !raices.length) { error('Primero cree un proyecto (en Administración › Estructura): el sub-proyecto pertenece a un proyecto.'); return; }
-  // Proyecto sugerido: el elegido en el menú (o el padre del sub-proyecto elegido)
+  if (sub && !raices.length) { error('Primero cree un proyecto (en Administración › Estructura): el Grupo LPS pertenece a un proyecto.'); return; }
+  // Proyecto sugerido: el elegido en el menú (o el padre del Grupo LPS elegido)
   const sel = store.proyectoSel && store.proyectos.find(x => x.id === store.proyectoSel);
   const padreSugerido = sel ? (sel.padre_id || sel.id) : (raices.length === 1 ? raices[0].id : '');
   // Jerarquía de la empresa: Portafolio → Programa → Proyecto (ambos opcionales)
@@ -312,9 +312,9 @@ export async function formularioProyecto(p = null, { sub = false } = {}) {
   ]);
   const nomPort = id => portafolios.find(x => x.id === id)?.nombre;
   const d = await pedirDatos({
-    titulo: p ? 'Editar proyecto' : sub ? (crea ? 'Nuevo sub-proyecto' : 'Proponer sub-proyecto') : crea ? 'Nuevo proyecto' : 'Proponer proyecto',
+    titulo: p ? 'Editar proyecto' : sub ? (crea ? 'Nuevo Grupo LPS' : 'Proponer Grupo LPS') : crea ? 'Nuevo proyecto' : 'Proponer proyecto',
     texto: p ? 'Guardar' : crea ? 'Crear' : 'Enviar propuesta',
-    antes: [sub ? 'El sub-proyecto pertenece a un proyecto: hereda su gerencia, portafolio, programa y líderes. En él se registra el LPS (Look Ahead y Plan semanal).' : '',
+    antes: [sub ? 'El Grupo LPS pertenece a un proyecto: hereda su gerencia, portafolio, programa y líderes. En él se registra el LPS (Look Ahead y Plan semanal).' : '',
       !crea && !p ? 'Quedará "Propuesto" hasta que el administrador lo apruebe. Mientras tanto ya puede registrar actividades en él.' : ''].filter(Boolean).join(' '),
     valores: p || { estado: 'activo', ...(sub ? { padre_id: padreSugerido } : {}) },
     campos: sub ? [
@@ -334,8 +334,8 @@ export async function formularioProyecto(p = null, { sub = false } = {}) {
       { name: 'gerencia_id', label: 'Gerencia', type: 'select', required: true, options: opciones('gerencias') },
       { name: 'fase_id', label: 'Fase', type: 'select', options: opciones('fases') },
       { name: 'pais_id', label: 'País', type: 'select', options: opciones('paises') },
-      // Sub-proyecto (pedido a7): el LPS se registra en los sub-proyectos; heredan portafolio, programa y líderes
-      ...(store.proyectos.some(x => x.padre_id === p?.id) ? [] : [{ name: 'padre_id', label: 'Sub-proyecto de (opcional)', type: 'select',
+      // Grupo LPS (pedido a7): el LPS se registra en los Grupos LPS; heredan portafolio, programa y líderes
+      ...(store.proyectos.some(x => x.padre_id === p?.id) ? [] : [{ name: 'padre_id', label: 'Grupo LPS de (opcional)', type: 'select',
         options: store.proyectos.filter(x => !x.padre_id && x.id !== p?.id && !['cerrado', 'rechazado'].includes(x.estado))
           .map(x => ({ value: x.id, label: `${x.codigo} · ${x.nombre_corto}` })) }]),
       { name: 'portafolio_id', label: 'Portafolio', type: 'select',
@@ -350,7 +350,7 @@ export async function formularioProyecto(p = null, { sub = false } = {}) {
     alGuardar: async v => {
       const datos = { ...v, portafolio_id: v.portafolio_id || null, programa_id: v.programa_id || null };
       if ('padre_id' in v) datos.padre_id = v.padre_id || null;
-      // Un sub-proyecto hereda la ubicación de su proyecto (en la base lo asegura public.tg_subproyecto)
+      // Un Grupo LPS hereda la ubicación de su proyecto (en la base lo asegura public.tg_subproyecto)
       const padre = datos.padre_id && store.proyectos.find(x => x.id === datos.padre_id);
       if (padre) {
         datos.portafolio_id = padre.portafolio_id || null; datos.programa_id = padre.programa_id || null;
@@ -368,7 +368,7 @@ export async function formularioProyecto(p = null, { sub = false } = {}) {
       if (!crea && !p) {
         await api.insert('proyecto_lideres', { proyecto_id: reg.id, usuario_id: store.usuario.id }).catch(() => {});
       }
-      ok(crea || p ? (sub ? 'Sub-proyecto guardado.' : 'Proyecto guardado.') : 'Propuesta enviada al administrador.');
+      ok(crea || p ? (sub ? 'Grupo LPS guardado.' : 'Proyecto guardado.') : 'Propuesta enviada al administrador.');
       await cargarCatalogo();
     },
   });
@@ -391,7 +391,7 @@ async function asignarLideres(p) {
 async function ficha(el, id) {
   const p = proyecto(id);
   if (!p) { el.innerHTML = vacio('Proyecto no encontrado o sin permiso para verlo.'); return; }
-  // Un proyecto con sub-proyectos suma lo registrado en ellos (el LPS se registra en los sub-proyectos)
+  // Un proyecto con Grupos LPS suma lo registrado en ellos (el LPS se registra en los Grupos LPS)
   const ids = { in: { proyecto_id: [id, ...subproyectos(id).map(s => s.id)] } };
   const [acts, rests, hitos, cartera] = await Promise.all([
     api.list('actividades', ids),

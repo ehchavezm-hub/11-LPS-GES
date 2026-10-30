@@ -28,10 +28,10 @@ const MENU_PLATAFORMA = [
 const MENU = [
   { id: 'resumen',       ico: '📊', texto: 'Resumen',                 si: esAdmin },
   { sep: true },
-  // Usuarios y roles, Administrador delegado y Matriz de permisos son de los sub-proyectos: quedan en Configuración (pedido 16)
+  // Usuarios y roles, Administrador delegado y Matriz de permisos son de los Grupos LPS: quedan en Configuración (pedido 16)
   { id: 'estructura',    ico: '🌐', texto: 'Estructura de la empresa', si: esAdmin },
   // Portafolios y Programas van dentro de «Estructura de la empresa» (con las mismas dos pestañas de Plataforma)
-  // Listas configurables, Parámetros y Calendario aplican a los sub-proyectos: quedan en Configuración (pedido a11)
+  // Listas configurables, Parámetros y Calendario aplican a los Grupos LPS: quedan en Configuración (pedido a11)
   { sep: true },
   { id: 'auditoria',     ico: '🕑', texto: 'Auditoría',               si: esAdmin },
 ];
@@ -57,8 +57,10 @@ export function showAdminConsole(panelInicial, el) {
       try { await plat.abrirEmpresa(destino); } catch (err) { error(mensajeError(err)); }
     }
     if (sel.matches('[data-sel="proyecto"]') && sel.value) {
+      const grupo = !!store.proyectos.find(p => p.id === sel.value)?.padre_id;
       seleccionarProyecto(sel.value);
-      ok('Proyecto seleccionado: el plan, el Look Ahead y los reportes se filtran por él.');
+      repintarCabecera();
+      ok(`${grupo ? 'Grupo LPS' : 'Proyecto'} seleccionado: el plan, el Look Ahead y los reportes se filtran por él.`);
     }
   });
   el.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarConsola(); });
@@ -70,7 +72,10 @@ export function showAdminConsole(panelInicial, el) {
   pintarMenu();
   renderPanel();
 
-  dejarEscuchar = on('catalogo', () => { pintarMenu(); });
+  const dejarCatalogo = on('catalogo', () => { pintarMenu(); });
+  // Si se elige otro proyecto o Grupo LPS en el menú lateral, la barra superior lo refleja
+  const dejarProyecto = on('proyecto', () => repintarCabecera());
+  dejarEscuchar = () => { dejarCatalogo(); dejarProyecto(); };
   setTimeout(() => contenedor?.querySelector('#admin-contenido')?.focus(), 50);
 }
 
@@ -101,7 +106,7 @@ function buildShell() {
   </div>`;
 }
 
-// Migas: [Plataforma] › EMPRESA (selector) › PROYECTO (selector)
+// Migas: [Plataforma] › EMPRESA (selector) › PROYECTO o GRUPO LPS (selector)
 async function repintarCabecera() {
   const migas = contenedor?.querySelector('.admin-migas');
   if (!migas) return;
@@ -111,12 +116,16 @@ async function repintarCabecera() {
     try { empresas = plat.empresasEnMemoria() || (await plat.cargarPlataforma()).areas || empresas; } catch { /* se muestra solo la propia */ }
   }
   const proyectos = (store.proyectos || []).filter(p => !['cerrado', 'rechazado'].includes(p.estado));
+  // Cada Grupo LPS va justo debajo de su proyecto
+  const ordenados = proyectos.filter(p => !p.padre_id || !proyectos.some(x => x.id === p.padre_id))
+    .flatMap(p => [p, ...proyectos.filter(h => h.padre_id === p.id)]);
+  const grupoSel = !!proyectos.find(p => p.id === store.proyectoSel)?.padre_id;
   migas.innerHTML = `${esPlataforma() ? `<button class="admin-miga-plat${panelActivo.startsWith('p-') ? ' activo' : ''}" data-a="plataforma">Plataforma</button><span class="admin-miga-sep">›</span>` : ''}
     <label class="admin-miga-sel"><span>EMPRESA</span><select data-sel="empresa" ${esPlataforma() ? '' : 'disabled'}>
       ${empresas.map(e => `<option value="${e.id}" ${e.id === store.area?.id ? 'selected' : ''}>${esc(e.nombre)}</option>`).join('')}</select></label>
     <span class="admin-miga-sep">›</span>
-    <label class="admin-miga-sel"><span>PROYECTO</span><select data-sel="proyecto"><option value="">Elegir proyecto…</option>
-      ${proyectos.map(p => `<option value="${p.id}" ${p.id === store.proyectoSel ? 'selected' : ''}>${esc(p.codigo)} · ${esc(p.nombre_corto)}</option>`).join('')}</select></label>`;
+    <label class="admin-miga-sel"><span>${grupoSel ? 'GRUPO LPS' : 'PROYECTO'}</span><select data-sel="proyecto"><option value="">Elegir proyecto o Grupo LPS…</option>
+      ${ordenados.map(p => `<option value="${p.id}" ${p.id === store.proyectoSel ? 'selected' : ''}>${p.padre_id ? '\u00a0\u00a0↳ ' : ''}${esc(p.codigo)} · ${esc(p.nombre_corto)}${p.padre_id ? ' (Grupo LPS)' : ''}</option>`).join('')}</select></label>`;
 }
 
 // ---------- Navegación ----------
@@ -273,7 +282,7 @@ async function panelProyectos(el) {
   </div>
   <div class="tarjeta admin-tabla-wrap">
     <table class="simple" id="tabla-proy">
-      <thead><tr><th>CÓDIGO</th><th>NOMBRE</th><th>SUB-PROYECTO DE</th><th>PORTAFOLIO</th><th>PROGRAMA</th><th>GERENCIA</th><th>ESTADO</th><th>LÍDERES</th><th></th></tr></thead>
+      <thead><tr><th>CÓDIGO</th><th>NOMBRE</th><th>GRUPO LPS DE</th><th>PORTAFOLIO</th><th>PROGRAMA</th><th>GERENCIA</th><th>ESTADO</th><th>LÍDERES</th><th></th></tr></thead>
       <tbody>${proyectos.map(p => `<tr data-port="${p.portafolio_id || '-'}" data-est="${p.estado || ''}">
           <td><b>${esc(p.codigo || '—')}</b></td>
           <td>${esc(p.nombre_corto || '—')}</td>

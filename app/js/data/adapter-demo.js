@@ -182,7 +182,7 @@ export function crearAdaptadorDemo() {
       if (!CAMPOS_EST[t]) throw new Error('Tabla no válida.');
       if (d.op === 'eliminar') {
         if (t === 'proyectos' && d.completo) {
-          // Emula public.eliminar_proyecto_plataforma (026): con historial y sub-proyectos
+          // Emula public.eliminar_proyecto_plataforma (026): con historial y Grupos LPS
           const ids = new Set([d.id, ...tabla('proyectos').filter(r => r.padre_id === d.id).map(r => r.id)]);
           const acts = new Set(tabla('actividades').filter(a => ids.has(a.proyecto_id)).map(a => a.id));
           db.restricciones = tabla('restricciones').filter(r => !ids.has(r.proyecto_id) && !acts.has(r.actividad_id));
@@ -194,7 +194,7 @@ export function crearAdaptadorDemo() {
         }
         if (t === 'proyectos') {
           const hijos = tabla('proyectos').filter(x => x.padre_id === d.id).length;
-          if (hijos) throw new Error(`El proyecto tiene ${hijos} sub-proyecto(s): elimínelos o muévalos primero.`);
+          if (hijos) throw new Error(`El proyecto tiene ${hijos} Grupo(s) LPS: elimínelos o muévalos primero.`);
           const n = tabla('actividades').filter(a => a.proyecto_id === d.id).length;
           if (n) throw new Error(`El proyecto tiene ${n} actividades: ciérrelo en lugar de eliminarlo para conservar su historial.`);
           db.proyecto_lideres = tabla('proyecto_lideres').filter(l => l.proyecto_id !== d.id);
@@ -207,23 +207,23 @@ export function crearAdaptadorDemo() {
       const datos = {};
       for (const k of CAMPOS_EST[t]) if (k in (d.datos || {})) datos[k] = d.datos[k] === '' ? null : d.datos[k];
       if (t === 'proyectos' && datos.programa_id) { const g = tabla('programas').find(x => x.id === datos.programa_id); if (g?.portafolio_id) datos.portafolio_id = g.portafolio_id; }
-      // Emula public.tg_subproyecto: un sub-proyecto hereda portafolio y programa; solo dos niveles
+      // Emula public.tg_subproyecto: un Grupo LPS hereda portafolio y programa; solo dos niveles
       if (t === 'proyectos' && datos.padre_id) {
         const padre = tabla('proyectos').find(x => x.id === datos.padre_id);
         if (!padre) throw new Error('El proyecto padre no pertenece a esta empresa.');
-        if (padre.padre_id) throw new Error('Un sub-proyecto no puede tener sub-proyectos.');
+        if (padre.padre_id) throw new Error('Un Grupo LPS no puede tener Grupos LPS.');
         datos.portafolio_id = padre.portafolio_id ?? null; datos.programa_id = padre.programa_id ?? null;
       }
       if (d.id && t === 'proyectos' && area) {
-        // Emula el traslado de un proyecto (y sus sub-proyectos) a otra empresa
+        // Emula el traslado de un proyecto (y sus Grupos LPS) a otra empresa
         const actual = tabla('proyectos').find(r => r.id === d.id);
         if (actual && actual.area_id !== area) {
-          if (actual.padre_id) throw new Error('Un sub-proyecto se mueve junto con su proyecto: mueva el proyecto.');
+          if (actual.padre_id) throw new Error('Un Grupo LPS se mueve junto con su proyecto: mueva el proyecto.');
           const subs = tabla('proyectos').filter(r => r.padre_id === actual.id);
           const ids = new Set([actual.id, ...subs.map(r => r.id)]);
           for (const [tt, texto] of [['actividades', 'actividades'], ['restricciones', 'restricciones'], ['cartera', 'registros de cartera']]) {
             const n = tabla(tt).filter(r => ids.has(r.proyecto_id)).length;
-            if (n) throw new Error(`No se puede mover: el proyecto${subs.length ? ' o sus sub-proyectos' : ''} ya tiene ${n} ${texto} en esta empresa. Mantenga su historial aquí o cree el proyecto en la otra empresa.`);
+            if (n) throw new Error(`No se puede mover: el proyecto${subs.length ? ' o sus Grupos LPS' : ''} ya tiene ${n} ${texto} en esta empresa. Mantenga su historial aquí o cree el proyecto en la otra empresa.`);
           }
           const rep = tabla('proyectos').filter(r => r.area_id === area && [actual, ...subs].some(x => x.codigo === r.codigo));
           if (rep.length) throw new Error(`En la empresa de destino ya existe el código ${rep.map(r => r.codigo).join(', ')}. Cámbielo antes de mover.`);

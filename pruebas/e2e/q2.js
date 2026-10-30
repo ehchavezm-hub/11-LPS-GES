@@ -26,10 +26,10 @@ const SH = require('path').join(__dirname, 'salida') + '/' + '';
   console.log('formulario +:', await p.locator('.modal').last().locator('h2, .modal-titulo').first().innerText().catch(() => '?'));
   await p.locator('.modal [name="codigo"]').fill('SP-2'); await p.locator('.modal [name="nombre_corto"]').fill('Frente Sur');
   await p.click('.modal-pie .btn-primario'); await p.waitForTimeout(800);
-  console.log('sub-proyectos en organigrama:', await p.locator('.org-subproyecto').count(), '·', (await p.locator('.org-subproyecto').allInnerTexts()).map(t => t.split('\n')[0]).join(', '));
+  console.log('Grupos LPS en organigrama:', await p.locator('.org-subproyecto').count(), '·', (await p.locator('.org-subproyecto').allInnerTexts()).map(t => t.split('\n')[0]).join(', '));
   console.log('chips:', (await p.locator('.chips-cifras').innerText()).replace(/\s+/g, ' '));
   await p.locator('.org-arbol').first().screenshot({ path: SH + 'q2.png' });
-  // el sub-proyecto aparece para registrar LPS
+  // el Grupo LPS aparece para registrar LPS
   const ops = await p.evaluate(async () => (await import('./js/core/store.js')).opcionesProyectos().map(o => o.label).filter(l => /Frente/.test(l)));
   console.log('en el selector del LPS:', ops);
   console.log(errs.length ? errs : 'SIN ERRORES');

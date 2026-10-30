@@ -469,8 +469,8 @@ insert into proyectos (area_id, codigo, nombre_corto, estado, padre_id) values (
 do $$ begin
   assert (select programa_id from proyectos where codigo = 'A-1.1') = (select programa_id from proyectos where codigo = 'A-1'), 'el sub-proyecto no heredó el programa';
 end $$;
-select debe_fallar($q$ insert into proyectos (area_id, codigo, nombre_corto, estado, padre_id) values (mi_area(), 'A-1.1.1', 'Nieto', 'activo', (select id from proyectos where codigo = 'A-1.1')) $q$, 'no puede tener sub-proyectos');
-select debe_fallar($q$ update proyectos set padre_id = (select id from proyectos where codigo = 'A-1.1') where codigo = 'A-1' $q$, 'no puede tener sub-proyectos');
+select debe_fallar($q$ insert into proyectos (area_id, codigo, nombre_corto, estado, padre_id) values (mi_area(), 'A-1.1.1', 'Nieto', 'activo', (select id from proyectos where codigo = 'A-1.1')) $q$, 'no puede tener Grupos LPS');
+select debe_fallar($q$ update proyectos set padre_id = (select id from proyectos where codigo = 'A-1.1') where codigo = 'A-1' $q$, 'no puede tener Grupos LPS');
 -- el padre cambia de programa: el sub-proyecto lo sigue
 insert into programas (area_id, portafolio_id, codigo, nombre) values (mi_area(), (select id from portafolios where codigo = 'PF-1'), 'PG-2', 'Programa Dos');
 update proyectos set programa_id = (select id from programas where codigo = 'PG-2') where codigo = 'A-1';

@@ -116,7 +116,7 @@ export function derivarProyectoServicio(fila, cambios) {
   const servElegido = '_cet' in cambios ? cambios._cet : 'servicio_id' in cambios ? cambios.servicio_id : undefined;
   if (servElegido && !fila.proyecto_id && !('proyecto_id' in cambios)) {
     const p = proyecto(proyectoDeServicio(servElegido));
-    // Si el servicio es de un proyecto con sub-proyectos, el LPS va en un sub-proyecto: no se elige el proyecto por la persona
+    // Si el servicio es de un proyecto con Grupos LPS, el LPS va en un Grupo LPS: no se elige el proyecto por la persona
     if (p && ['activo', 'propuesto'].includes(p.estado) && !esContenedor(p)) { d.proyecto_id = p.id; if (p.gerencia_id) d.gerencia_id = p.gerencia_id; }
   }
   if ('servicio_id' in d || 'servicio_id' in cambios) d._cet = (d.servicio_id || cambios.servicio_id) || null;

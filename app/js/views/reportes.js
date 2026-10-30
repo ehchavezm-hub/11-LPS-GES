@@ -12,7 +12,7 @@ import { tablaPDF, kpisPDF, documentoReporte, nombreProyectoActual, nombreArchiv
 
 // ---------- Utilidades de los reportes ----------
 const badge = (t, c) => (t ? `<span class="badge" style="--c:${c || '#4E79A7'}">${esc(t)}</span>` : '');
-const delProyecto = a => enProyectoSel(a.proyecto_id);   // incluye los sub-proyectos, como el Plan semanal y el Look Ahead
+const delProyecto = a => enProyectoSel(a.proyecto_id);   // incluye los Grupos LPS, como el Plan semanal y el Look Ahead
 const delResp = (f, campo = 'responsable_id') => (!f.resp || f.resp === 'todos' ? () => true : x => x[campo] === f.resp);
 
 /** Columnas de PDF a partir de las mismas definiciones de las grillas (títulos, orden, anchos y texto de cada celda). */
@@ -219,13 +219,13 @@ const REPORTES = [
   { grupo: 'Configuración', id: 'proyectos', staff: true, titulo: 'Catálogo de proyectos / procesos', filtros: [], orientacion: 'landscape',
     async generar() {
       const orden = ['activo', 'en_pausa', 'cerrado', 'propuesto'];
-      // Cada sub-proyecto va justo debajo de su proyecto y muestra a cuál pertenece (auditoría 2)
+      // Cada Grupo LPS va justo debajo de su proyecto y muestra a cuál pertenece (auditoría 2)
       const padreDe = p => p.padre_id && proyecto(p.padre_id);
       const clave = p => `${padreDe(p)?.codigo ?? p.codigo}|${p.padre_id ? '1' : '0'}|${p.codigo}`;
       const grupos = agrupar([...store.proyectos].sort((a, b) => clave(a).localeCompare(clave(b))), p => p.estado);
       const cols = [
         { titulo: 'Código', ancho: 90, valor: p => p.codigo }, { titulo: 'Nombre corto', ancho: 200, valor: p => p.padre_id ? `   ▫ ${p.nombre_corto}` : p.nombre_corto },
-        { titulo: 'Sub-proyecto de', ancho: 160, valor: p => padreDe(p) ? `${padreDe(p).codigo} · ${padreDe(p).nombre_corto}` : '' },
+        { titulo: 'Grupo LPS de', ancho: 160, valor: p => padreDe(p) ? `${padreDe(p).codigo} · ${padreDe(p).nombre_corto}` : '' },
         { titulo: 'Nombre completo', ancho: 280, valor: p => p.nombre_completo || '' }, { titulo: 'Gerencia', ancho: 150, valor: p => etiqueta(p.gerencia_id) },
         { titulo: 'Fase', ancho: 110, valor: p => etiqueta(p.fase_id) }, { titulo: 'País', ancho: 80, valor: p => etiqueta(p.pais_id) },
         { titulo: 'Inicio', ancho: 75, valor: p => fmtFecha(p.fecha_inicio) }, { titulo: 'Fin', ancho: 75, valor: p => fmtFecha(p.fecha_fin) },

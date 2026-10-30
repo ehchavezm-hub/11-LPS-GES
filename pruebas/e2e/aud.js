@@ -22,7 +22,7 @@ const SH = require('path').join(__dirname, 'salida') + '/' + '';
   console.log('cajas sub organigrama:', await p.locator('.org-subproyecto').count());
   await p.screenshot({ path: SH + 'sub_organigrama.png' });
   // menú lateral
-  // Mover las actividades del padre a "Torre A" (el LPS se registra en sub-proyectos)
+  // Mover las actividades del padre a "Torre A" (el LPS se registra en Grupos LPS)
   await p.goto(B + '?demo&a=2#/tablero'); await p.waitForTimeout(1500);
   const info = await p.evaluate(async () => {
     const { api } = await import('./js/data/api.js'); const s = await import('./js/core/store.js');
@@ -35,7 +35,7 @@ const SH = require('path').join(__dirname, 'salida') + '/' + '';
     s.seleccionarProyecto(padre.id);
     return { movidas: n, de: acts.length, rests: rests.length, padre: padre.id, codigo: padre.codigo };
   });
-  console.log('movidas al sub-proyecto:', info);
+  console.log('movidas al Grupo LPS:', info);
   await p.goto(B + '?demo&a=2#/tablero'); await p.waitForTimeout(1800);
   const kpis = async () => (await p.locator('#contenido .kpi').allInnerTexts()).map(t => t.replace(/\s+/g, ' ')).slice(0, 6).join(' | ');
   console.log('Tablero con padre elegido:', await kpis());

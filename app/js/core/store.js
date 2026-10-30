@@ -17,11 +17,11 @@ export const store = {
   portafolios: [],
   programas: [],
   proyectoLideres: [],
-  supervisiones: [],     // { supervisor_id, subordinado_id, proyecto_id } por sub-proyecto
+  supervisiones: [],     // { supervisor_id, subordinado_id, proyecto_id } por Grupo LPS
   favoritos: new Set(),
   columnas: [],
   proyectoSel: localStorage.getItem('lpsgt-proyecto') || '',
-  // Portafolio o programa elegido en el árbol ('f:<id>' / 'g:<id>'): suma todos sus proyectos y sub-proyectos (pedido Q5)
+  // Portafolio o programa elegido en el árbol ('f:<id>' / 'g:<id>'): suma todos sus proyectos y Grupos LPS (pedido Q5)
   nivelSel: localStorage.getItem('lpsgt-proyecto') ? '' : (localStorage.getItem('lpsgt-nivel') || ''),
   notificaciones: [],
 };
@@ -71,7 +71,7 @@ export async function cargarCatalogo() {
     api.list('programas', { eq: { area_id: u.area_id }, order: [['nombre', true]] }).catch(() => []),
     // Usuarios de varias empresas (030): sin la migración aplicada, lista vacía y todo funciona como antes
     api.list('empresa_miembros', {}).catch(() => []),
-    // Supervisiones por sub-proyecto (s40): supervisor puede ver y editar actividades del subordinado en ese sub-proyecto
+    // Supervisiones por Grupo LPS (s40): supervisor puede ver y editar actividades del subordinado en ese Grupo LPS
     api.list('supervisiones', { eq: { area_id: u.area_id } }).catch(() => []),
   ]);
   store.area = areas[0] || null;
@@ -139,18 +139,18 @@ export function puedeEditarProyecto(p) {
 export function puedeEditarActividad(a) {
   return a.responsable_id === store.usuario?.id || esGestor() || esSupervisorDe(a.responsable_id, a.proyecto_id);
 }
-/** ¿El usuario actual supervisa al subordinado en ese sub-proyecto? */
+/** ¿El usuario actual supervisa al subordinado en ese Grupo LPS? */
 export function esSupervisorDe(subordinadoId, proyectoId) {
   if (!subordinadoId || !proyectoId) return false;
   const yo = store.usuario?.id;
   return store.supervisiones.some(s => s.supervisor_id === yo && s.subordinado_id === subordinadoId && s.proyecto_id === proyectoId);
 }
-/** ¿El usuario actual supervisa a alguien (en algún sub-proyecto)? */
+/** ¿El usuario actual supervisa a alguien (en algún Grupo LPS)? */
 export function esSupervisorAlguno() {
   const yo = store.usuario?.id;
   return store.supervisiones.some(s => s.supervisor_id === yo);
 }
-/** IDs de los subordinados del usuario actual en un sub-proyecto dado. */
+/** IDs de los subordinados del usuario actual en un Grupo LPS dado. */
 export function subordinadosEn(proyectoId) {
   const yo = store.usuario?.id;
   return store.supervisiones.filter(s => s.supervisor_id === yo && s.proyecto_id === proyectoId).map(s => s.subordinado_id);
@@ -245,7 +245,7 @@ export function horasDia(id) { return Number(perfil(id)?.horas_dia ?? param('hor
 // ---------- Proyectos ----------
 export function proyecto(id) { return store.proyectos.find(p => p.id === id); }
 /** CET / Servicio asociado a un proyecto (columna Proyecto de la lista "CET / Servicio"), si hay uno solo. */
-/** ¿El CET / Servicio del proyecto «deServicio» sirve al proyecto «proyectoId»? Los sub-proyectos heredan los de su
+/** ¿El CET / Servicio del proyecto «deServicio» sirve al proyecto «proyectoId»? Los Grupos LPS heredan los de su
  *  proyecto (pedido 14: los CET/Servicios de GT_OT sirven a Gestion y ConstruIA). */
 export function servicioSirve(deServicio, proyectoId) {
   return !!deServicio && !!proyectoId && (deServicio === proyectoId || proyecto(proyectoId)?.padre_id === deServicio);
@@ -262,20 +262,20 @@ export function proyectoDeServicio(id) { return (id && store.valores.get(id)?.ex
  * (si el proyecto no tiene ninguno asociado, se ofrecen todos). etiqueta(v) arma el texto de cada opción.
  */
 export function opcionesServicio({ proyectoId: _pId = null, etiqueta: etq = v => (v.codigo ? `${v.codigo} · ${v.valor}` : v.valor), vacio = true } = {}) {
-  // s17: un sub-proyecto puede atender a un CET/Servicio de cualquier proyecto de la empresa
+  // s17: un Grupo LPS puede atender a un CET/Servicio de cualquier proyecto de la empresa
   const vs = valoresLista('servicios');
   const ops = vs.map(v => ({ value: v.id, label: etq(v) }));
   return vacio ? [{ value: null, label: '—' }, ...ops] : ops;
 }
 export function nombreProyecto(id) { const p = proyecto(id); return p ? `${p.codigo} · ${nombreConPadre(p)}` : ''; }
 export function proyectosActivos() { return store.proyectos.filter(p => p.estado === 'activo' || p.estado === 'propuesto'); }
-// ---------- Sub-proyectos (pedido a7) ----------
-/** Sub-proyectos de un proyecto. */
+// ---------- Grupos LPS (pedido a7) ----------
+/** Grupos LPS de un proyecto. */
 export function subproyectos(id) { return id ? store.proyectos.filter(p => p.padre_id === id) : []; }
-/** Un proyecto con sub-proyectos es un contenedor: el LPS se registra en sus sub-proyectos. */
+/** Un proyecto con Grupos LPS es un contenedor: el LPS se registra en sus Grupos LPS. */
 export function esContenedor(p) { return !!p && store.proyectos.some(x => x.padre_id === p.id); }
 /** ¿La actividad / restricción / registro del proyecto «id» entra en el proyecto elegido en el menú?
- *  Elegir un proyecto incluye sus sub-proyectos. */
+ *  Elegir un proyecto incluye sus Grupos LPS. */
 export function enProyectoSel(id) {
   const sel = store.proyectoSel;
   if (sel) {
@@ -284,7 +284,7 @@ export function enProyectoSel(id) {
     return id === sel || proyecto(id)?.padre_id === sel;
   }
   if (!store.nivelSel) return true;
-  // Agregación de abajo hacia arriba: sub-proyecto → proyecto → programa → portafolio → empresa
+  // Agregación de abajo hacia arriba: Grupo LPS → proyecto → programa → portafolio → empresa
   const p = id && proyecto(id);
   if (!p) return false;
   const [t, clave] = store.nivelSel.split(':');
@@ -304,20 +304,20 @@ export function nombreSeleccion() {
 }
 const nombreConPadre = p => { const padre = p.padre_id && proyecto(p.padre_id); return padre ? `${padre.nombre_corto} › ${p.nombre_corto}` : p.nombre_corto; };
 export function opcionesProyectos({ contenedores = false } = {}) {
-  // Solo proyectos sin sub-proyectos y sub-proyectos: es donde se registra el LPS.
-  // contenedores: también los proyectos con sub-proyectos (p. ej. para asociarles CET / Servicios que heredan sus sub-proyectos)
+  // Solo proyectos sin Grupos LPS y Grupos LPS: es donde se registra el LPS.
+  // contenedores: también los proyectos con Grupos LPS (p. ej. para asociarles CET / Servicios que heredan sus Grupos LPS)
   return [{ value: null, label: '—' }, ...proyectosActivos().filter(p => contenedores || !esContenedor(p)).map(p => ({
     value: p.id, label: `${p.codigo} · ${nombreConPadre(p)}${p.estado === 'propuesto' ? ' (por aprobar)' : ''}` }))];
 }
 export function misProyectos() {
   // Proyectos donde la persona es líder y los que ella misma agregó (pedido 100).
   // Los usuarios se registran en la empresa y los niveles de abajo los heredan (pedido a8): el líder de un proyecto
-  // lo es también de sus sub-proyectos.
+  // lo es también de sus Grupos LPS.
   const yo = store.usuario?.id;
   const ids = new Set(store.proyectoLideres.filter(l => l.usuario_id === yo).map(l => l.proyecto_id));
   return store.proyectos.filter(p => ids.has(p.id) || ids.has(p.padre_id) || (p.created_by && p.created_by === yo));
 }
-/** Líderes de un proyecto: los propios o, en un sub-proyecto sin líderes propios, los heredados de su proyecto. */
+/** Líderes de un proyecto: los propios o, en un Grupo LPS sin líderes propios, los heredados de su proyecto. */
 export function lideresHeredados(id) {
   const propios = store.proyectoLideres.filter(l => l.proyecto_id === id).map(l => l.usuario_id);
   const p = proyecto(id);

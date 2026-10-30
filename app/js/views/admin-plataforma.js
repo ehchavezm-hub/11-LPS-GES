@@ -37,7 +37,7 @@ const empresasDe = usuarioId => datos.areas.filter(a => perteneceA(usuarioId, a.
 const principalDe = id => usuariosDe(id).find(p => p.es_admin_principal && !p.es_plataforma) || usuariosDe(id).find(p => p.es_admin_principal);
 const proyectosDe = id => datos.proyectos.filter(p => p.area_id === id);
 const lideresDe = proyId => datos.lideres.filter(l => l.proyecto_id === proyId).map(l => datos.perfiles.find(p => p.id === l.usuario_id)).filter(Boolean);
-// Los niveles de abajo heredan (pedido a8): un sub-proyecto sin líderes propios usa los de su proyecto
+// Los niveles de abajo heredan (pedido a8): un Grupo LPS sin líderes propios usa los de su proyecto
 const lideresEf = p => lideresDe(p.id).length || !p.padre_id ? lideresDe(p.id) : lideresDe(p.padre_id);
 const subDe = p => datos.proyectos.filter(x => x.padre_id === p.id);
 const nombreCorto = p => p ? (p.email ? p.email.split('@')[0] : p.nombre) : '';
@@ -229,7 +229,7 @@ async function cambiarActivo(tipo, id) {
   const proysCambian = proys.filter(p => reactivar ? p.estado === 'cerrado' : !['cerrado', 'rechazado'].includes(p.estado));
   const debajo = progsCambian.length + proysCambian.length;
   const nombreX = x.nombre || x.nombre_corto;
-  const que = { portafolio: 'el portafolio', programa: 'el programa', proyecto: 'el proyecto', subproyecto: 'el sub-proyecto' }[tipo];
+  const que = { portafolio: 'el portafolio', programa: 'el programa', proyecto: 'el proyecto', subproyecto: 'el Grupo LPS' }[tipo];
   let conHijos = true;
   if (reactivar) {
     if (!await confirmar(`¿Reactivar ${que} "${nombreX}"? Volverá a aparecer en los menús y selectores.`,
@@ -265,7 +265,7 @@ async function eliminarEmpresas(ids) {
   const cifras = a => {
     const ps = proyectosDe(a.id);
     return `<li><b>${esc(a.nombre)}</b>: ${usuariosDe(a.id).length} usuario(s), ${datos.portafolios.filter(x => x.area_id === a.id).length} portafolio(s),
-      ${datos.programas.filter(x => x.area_id === a.id).length} programa(s), ${ps.filter(p => !p.padre_id).length} proyecto(s) y ${ps.filter(p => p.padre_id).length} sub-proyecto(s)</li>`;
+      ${datos.programas.filter(x => x.area_id === a.id).length} programa(s), ${ps.filter(p => !p.padre_id).length} proyecto(s) y ${ps.filter(p => p.padre_id).length} Grupo(s) LPS</li>`;
   };
   const clave = lista.length === 1 ? lista[0].nombre : 'ELIMINAR';
   const d = await pedirDatos({
@@ -302,7 +302,7 @@ async function cambiarPrincipal(a) {
   const actual = principalDe(a.id);
   return pedirDatos({
     titulo: `Super administrador de ${a.nombre}`, texto: superDe(a.id) ? 'Cambiar' : 'Asignar',
-    antes: 'El super administrador es el responsable dentro de la empresa: crea sus portafolios, programas, proyectos y sub-proyectos, y asigna los roles de administrador y delegado. Los propietarios de la plataforma siguen siendo sus administradores.',
+    antes: 'El super administrador es el responsable dentro de la empresa: crea sus portafolios, programas, proyectos y Grupos LPS, y asigna los roles de administrador y delegado. Los propietarios de la plataforma siguen siendo sus administradores.',
     valores: { usuario_id: actual && !actual.es_plataforma ? actual.id : '' },
     campos: [{ name: 'usuario_id', label: 'Usuario', type: 'select', required: true, full: true,
       options: candidatos.map(p => ({ value: p.id, label: `${p.nombre} (${p.email || '—'}) · ${ROLES[p.rol] || p.rol}` })) }],
@@ -472,14 +472,14 @@ export async function panelEstructuraTodas(el, ctx, { area = '' } = {}) {
     const vivos = vis(datos.proyectos).filter(p => !['cerrado', 'rechazado'].includes(p.estado));
     const sinAdmin = vivos.filter(p => !lideresEf(p).length).length;
     el.innerHTML = cab(area ? `Estructura de la empresa: ${nombreEmp}` : 'Estructura de todas las empresas',
-      area ? 'Portafolio › Programa › Proyecto › Sub-proyecto de esta empresa (en el sub-proyecto se registra el LPS). Es la misma estructura que se ve en Plataforma › «Estructura de todas las empresas».'
-        : 'Empresa › Portafolio › Programa › Proyecto › Sub-proyecto (en el sub-proyecto se registra el LPS). Es la misma estructura que cada empresa ve en «Estructura de la empresa»: lo que cambie aquí se refleja allá.',
-      `<button class="btn" data-nuevo="portafolios"${enArea}>+ Portafolio</button><button class="btn" data-nuevo="programas"${enArea}>+ Programa</button><button class="btn" data-nuevo="proyectos"${enArea}>+ Proyecto</button><button class="btn btn-primario" data-a="nuevo-sub">+ Sub-proyecto</button>
+      area ? 'Portafolio › Programa › Proyecto › Grupo LPS de esta empresa (en el Grupo LPS se registran su Look Ahead y su Plan semanal). Es la misma estructura que se ve en Plataforma › «Estructura de todas las empresas».'
+        : 'Empresa › Portafolio › Programa › Proyecto › Grupo LPS (en el Grupo LPS se registran su Look Ahead y su Plan semanal). Es la misma estructura que cada empresa ve en «Estructura de la empresa»: lo que cambie aquí se refleja allá.',
+      `<button class="btn" data-nuevo="portafolios"${enArea}>+ Portafolio</button><button class="btn" data-nuevo="programas"${enArea}>+ Programa</button><button class="btn" data-nuevo="proyectos"${enArea}>+ Proyecto</button><button class="btn btn-primario" data-a="nuevo-sub">+ Grupo LPS</button>
        <button class="btn" data-a="xl-export">⬇ Descargar XLS</button><label class="btn" title="Cargar proyectos desde XLS">⬆ Cargar XLS<input type="file" accept=".xlsx,.xls" data-a="xl-import" style="display:none"></label><button class="btn" data-a="backup-completo" style="margin-left:auto;background:#1565c0;color:#fff;border-color:#1565c0" title="Descargar respaldo XLS de toda la estructura (todas las empresas)">💾 Backup completo</button>`) +
       `<div class="chips-cifras">
         ${area ? '' : `<span class="chip-cifra"><b>${datos.areas.length}</b> Empresas</span>`}<span class="chip-cifra"><b>${vis(datos.portafolios).length}</b> Portafolios</span>
         <span class="chip-cifra"><b>${vis(datos.programas).length}</b> Programas</span><span class="chip-cifra"><b>${vis(datos.proyectos).filter(p => !p.padre_id).length}</b> Proyectos</span>
-        <span class="chip-cifra"><b>${vis(datos.proyectos).filter(p => p.padre_id).length}</b> Sub-proyectos</span>
+        <span class="chip-cifra"><b>${vis(datos.proyectos).filter(p => p.padre_id).length}</b> Grupos LPS</span>
         <span class="chip-cifra ${sinAdmin ? 'alerta' : ''}"><b>${sinAdmin}</b> Proyectos sin administrador</span></div>
       <div class="pestanas-linea"><button data-vista="tabla" class="${vistaEstructura === 'tabla' ? 'activo' : ''}">${area ? 'Estructura de la empresa' : 'Estructura de todas las empresas'}</button>
         <button data-vista="arbol" class="${vistaEstructura === 'arbol' ? 'activo' : ''}">Estructura jerárquica</button></div>
@@ -504,7 +504,7 @@ export async function panelEstructuraTodas(el, ctx, { area = '' } = {}) {
       if (d.a === 'contraer') { datos.areas.forEach(a => contraidos.add('a' + a.id)); datos.portafolios.forEach(f => contraidos.add('f' + f.id)); datos.programas.forEach(g => contraidos.add('g' + g.id)); datos.proyectos.forEach(p => contraidos.add('p' + p.id)); pintarTodo(); return; }
       let cambio = false, areaId = null;
       if (d.a === 'nuevo-sub') {
-        // Nivel Sub-proyecto (pedido Q2): primero se elige el proyecto al que pertenece
+        // Nivel Grupo LPS (pedido Q2): primero se elige el proyecto al que pertenece
         const padre = await elegirProyectoPadre();
         if (!padre) return;
         const r = await editarNodo('proyectos', null, { area: padre.area_id, padre: padre.id }); cambio = !!r; areaId = r?.area_id;
@@ -553,13 +553,13 @@ function pintarTabla(cuerpo) {
     const heredado = sub && !lideresDe(p.id).length && lid.length;
     const abierto = fila(nivel, sub ? 'subproyecto' : 'proyecto', p, {
       nombre: `<span class="est-ico">${sub ? '▫' : '📋'}</span> <span class="${sub ? 'est-n-sub' : 'est-n-proy'}">${esc(p.nombre_corto)}</span> ${p.estado !== 'activo' ? badge(TXT_EST[p.estado] || p.estado, COLOR_EST[p.estado]) : ''}`,
-      tipo: sub ? badge('Sub-proyecto', '#1A365D') : badge('Proyecto', '#E8762B'), codigo: esc(p.codigo || '—'), buscar: `${p.nombre_corto} ${p.codigo} ${lid.map(nombreCorto).join(' ')}`,
+      tipo: sub ? badge('Grupo LPS', '#1A365D') : badge('Proyecto', '#E8762B'), codigo: esc(p.codigo || '—'), buscar: `${p.nombre_corto} ${p.codigo} ${lid.map(nombreCorto).join(' ')}`,
       admin: lid.length ? `${esc(lid.map(nombreCorto).join(', '))}${heredado ? ' <small class="nota">(heredado)</small>' : ''} <button class="btn btn-xs" data-lideres="${p.id}">Cambiar</button>`
         : `${badge('Sin asignar', '#EDC948')} <button class="btn btn-xs btn-azul" data-lideres="${p.id}">Asignar</button>`,
-      acciones: `${sub ? '' : `<button class="btn btn-xs" data-nuevo="proyectos" data-area="${p.area_id}" data-padre="${p.id}">+ Sub-proyecto</button>`}
+      acciones: `${sub ? '' : `<button class="btn btn-xs" data-nuevo="proyectos" data-area="${p.area_id}" data-padre="${p.id}">+ Grupo LPS</button>`}
         <button class="btn btn-xs" data-editar="${p.id}" data-tabla="proyectos">Editar</button>
         <button class="btn btn-xs" data-lideres="${p.id}">Miembros y permisos</button>
-        ${sub ? `<button class="btn btn-xs" data-supervisiones="${p.id}" title="Configurar quién puede ver y editar las actividades de otra persona en este sub-proyecto">👥 Supervisiones</button>` : ''}
+        ${sub ? `<button class="btn btn-xs" data-supervisiones="${p.id}" title="Configurar quién puede ver y editar las actividades de otra persona en este Grupo LPS">👥 Supervisiones</button>` : ''}
         ${botonActivo(sub ? 'subproyecto' : 'proyecto', p)}
         <button class="btn btn-xs btn-peligro-borde" data-eliminar="${p.id}" data-tabla="proyectos">Eliminar</button>`,
     }, 'p' + p.id, hijos.length);
@@ -630,15 +630,15 @@ function filtrarTabla(el) {
   });
 }
 
-// Proyecto al que se agrega un sub-proyecto: solo proyectos (no sub-proyectos), con su empresa
+// Proyecto al que se agrega un Grupo LPS: solo proyectos (no Grupos LPS), con su empresa
 function elegirProyectoPadre() {
   const opciones = vis(datos.proyectos).filter(p => !p.padre_id && !['cerrado', 'rechazado'].includes(p.estado))
     .map(p => ({ value: p.id, label: `${empresa(p.area_id)?.nombre || ''} › ${p.codigo} · ${p.nombre_corto}` }))
     .sort((a, b) => a.label.localeCompare(b.label));
-  if (!opciones.length) { error('Primero cree un proyecto: el sub-proyecto pertenece a un proyecto.'); return Promise.resolve(null); }
+  if (!opciones.length) { error('Primero cree un proyecto: el Grupo LPS pertenece a un proyecto.'); return Promise.resolve(null); }
   let elegido = null;
   return pedirDatos({
-    titulo: 'Nuevo sub-proyecto', antes: 'Elija el proyecto al que pertenece. El sub-proyecto hereda su empresa, portafolio, programa y líderes; en él se registra el LPS (Look Ahead y Plan semanal).',
+    titulo: 'Nuevo Grupo LPS', antes: 'Elija el proyecto al que pertenece. El Grupo LPS hereda su empresa, portafolio, programa y líderes; en él se registra el LPS (Look Ahead y Plan semanal).',
     campos: [{ name: 'padre_id', label: 'Proyecto', type: 'select', required: true, full: true, options: opciones }],
     alGuardar: d => { elegido = datos.proyectos.find(p => p.id === d.padre_id) || null; },
   }).then(() => elegido);
@@ -650,16 +650,16 @@ function pintarOrganigrama(cuerpo) {
   const TABLA = { portafolio: 'portafolios', programa: 'programas', proyecto: 'proyectos', subproyecto: 'proyectos' };
   const caja = (tipo, titulo, sub, id, areaSub) => `<div class="org-caja org-${tipo}" role="button" tabindex="0" title="Clic para editar"
       ${tipo === 'empresa' ? `data-editar-empresa="${id}"` : `data-editar="${id}" data-tabla="${TABLA[tipo]}"`}><b>${esc(titulo)}</b><small>${esc(sub)}</small>
-      ${areaSub ? `<button class="org-mas" title="Agregar sub-proyecto" aria-label="Agregar sub-proyecto a ${esc(titulo)}" data-nuevo="proyectos" data-area="${areaSub}" data-padre="${id}">+</button>` : ''}
+      ${areaSub ? `<button class="org-mas" title="Agregar Grupo LPS" aria-label="Agregar Grupo LPS a ${esc(titulo)}" data-nuevo="proyectos" data-area="${areaSub}" data-padre="${id}">+</button>` : ''}
       ${tipo === 'empresa' && id === datos.mi_area ? '' : `<button class="org-borrar" title="Eliminar" aria-label="Eliminar ${esc(titulo)}"
         ${tipo === 'empresa' ? `data-eliminar-empresa="${id}"` : `data-eliminar="${id}" data-tabla="${TABLA[tipo]}"`}>🗑</button>`}</div>`;
-  // Portafolios y programas se abren en horizontal; los proyectos (y sus sub-proyectos) se apilan en vertical (pedido 20)
+  // Portafolios y programas se abren en horizontal; los proyectos (y sus Grupos LPS) se apilan en vertical (pedido 20)
   const columna = items => `<ul class="org-v">${items.join('')}</ul>`;
   const nodo = (htmlCaja, hijos, proyectos = []) => {
     const ramas = [...hijos, ...(hijos.length && proyectos.length ? [`<li class="org-grupo">${columna(proyectos)}</li>`] : [])];
     return `<li>${htmlCaja}${ramas.length ? `<ul>${ramas.join('')}</ul>` : proyectos.length ? columna(proyectos) : ''}</li>`;
   };
-  const sub = p => nodo(caja('subproyecto', p.nombre_corto, 'Sub-proyecto', p.id), []);
+  const sub = p => nodo(caja('subproyecto', p.nombre_corto, 'Grupo LPS', p.id), []);
   const proy = p => nodo(caja('proyecto', p.nombre_corto, `Proyecto${lideresDe(p.id).length ? ' · ' + lideresDe(p.id).map(nombreCorto).join(', ') : ''}`, p.id, p.area_id), [], subDe(p).map(sub));
   const raiz = arr => arr.filter(p => !p.padre_id);
   const prog = g => nodo(caja('programa', g.nombre, 'Programa', g.id), [], raiz(datos.proyectos.filter(p => p.programa_id === g.id)).map(proy));
@@ -673,7 +673,7 @@ function pintarOrganigrama(cuerpo) {
     return `<div class="org-arbol"><ul>${nodo(caja('empresa', a.nombre, 'Empresa', a.id), hijos,
       raiz(proyectosDe(a.id).filter(p => !p.portafolio_id && !p.programa_id)).map(proy))}</ul></div>`;
   });
-  cuerpo.innerHTML = `<p class="nota">Haga clic en una tarjeta para editarla; 🗑 la elimina y <b>+</b> (en cada proyecto) le agrega un sub-proyecto. Los proyectos se listan en columna bajo su programa, portafolio o empresa. Las cajas naranjas son proyectos (con su administrador) y las azul oscuro, sus sub-proyectos, donde se registra el LPS.</p>
+  cuerpo.innerHTML = `<p class="nota">Haga clic en una tarjeta para editarla; 🗑 la elimina y <b>+</b> (en cada proyecto) le agrega un Grupo LPS. Los proyectos se listan en columna bajo su programa, portafolio o empresa. Las cajas naranjas son proyectos (con su administrador) y las azul oscuro, sus Grupos LPS, donde se registran el Look Ahead y el Plan semanal.</p>
     <div class="org-lienzo">${arboles.join('')}</div>`;
 }
 
@@ -681,7 +681,7 @@ function pintarOrganigrama(cuerpo) {
 async function exportarEstructura(soloAreaId = '') {
   await libExcel();
   const XLSX = window.XLSX;
-  const cabecera = ['Empresa', 'Portafolio', 'Programa', 'Proyecto', 'Código Proyecto', 'Sub-proyecto', 'Código Sub-proyecto', 'Estado'];
+  const cabecera = ['Empresa', 'Portafolio', 'Programa', 'Proyecto', 'Código Proyecto', 'Grupo LPS', 'Código Grupo LPS', 'Estado'];
   const filas = [cabecera];
   const esBackupTotal = !soloAreaId;
   const areas = soloAreaId ? datos.areas.filter(a => a.id === soloAreaId) : datos.areas;
@@ -728,8 +728,9 @@ async function importarEstructura(file, soloAreaId, alTerminar) {
   const iProg = ci('programa')          ?? 2;
   const iProy = ci('proyecto')          ?? 3;
   const iCodP = ci('codigo proyecto')   ?? 4;
-  const iSub  = ci('sub-proyecto')      ?? 5;
-  const iCodS = ci('codigo sub-proyecto') ?? 6;
+  // Cabecera actual «Grupo LPS»; los archivos descargados antes dicen «Sub-proyecto»
+  const iSub  = ci('grupo lps') ?? ci('sub-proyecto') ?? 5;
+  const iCodS = ci('codigo grupo lps') ?? ci('codigo sub-proyecto') ?? 6;
   const iEst  = ci('estado')            ?? 7;
   const c = (row, i) => String(row[i] ?? '').trim();
 
@@ -814,7 +815,7 @@ async function importarEstructura(file, soloAreaId, alTerminar) {
         if (nomProy) proyCache.set(`${areaId}:nom:${nomProy}`, proyId);
       } else { if (!nomSub && !codSub) omitidos++; }
 
-      // Sub-proyecto
+      // Grupo LPS
       if (!nomSub && !codSub) continue;
       const subExiste = datos.proyectos.some(p => p.padre_id === proyId &&
         (codSub ? p.codigo === codSub : p.nombre_corto === nomSub));
@@ -833,7 +834,7 @@ async function importarEstructura(file, soloAreaId, alTerminar) {
   // Mostrar modal PRIMERO (antes de refrescar), para que aparezca aunque alTerminar falle
   const lineas = [
     total
-      ? `<p style="color:#2e7d32;margin:0 0 6px"><b>Creados: ${cPorts} portafolio(s), ${cProgs} programa(s), ${cProys} proyecto(s), ${cSubs} sub-proyecto(s)</b></p>`
+      ? `<p style="color:#2e7d32;margin:0 0 6px"><b>Creados: ${cPorts} portafolio(s), ${cProgs} programa(s), ${cProys} proyecto(s), ${cSubs} Grupo(s) LPS</b></p>`
       : `<p style="margin:0 0 6px">Sin elementos nuevos que importar.</p>`,
     omitidos ? `<p style="margin:0 0 6px;color:#555">⏭ Ya existían (omitidos): <b>${omitidos}</b></p>` : '',
     errores.length
@@ -859,7 +860,7 @@ async function editarNodo(tabla, x, { area, portafolio, programa, padre }) {
   const padreId = x?.padre_id || padre || '';
   const padreP = padreId && datos.proyectos.find(z => z.id === padreId);
   const campos = [];
-  // Empresa: al crear sin empresa elegida y, en un proyecto (no sub-proyecto), también al editar para moverlo (pedido 15)
+  // Empresa: al crear sin empresa elegida y, en un proyecto (no Grupo LPS), también al editar para moverlo (pedido 15)
   const eligeEmpresa = !areaId || (tabla === 'proyectos' && x && !padreP);
   if (eligeEmpresa) campos.push({ name: 'area_id', label: 'Empresa', type: 'select', required: true, full: true, options: datos.areas.map(a => ({ value: a.id, label: a.nombre })) });
   const opcPort = id => datos.portafolios.filter(f => (!id || f.area_id === id) && f.estado !== 'inactivo').map(f => ({ value: f.id, label: f.nombre }));
@@ -871,7 +872,7 @@ async function editarNodo(tabla, x, { area, portafolio, programa, padre }) {
   if (tabla === 'proyectos') {
     campos.push({ name: 'codigo', label: 'Código', required: true }, { name: 'nombre_corto', label: 'Nombre corto (menú)', required: true },
       { name: 'nombre_completo', label: 'Nombre completo', full: true },
-      // Un sub-proyecto hereda el portafolio y el programa de su proyecto
+      // Un Grupo LPS hereda el portafolio y el programa de su proyecto
       ...(padreP ? [] : [{ name: 'portafolio_id', label: 'Portafolio', type: 'select', options: opcPort(eligeEmpresa ? null : areaId) },
         { name: 'programa_id', label: 'Programa (define el portafolio)', type: 'select', options: opcProg(eligeEmpresa ? null : areaId) }]),
       { name: 'estado', label: 'Estado', type: 'select', required: true, options: Object.entries(TXT_EST).map(([value, label]) => ({ value, label })) },
@@ -883,11 +884,11 @@ async function editarNodo(tabla, x, { area, portafolio, programa, padre }) {
       { name: 'estado', label: 'Estado', type: 'select', required: true, options: [{ value: 'activo', label: 'Activo' }, { value: 'inactivo', label: 'Inactivo' }] },
       { name: 'descripcion', label: 'Descripción', type: 'textarea', full: true });
   }
-  const que = { portafolios: 'portafolio', programas: 'programa', proyectos: padreP ? 'sub-proyecto' : 'proyecto' }[tabla];
+  const que = { portafolios: 'portafolio', programas: 'programa', proyectos: padreP ? 'Grupo LPS' : 'proyecto' }[tabla];
   let creado = null, mueveA = null;
   const promesa = pedirDatos({
-    titulo: x ? `Editar ${que}: ${x.nombre || x.nombre_corto}` : padreP ? `Nuevo sub-proyecto de ${padreP.nombre_corto}` : `Nuevo ${que}${areaId ? ' en ' + (empresa(areaId)?.nombre || '') : ''}`,
-    antes: padreP ? 'El sub-proyecto hereda el portafolio, el programa y los líderes de su proyecto. El Look Ahead y el Plan semanal se registran en él.' : '',
+    titulo: x ? `Editar ${que}: ${x.nombre || x.nombre_corto}` : padreP ? `Nuevo Grupo LPS de ${padreP.nombre_corto}` : `Nuevo ${que}${areaId ? ' en ' + (empresa(areaId)?.nombre || '') : ''}`,
+    antes: padreP ? 'El Grupo LPS hereda el portafolio, el programa y los líderes de su proyecto. El Look Ahead y el Plan semanal se registran en él.' : '',
     valores: x || { estado: 'activo', portafolio_id: portafolio || '', programa_id: programa || '' },
     campos,
     alGuardar: async d => {
@@ -896,7 +897,7 @@ async function editarNodo(tabla, x, { area, portafolio, programa, padre }) {
       mueveA = mueve ? area_id : null;
       if (mueve) {
         const subs = subDe(x).length;
-        if (!await confirmar(`¿Mover "${x.nombre_corto}"${subs ? ` y sus ${subs} sub-proyecto(s)` : ''} a la empresa "${empresa(area_id)?.nombre}"? ` +
+        if (!await confirmar(`¿Mover "${x.nombre_corto}"${subs ? ` y sus ${subs} Grupo(s) LPS` : ''} a la empresa "${empresa(area_id)?.nombre}"? ` +
           'Se quitan su gerencia, fase, país y líderes (son de la empresa actual) para elegirlos en la nueva. Solo se puede si todavía no tiene actividades, restricciones ni cartera.',
         { titulo: 'Mover a otra empresa', texto: 'Mover' })) throw new Error('No se movió el proyecto.');
       }
@@ -946,18 +947,18 @@ async function eliminarNodo(tabla, x) {
   return true;
 }
 
-// Proyecto (pedido 18): sin trabajo registrado se elimina con una confirmación; con historial o sub-proyectos se muestra
+// Proyecto (pedido 18): sin trabajo registrado se elimina con una confirmación; con historial o Grupos LPS se muestra
 // lo que se borrará y se confirma escribiendo su nombre
 async function eliminarProyecto(x) {
   const h = await api.adminUsuarios('historial_proyecto', { id: x.id });
-  const sub = x.padre_id ? 'sub-proyecto' : 'proyecto';
+  const sub = x.padre_id ? 'Grupo LPS' : 'proyecto';
   if (!h.subproyectos && !h.actividades && !h.restricciones && !h.cartera) {
     if (!await confirmar(`¿Eliminar el ${sub} "${x.nombre_corto}"? Todavía no tiene trabajo registrado.`, { titulo: 'Eliminar', texto: 'Eliminar', peligro: true })) return false;
     await api.adminUsuarios('estructura', { tabla: 'proyectos', op: 'eliminar', id: x.id });
     ok(`${sub[0].toUpperCase() + sub.slice(1)} eliminado.`);
     return true;
   }
-  const items = [h.subproyectos && `${h.subproyectos} sub-proyecto(s)`, h.actividades && `${h.actividades} actividad(es) del Look Ahead y del plan semanal`,
+  const items = [h.subproyectos && `${h.subproyectos} Grupo(s) LPS`, h.actividades && `${h.actividades} actividad(es) del Look Ahead y del plan semanal`,
     h.restricciones && `${h.restricciones} restricción(es)`, h.cartera && `${h.cartera} registro(s) de cartera`].filter(Boolean);
   const d = await pedirDatos({
     titulo: `Eliminar el ${sub} ${x.nombre_corto}`, texto: 'Eliminar definitivamente',
@@ -980,7 +981,7 @@ async function miembrosProyecto(p) {
   return pedirDatos({
     titulo: `Miembros de ${p.nombre_corto}`, texto: 'Guardar',
     antes: `Empresa: <b>${esc(empresa(p.area_id)?.nombre || '')}</b>. Los usuarios se registran en la empresa y aquí solo se eligen: los marcados administran el proyecto (líderes).
-      ${p.padre_id ? 'Si no marca a nadie, el sub-proyecto hereda los líderes de su proyecto. ' : 'Sus sub-proyectos los heredan. '}Lo que cada uno puede hacer lo define su rol en «Matriz de permisos».`,
+      ${p.padre_id ? 'Si no marca a nadie, el Grupo LPS hereda los líderes de su proyecto. ' : 'Sus Grupos LPS los heredan. '}Lo que cada uno puede hacer lo define su rol en «Matriz de permisos».`,
     valores: { usuarios: actuales },
     campos: [{ name: 'usuarios', label: 'Líderes / administradores del proyecto', type: 'multiselect', full: true,
       options: candidatos.map(u => ({ value: u.id, label: `${u.nombre} · ${ROLES[u.rol] || u.rol}` })) }],
@@ -989,7 +990,7 @@ async function miembrosProyecto(p) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// SUPERVISIONES POR SUB-PROYECTO (s40)
+// SUPERVISIONES POR GRUPO LPS (s40)
 // ════════════════════════════════════════════════════════════════
 async function gestionarSupervisiones(p) {
   if (!p) return;
@@ -1008,7 +1009,7 @@ async function gestionarSupervisiones(p) {
   const m = modal({
     titulo: `👥 Supervisiones — ${p.nombre_corto}`,
     ancho: 620,
-    cuerpo: `<p class="nota">Un supervisor puede ver y editar las actividades del subordinado en este sub-proyecto.</p>
+    cuerpo: `<p class="nota">Un supervisor puede ver y editar las actividades del subordinado en este Grupo LPS.</p>
       <table class="simple" style="width:100%;margin-bottom:12px">
         <thead><tr><th>Supervisor</th><th></th><th>Subordinado</th><th></th></tr></thead>
         <tbody data-filas-s>${filasSup || '<tr><td colspan="4" class="nota">Sin supervisiones configuradas.</td></tr>'}</tbody>

@@ -21,7 +21,7 @@ const { chromium } = require('playwright');
     const nombres = ids => ids.filter(Boolean).map(id => s.store.valores.get(id)?.valor);
     const opsG = s.opcionesServicio({ proyectoId: G.id }).map(o => o.value).filter(Boolean);
     const deP = s.valoresLista('servicios').filter(v => v.extra?.proyecto_id === P.id).map(v => v.id);
-    // en una fila: elegir el sub-proyecto conserva un servicio de GT_OT; elegir un servicio de GT_OT sin proyecto no pone GT_OT
+    // en una fila: elegir el Grupo LPS conserva un servicio de GT_OT; elegir un servicio de GT_OT sin proyecto no pone GT_OT
     const d1 = c.derivarProyectoServicio({ servicio_id: deP[0] }, { proyecto_id: G.id });
     const d2 = c.derivarProyectoServicio({ proyecto_id: null }, { servicio_id: deP[0] });
     const conf = s.opcionesProyectos({ contenedores: true }).some(o => /GT_OT/.test(o.label)), lps = s.opcionesProyectos().some(o => /· GT_OT/.test(o.label) && !/›/.test(o.label));

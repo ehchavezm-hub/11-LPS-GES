@@ -11,7 +11,7 @@ const SH = require('path').join(__dirname, 'salida') + '/' + '';
   await p.goto(B + '?demo&a=1#/admin'); await p.waitForTimeout(1200);
   const guardar = async () => { await p.click('.modal-pie .btn-primario'); await p.waitForTimeout(600); };
   const llenar = async (n, v) => { const el = p.locator(`.modal [name="${n}"]`).first(); const tag = await el.evaluate(e => e.tagName); if (tag === 'SELECT') await el.selectOption({ label: v }); else await el.fill(v); };
-  // empresa nueva con portafolio > programa > proyecto > sub-proyecto
+  // empresa nueva con portafolio > programa > proyecto > Grupo LPS
   await p.click('.admin-item:has-text("Empresas")'); await p.waitForTimeout(500);
   await p.click('[data-a="nueva"]'); await p.waitForTimeout(300); await llenar('nombre_empresa', 'Constructora Andina'); await guardar();
   await p.click('.admin-item:has-text("Estructura de todas")'); await p.waitForTimeout(800);

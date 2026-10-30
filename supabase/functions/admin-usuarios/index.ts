@@ -341,19 +341,19 @@ const CAMPOS: Record<string, string[]> = {
     'pais_id', 'fecha_inicio', 'fecha_fin', 'observaciones'],
 };
 
-// Mueve un proyecto y sus sub-proyectos a otra empresa. Solo si aún no tienen trabajo registrado: sus listas (gerencia,
+// Mueve un proyecto y sus Grupos LPS a otra empresa. Solo si aún no tienen trabajo registrado: sus listas (gerencia,
 // fase, país…) y sus líderes son de la empresa de origen, así que se quitan para elegirlos en la nueva.
 // Devuelve una respuesta de error, o null si lo movió.
 // deno-lint-ignore no-explicit-any
 async function moverProyecto(admin: any, actual: any, area: string, datos: Record<string, unknown>): Promise<Response | null> {
-  if (actual.padre_id) return falla('Un sub-proyecto se mueve junto con su proyecto: mueva el proyecto.');
+  if (actual.padre_id) return falla('Un Grupo LPS se mueve junto con su proyecto: mueva el proyecto.');
   const { data: destino } = await admin.from('areas').select('id').eq('id', area).maybeSingle();
   if (!destino) return falla('Empresa no encontrada.', 404);
   const { data: subs } = await admin.from('proyectos').select('id, codigo').eq('padre_id', actual.id);
   const ids = [actual.id, ...(subs ?? []).map((x: any) => x.id)];
   for (const [t, texto] of [['actividades', 'actividades'], ['restricciones', 'restricciones'], ['cartera', 'registros de cartera']]) {
     const { count } = await admin.from(t).select('id', { count: 'exact', head: true }).in('proyecto_id', ids);
-    if (count) return falla(`No se puede mover: el proyecto${subs?.length ? ' o sus sub-proyectos' : ''} ya tiene ${count} ${texto} en esta empresa. Mantenga su historial aquí o cree el proyecto en la otra empresa.`);
+    if (count) return falla(`No se puede mover: el proyecto${subs?.length ? ' o sus Grupos LPS' : ''} ya tiene ${count} ${texto} en esta empresa. Mantenga su historial aquí o cree el proyecto en la otra empresa.`);
   }
   const codigos = [actual.codigo, ...(subs ?? []).map((x: any) => x.codigo)];
   const { data: rep } = await admin.from('proyectos').select('codigo').eq('area_id', area).in('codigo', codigos);
@@ -363,7 +363,7 @@ async function moverProyecto(admin: any, actual: any, area: string, datos: Recor
   await admin.from('proyecto_favoritos').delete().in('proyecto_id', ids);
   await admin.from('plantilla_items').update({ proyecto_id: null }).in('proyecto_id', ids);
   const limpio = { area_id: area, gerencia_id: null, cet_id: null, fase_id: null, pais_id: null, tipo_id: null };
-  // Los sub-proyectos se separan un momento y se vuelven a unir ya en la nueva empresa
+  // Los Grupos LPS se separan un momento y se vuelven a unir ya en la nueva empresa
   if (subs?.length) await admin.from('proyectos').update({ padre_id: null }).in('id', subs.map((x: any) => x.id));
   const { error: e1 } = await admin.from('proyectos').update({ ...datos, ...limpio, padre_id: null }).eq('id', actual.id);
   if (e1) {
@@ -403,7 +403,7 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
   }
 
   if (d.accion === 'historial_proyecto') {
-    // Lo que se perdería al eliminar el proyecto (y sus sub-proyectos)
+    // Lo que se perdería al eliminar el proyecto (y sus Grupos LPS)
     const id = String(d.id ?? '');
     const { data: subs } = await admin.from('proyectos').select('id').eq('padre_id', id);
     const ids = [id, ...(subs ?? []).map((x: any) => x.id)];
@@ -472,7 +472,7 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
       const { data: x } = await admin.from(tabla).select('id').eq('id', String(d.id ?? '')).maybeSingle();
       if (!x) return falla('Registro no encontrado.', 404);
       if (tabla === 'proyectos' && d.completo) {
-        // Con su historial y sus sub-proyectos, en una transacción (public.eliminar_proyecto_plataforma, migración 026)
+        // Con su historial y sus Grupos LPS, en una transacción (public.eliminar_proyecto_plataforma, migración 026)
         const { data: r, error: e } = await admin.rpc('eliminar_proyecto_plataforma', { p_proyecto: x.id });
         if (funcionFaltante(e)) {
           try { return respuesta({ ok: true, eliminado: await eliminarProyectoDirecto(x.id) }); } catch (err) { return falla((err as Error).message); }
@@ -481,7 +481,7 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
       }
       if (tabla === 'proyectos') {
         const { count: hijos } = await admin.from('proyectos').select('id', { count: 'exact', head: true }).eq('padre_id', x.id);
-        if (hijos) return falla(`El proyecto tiene ${hijos} sub-proyecto(s): elimínelos o muévalos primero.`);
+        if (hijos) return falla(`El proyecto tiene ${hijos} Grupo(s) LPS: elimínelos o muévalos primero.`);
         const { count } = await admin.from('actividades').select('id', { count: 'exact', head: true }).eq('proyecto_id', x.id);
         if (count) return falla(`El proyecto tiene ${count} actividades: confirme la eliminación con su historial.`);
         await admin.from('proyecto_lideres').delete().eq('proyecto_id', x.id);
@@ -497,7 +497,7 @@ async function plataforma(admin: any, yo: any, d: any): Promise<Response> {
       if (g?.portafolio_id) datos.portafolio_id = g.portafolio_id;
     }
     if (d.id && tabla === 'proyectos' && area) {
-      // Mover un proyecto (con sus sub-proyectos) a otra empresa (pedido 15)
+      // Mover un proyecto (con sus Grupos LPS) a otra empresa (pedido 15)
       const { data: actual } = await admin.from('proyectos').select('id, area_id, padre_id, codigo').eq('id', String(d.id)).maybeSingle();
       if (actual && actual.area_id !== area) {
         const r = await moverProyecto(admin, actual, area, datos);

@@ -29,7 +29,7 @@ const SH = require('path').join(__dirname, 'salida') + '/' + '';
   // opciones de proyecto en la grilla: el padre no se ofrece
   const ops = await p.evaluate(async () => (await import('./js/core/store.js')).opcionesProyectos().map(o => o.label));
   console.log('opciones con Hospital:', ops.filter(l => /Hospital|Torre/.test(l)));
-  // asignar una actividad al sub-proyecto y filtrar por el padre
+  // asignar una actividad al Grupo LPS y filtrar por el padre
   const r = await p.evaluate(async () => {
     const { api } = await import('./js/data/api.js'); const s = await import('./js/core/store.js');
     const torre = s.store.proyectos.find(x => x.nombre_corto === 'Torre A');
@@ -39,7 +39,7 @@ const SH = require('path').join(__dirname, 'salida') + '/' + '';
     return { subEntra: s.enProyectoSel(torre.id), padreEntra: s.enProyectoSel(padre.id), otroEntra: s.enProyectoSel(otro.id), contenedor: s.esContenedor(padre),
       lideresHeredados: s.lideresHeredados(torre.id).length };
   });
-  console.log('filtro por padre incluye sub-proyecto:', r);
+  console.log('filtro por padre incluye Grupo LPS:', r);
   console.log(errs.length ? errs : 'SIN ERRORES');
   await b.close();
 })();

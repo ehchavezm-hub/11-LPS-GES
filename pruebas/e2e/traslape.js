@@ -17,9 +17,9 @@ const { chromium } = require('playwright');
     for (const [n, pf] of [['GT_PROG', f], ['Obras sur', f2], ['Varias obras Lima', f2]]) progs.push((await api.insert('programas', { area_id: area, nombre: n, portafolio_id: pf.id, estado: 'activo' }))[0]);
     let i = 0;
     for (const P of ps) { const g = progs[i % 3]; await api.update('proyectos', P.id, { portafolio_id: g.portafolio_id, programa_id: g.id }); i++; }
-    // dos sub-proyectos bajo el primer proyecto de cada programa
+    // dos Grupos LPS bajo el primer proyecto de cada programa
     for (const g of progs) { const P = ps.find(x => x.programa_id === g.id) || ps[progs.indexOf(g)];
-      for (const k of [1, 2]) await api.insert('proyectos', { area_id: area, codigo: P.codigo + '.' + k, nombre_corto: 'Sub-proyecto con nombre largo ' + k, estado: 'activo', padre_id: P.id, portafolio_id: g.portafolio_id, programa_id: g.id }); }
+      for (const k of [1, 2]) await api.insert('proyectos', { area_id: area, codigo: P.codigo + '.' + k, nombre_corto: 'Grupo LPS con nombre largo ' + k, estado: 'activo', padre_id: P.id, portafolio_id: g.portafolio_id, programa_id: g.id }); }
   });
   await p.goto(B + '?demo&a=1#/admin'); await p.waitForTimeout(1200);
   await p.click('.admin-item:has-text("Estructura de todas")'); await p.waitForTimeout(600);

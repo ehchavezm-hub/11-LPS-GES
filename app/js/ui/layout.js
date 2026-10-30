@@ -50,8 +50,8 @@ export function montarLayout(raiz, { alSalir }) {
     <aside class="lateral"><div class="lateral-tirador" title="Arrastre para cambiar el ancho del menú (doble clic: ancho normal)"></div>
       <nav class="nav nav-admin" aria-label="Administración"></nav>
       <section class="menu-proy" aria-label="Menú de proyectos">
-        <div class="menu-proy-cab"><h3>Sub-proyectos</h3>
-          ${esGestor() || puede('crear_cartera') ? `<button class="btn btn-sm btn-primario btn-agregar-proy" data-a="nuevo-proy" title="Agregar un sub-proyecto a un proyecto (lo verá todo el equipo)">＋ ${esGestor() ? 'Agregar' : 'Proponer'}</button>` : ''}</div>
+        <div class="menu-proy-cab"><h3>Grupos LPS</h3>
+          ${esGestor() || puede('crear_cartera') ? `<button class="btn btn-sm btn-primario btn-agregar-proy" data-a="nuevo-proy" title="Agregar un Grupo LPS a un proyecto (lo verá todo el equipo)">＋ ${esGestor() ? 'Agregar' : 'Proponer'}</button>` : ''}</div>
         <input type="search" placeholder="Buscar código o nombre…" aria-label="Buscar proyecto">
         <div class="proy-lista"></div>
       </section>
@@ -170,7 +170,7 @@ function pintarNav() {
   const admin = NAV.slice(0, corte);
   navAdmin.innerHTML = admin.some(n => !n.grupo && n.si()) ? pintar(admin) : '';
   navAdmin.classList.toggle('oculto', !navAdmin.innerHTML);
-  // s10: nombre del sub-proyecto activo como cabecera de los módulos
+  // s10: nombre del Grupo LPS activo como cabecera de los módulos
   const proyActivo = store.proyectoSel ? store.proyectos.find(p => p.id === store.proyectoSel) : null;
   const cabProy = proyActivo
     ? `<div class="nav-proy-activo" title="${esc(proyActivo.nombre_completo || proyActivo.nombre_corto)}"><span class="ico">📋</span><span class="txt"><b>${esc(proyActivo.codigo || '')}</b>${proyActivo.codigo ? ' · ' : ''}${esc(proyActivo.nombre_corto)}</span></div>`
@@ -201,15 +201,15 @@ function pintarProyectos() {
   const programas = (store.programas || []).filter(x => x.estado !== 'inactivo');
   const idsPort = new Set(portafolios.map(x => x.id)), idsProg = new Set(programas.map(x => x.id));
 
-  const item = (p, nivel, sub) => `<div class="proy-item arbol-n${nivel}${sub ? ' arbol-sub' : ''}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto}${sub ? ' (sub-proyecto)' : ''}`)}">
+  const item = (p, nivel, sub) => `<div class="proy-item arbol-n${nivel}${sub ? ' arbol-sub' : ''}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto}${sub ? ' (Grupo LPS)' : ''}`)}">
       <span class="arbol-ico">${sub ? '▫' : '📋'}</span><span class="nom">${esc(p.nombre_corto)}${p.estado === 'propuesto' ? ' ⏳' : ''}</span></div>`;
-  // Proyecto con sub-proyectos (pedido a7): se elige completo con un clic en el nombre; la flecha lo abre o cierra
+  // Proyecto con Grupos LPS (pedido a7): se elige completo con un clic en el nombre; la flecha lo abre o cierra
   const hijosDe = p => lista.filter(x => x.padre_id === p.id);
   const nodo = (p, nivel) => {
     const hs = hijosDe(p);
     if (!hs.length) return item(p, nivel);
     const ab = abierta('p' + p.id);
-    return `<div class="proy-item arbol-cont arbol-n${nivel}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto} (con sus sub-proyectos)`)}">
+    return `<div class="proy-item arbol-cont arbol-n${nivel}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto} (con sus Grupos LPS)`)}">
         <span class="arbol-flecha" data-rama="p${p.id}" role="button" aria-expanded="${ab}">${ab ? '▾' : '▸'}</span><span class="arbol-ico">📋</span>
         <span class="nom">${esc(p.nombre_corto)} <small>(${hs.length})</small></span></div>` + (ab ? hs.map(h => item(h, nivel + 1, true)).join('') : '');
   };

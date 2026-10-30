@@ -20,7 +20,7 @@ const SH = require('path').join(__dirname, 'salida') + '/' + '';
     await api.update('proyectos', P.id, { portafolio_id: f.id, programa_id: g.id });
     await api.update('proyectos', Q.id, { portafolio_id: f.id, programa_id: g2.id });
     const [S] = await api.insert('proyectos', { area_id: area, codigo: 'D-101.1', nombre_corto: 'Gestion', estado: 'activo', padre_id: P.id, portafolio_id: f.id, programa_id: g.id });
-    // la mitad de las actividades (semanas abiertas) del proyecto pasan al sub-proyecto
+    // la mitad de las actividades (semanas abiertas) del proyecto pasan al Grupo LPS
     const acts = await api.list('actividades', { eq: { proyecto_id: P.id } });
     let n = 0; for (const a of acts) { try { await api.update('actividades', a.id, { proyecto_id: S.id }); n++; } catch {} }
     await s.cargarCatalogo();
@@ -32,7 +32,7 @@ const SH = require('path').join(__dirname, 'salida') + '/' + '';
     const acts = await api.list('actividades', { eq: { area_id: s.store.area.id } });
     return { actividades: acts.filter(a => s.enProyectoSel(a.proyecto_id)).length, nombre: s.nombreSeleccion() || 'Empresa (todo)' };
   }, { clave, ids });
-  console.log('actividades movidas al sub-proyecto:', ids.movidas);
+  console.log('actividades movidas al Grupo LPS:', ids.movidas);
   const r = {};
   for (const k of ['S', 'P', 'g', 'f', 'empresa']) { r[k] = await contar(k); console.log(k.padEnd(8), r[k].nombre.padEnd(34), r[k].actividades); }
   console.log('agregación de abajo hacia arriba (S ≤ P ≤ Programa ≤ Portafolio ≤ Empresa):',
