@@ -278,7 +278,11 @@ export function esContenedor(p) { return !!p && store.proyectos.some(x => x.padr
  *  Elegir un proyecto incluye sus sub-proyectos. */
 export function enProyectoSel(id) {
   const sel = store.proyectoSel;
-  if (sel) return id === sel || (!!id && proyecto(id)?.padre_id === sel);
+  if (sel) {
+    // proyecto_id nulo: la actividad no tiene proyecto asignado → visible en proyectos contenedor
+    if (!id) return esContenedor(proyecto(sel));
+    return id === sel || proyecto(id)?.padre_id === sel;
+  }
   if (!store.nivelSel) return true;
   // Agregación de abajo hacia arriba: sub-proyecto → proyecto → programa → portafolio → empresa
   const p = id && proyecto(id);
