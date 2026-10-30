@@ -185,6 +185,7 @@ Estado de cada observación al 25/10/2026.
 | 157 (d9) | Exportar e importar por XLS en todas las listas, con botones de otro color | ✅ Botones verdes «⬇ Exportar XLS» y «⬆ Importar XLS» en cada lista de Configuración › Listas, en Proyectos / Procesos y en Grupos LPS. Importar muestra un resumen antes de aplicar, agrega y actualiza, y nunca borra (lo que no está en el archivo se conserva); los valores 🔒 conservan su código y estado | `d9.js` | ✅ |
 | 158 (d10) | Al elegir el Proyecto se pone su Gerencia; con una Gerencia elegida, solo sus proyectos | ✅ Look Ahead y Plan semanal. Además: el proyecto elegido en una actividad sin CET ahora se guarda en la actividad (extra.proyecto_id) y no se pierde al recargar | `d10.js` | ✅ |
 | 159 (d11) | Al elegir el Proyecto, en CET solo sus CET; al elegir el CET, aparece su proyecto | ✅ (también en Servicio) | `d7.js`, `d10.js` | ✅ |
+| 160 | Compatibilización y auditoría 3 | ✅ Ver `docs/AUDITORIA.md` › Auditoría 3: «Desde la cartera» e importar Excel dejan la actividad en el Grupo LPS elegido (el proyecto de origen queda como Proyecto); Supr en Proyecto / CET ahora se guarda; borrar el Proyecto borra su CET. Base: 10 de 11 chequeos de integridad en 0 | `aud3.js`, `imp.js` (con Excel privado), regresión, base | ✅ |
 
 ## Lo que encontró la reconfirmación
 

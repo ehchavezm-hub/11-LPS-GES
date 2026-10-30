@@ -1,6 +1,6 @@
 // Look Ahead (6.7): actividades de las próximas semanas, estado LA, restricciones y carga vs capacidad.
 import { api, mensajeError } from '../data/api.js';
-import { store, equipo, on, esGestor, puede, puedeEditarActividad, lideres, nombre, proyecto, param, opciones, opcionesLideres, opcionesProyectos, enProyectoSel, esContenedor, haySeleccion, nombreSeleccion } from '../core/store.js';
+import { store, destinoActividad, equipo, on, esGestor, puede, puedeEditarActividad, lideres, nombre, proyecto, param, opciones, opcionesLideres, opcionesProyectos, enProyectoSel, esContenedor, haySeleccion, nombreSeleccion } from '../core/store.js';
 import { lunes, sumarSemanas, etiquetaSemana, esc, html, num, sumarDias, DIAS, pct } from '../core/util.js';
 import { actualizarQuery } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
@@ -223,7 +223,7 @@ const acciones = {
       if (!sel.length) return false;
       try {
         await api.insert('actividades', sel.map(c => ({
-          area_id: store.area.id, semana, responsable_id: c.responsable_id || resp, resp2: c.resp2, proyecto_id: c.proyecto_id,
+          area_id: store.area.id, semana, responsable_id: c.responsable_id || resp, resp2: c.resp2, ...destinoActividad(c.proyecto_id),
           gerencia_id: c.gerencia_id, servicio_id: c.servicio_id, descripcion: c.descripcion, comprometida: false, tipo: 'programada',
           estado: 'programado', estado_la: 'pendiente', origen: 'cartera', origen_id: c.id, cartera_id: c.id,
         })));

@@ -94,3 +94,18 @@ Revisados y conformes: la agregación de abajo hacia arriba (sub-proyecto → pr
 Plan, Look Ahead, Restricciones, Cartera, Tablero, Reportes, Resumen y PDF; los CET/Servicios heredados por los
 sub-proyectos; Desactivar en cascada; Mejoras de todas las empresas (solo nombre del autor y de la empresa, sin correos).
 Las alertas restantes son funciones que validan el rol por dentro o `registro_abierto` (pública a propósito).
+
+
+## Auditoría 3 (30/10/2026) — Grupos LPS, Proyecto atendido y flujos que crean actividades
+
+| # | Hallazgo | Criticidad | Impacto | Solución |
+|---|---|---|---|---|
+| 1 | «Desde la cartera» (Look Ahead y Cartera) guardaba la actividad en el proyecto de la solicitud y no en el Grupo LPS elegido | Medio | La actividad salía de la vista del grupo | `destinoActividad()` en `store.js`: va al Grupo LPS elegido; el proyecto queda en `extra.proyecto_id` |
+| 2 | Importar actividades desde Excel: mismo caso | Medio | Igual | Misma función |
+| 3 | Supr sobre Proyecto / CET no pasaba por las reglas de la fila y no se guardaba | Medio | El valor «volvía» al recargar | `grid.js`: Supr aplica `derivar` a las columnas con `valor` |
+| 4 | Borrar el Proyecto de una fila con CET: el proyecto reaparecía por el CET | Bajo | Confusión | Borrar el Proyecto borra también su CET |
+| 5 | 3 actividades con Gerencia distinta a la del proyecto de su CET (anteriores a d10) | Bajo (datos) | Tablero por gerencia | Corrección de datos con respaldo previo |
+| 6 | `imp.js`, `importact.js`, `lista.js` fallan en el repositorio | Bajo | Requieren archivos privados | Verificadas con los Excel privados (fuera del repositorio) |
+
+Integridad de la base (solo lectura): actividades y CET sin referencias rotas, sin mezcla entre empresas, grupos con padre válido,
+semanas en lunes y HH totales correctas. Seguridad: sin hallazgos nuevos (advertencias conocidas e intencionales).

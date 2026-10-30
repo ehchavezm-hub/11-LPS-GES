@@ -2,7 +2,7 @@
 // (Cumplimiento_Plan_semanal / Look_ahead / LISTAS). Los datos se leen en el navegador y van directo a la base
 // de datos: nunca pasan por el repositorio.
 import { api } from '../data/api.js';
-import { store, valoresLista, lideres, idPorCodigo } from '../core/store.js';
+import { store, valoresLista, lideres, idPorCodigo, destinoActividad } from '../core/store.js';
 import { normalizar, parseFecha, lunes, hoy, DIAS, libExcel } from '../core/util.js';
 
 const SIN = {
@@ -191,7 +191,7 @@ export async function importar(analisis, mapa, progreso = () => {}) {
     if (!uid) { sinUsuario.push({ ...f, estado }); continue; }
     const pid = proyId[f.proyecto] || null;
     const reg = {
-      area_id: area, semana: f.semana, responsable_id: uid, resp2: f.resp2 || null, proyecto_id: pid,
+      area_id: area, semana: f.semana, responsable_id: uid, resp2: f.resp2 || null, ...destinoActividad(pid),   // grupo elegido + proyecto atendido
       gerencia_id: buscarValor('gerencias', f.programa) || store.proyectos.find(p => p.id === pid)?.gerencia_id || null,
       cet_id: null, servicio_id: buscarValor('servicios', f.servicio) || buscarValor('servicios', f.cet), descripcion: f.actividad,   // por nombre o por su CET
       hh_lu: f.hh_lu, hh_ma: f.hh_ma, hh_mi: f.hh_mi, hh_ju: f.hh_ju, hh_vi: f.hh_vi, hh_sa: f.hh_sa, hh_do: f.hh_do,

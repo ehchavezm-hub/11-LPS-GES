@@ -126,7 +126,8 @@ export function derivarProyectoServicio(fila, cambios, { atendido = false } = {}
   if (atendido && '_proyecto' in cambios) {
     const pid = cambios._proyecto || null;
     const sv = 'servicio_id' in cambios ? cambios.servicio_id : fila.servicio_id;
-    if (pid && sv && proyectoDeServicio(sv) !== pid) d.servicio_id = null;
+    // Otro proyecto: el CET de la fila ya no corresponde. Proyecto borrado: también su CET (si no, el proyecto «volvería» por el CET)
+    if (sv && (!pid || proyectoDeServicio(sv) !== pid) && (pid || proyectoDeServicio(sv))) d.servicio_id = null;
     // Se guarda en la actividad (extra.proyecto_id) para que no se pierda al recargar si aún no tiene CET
     d.extra = { ...(fila.extra || {}), proyecto_id: pid };
     // d10: la Gerencia es la del proyecto elegido

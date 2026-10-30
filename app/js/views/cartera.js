@@ -1,6 +1,6 @@
 // Cartera de servicios por líder (6.5) y formulario de solicitudes de otras gerencias (M-01).
 import { api, mensajeError } from '../data/api.js';
-import { store, on, esGestor, esStaff, puede, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado, lideres, colorValor, opcionesServicio, semanaInicioLA, semanasLookAhead, enProyectoSel, haySeleccion, nombreSeleccion } from '../core/store.js';
+import { store, destinoActividad, on, esGestor, esStaff, puede, opciones, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, nombre, etiqueta, textoEstado, lideres, colorValor, opcionesServicio, semanaInicioLA, semanasLookAhead, enProyectoSel, haySeleccion, nombreSeleccion } from '../core/store.js';
 import { esc, html, hoy, fmtFecha, lunes, sumarSemanas, etiquetaSemana } from '../core/util.js';
 import { crearGrilla } from '../ui/grid.js';
 import { kpi, badge, pedirDatos, ok, error, vacio, toast } from '../ui/ui.js';
@@ -174,7 +174,7 @@ async function crearActividad(c, semana) {
   if (c.responsable_id !== store.usuario.id && !esGestor()) return toast('Solo el responsable puede crear actividades de esta solicitud.', 'warn');
   try {
     await api.insert('actividades', {
-      area_id: store.area.id, semana: sem, responsable_id: c.responsable_id || store.usuario.id, resp2: c.resp2, proyecto_id: c.proyecto_id,
+      area_id: store.area.id, semana: sem, responsable_id: c.responsable_id || store.usuario.id, resp2: c.resp2, ...destinoActividad(c.proyecto_id),
       gerencia_id: c.gerencia_id, servicio_id: c.servicio_id, descripcion: c.descripcion, comprometida: false, tipo: 'programada',
       estado: 'programado', estado_la: 'pendiente', origen: c.origen === 'solicitud' ? 'solicitud' : 'cartera', origen_id: c.id, cartera_id: c.id,
     });

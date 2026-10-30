@@ -682,6 +682,19 @@ export function crearGrilla(contenedor, cfg) {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); rellenar(); return; }
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); nuevaFila(); return; }
     if (!celda) return;
+    // Supr / Retroceso sobre un rango: Tabulator vacía las celdas sin pasar por «derivar». Las columnas que toman su valor de
+    // otro campo (CET, Proyecto) no se guardan solas: se aplica aquí la misma regla que al elegir «—» (auditoría 3)
+    if ((e.key === 'Delete' || e.key === 'Backspace') && cfg.derivar) {
+      let cambio = false;
+      for (const c of rango.getCells().flat()) {
+        const col = porCampo.get(c.getField());
+        const fila = c.getRow();
+        if (!col?.valor || !editableCampo(fila.getData(), col)) continue;
+        const der = cfg.derivar(fila.getData(), { [c.getField()]: null });
+        if (der && Object.keys(der).length) { fila.update(der); cambio = true; }
+      }
+      if (cambio) programarGuardado();
+    }
     if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); celda.edit(true); return; }
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
       const col = porCampo.get(celda.getField());

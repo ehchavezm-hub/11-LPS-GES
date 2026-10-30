@@ -267,6 +267,18 @@ export function opcionesServicio({ proyectoId: _pId = null, etiqueta: etq = v =>
   const ops = vs.map(v => ({ value: v.id, label: etq(v) }));
   return vacio ? [{ value: null, label: '—' }, ...ops] : ops;
 }
+/**
+ * Auditoría 3: dónde se guarda una actividad que viene de otro lado (cartera, Excel) con un proyecto «origen».
+ * Si en el menú hay un Grupo LPS elegido y el origen es un proyecto (no un grupo), la actividad va al grupo
+ * (proyecto_id) y el proyecto queda como «Proyecto atendido» (extra.proyecto_id), como al crearla en la grilla.
+ * Sin grupo elegido se mantiene el comportamiento anterior (la actividad va al proyecto de origen).
+ */
+export function destinoActividad(origenId, extra = {}) {
+  const sel = proyecto(store.proyectoSel);
+  const o = proyecto(origenId);
+  if (sel?.padre_id && o && !o.padre_id) return { proyecto_id: sel.id, extra: { ...extra, proyecto_id: o.id } };
+  return { proyecto_id: origenId || (sel?.padre_id ? sel.id : null), extra };
+}
 export function nombreProyecto(id) { const p = proyecto(id); return p ? `${p.codigo} · ${nombreConPadre(p)}` : ''; }
 export function proyectosActivos() { return store.proyectos.filter(p => p.estado === 'activo' || p.estado === 'propuesto'); }
 // ---------- Grupos LPS (pedido a7) ----------
