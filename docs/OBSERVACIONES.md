@@ -183,6 +183,8 @@ Estado de cada observación al 25/10/2026.
 | 155 (d7) | Actividad → CET → Proyecto: el proyecto de la actividad es el de su CET y se elige de la lista de Proyectos | ✅ Look Ahead y Plan semanal: la columna «Proyecto / Proceso» pasa a llamarse «Grupo LPS» (sin cambios en sus datos) y se agrega «Proyecto»: muestra el proyecto del CET y ofrece la lista de Proyectos (incluido 001 GT_OT); al elegir un proyecto, el CET se elige entre los suyos. No se guarda ningún campo nuevo: el proyecto sale del CET | `d7.js` | ✅ |
 | 156 (d8) | Ocultar la columna «Grupo LPS» en Plan semanal y Look Ahead | ✅ Solo se oculta: cada actividad sigue guardando su Grupo LPS (el elegido en el menú) | `d7.js` | ✅ |
 | 157 (d9) | Exportar e importar por XLS en todas las listas, con botones de otro color | ✅ Botones verdes «⬇ Exportar XLS» y «⬆ Importar XLS» en cada lista de Configuración › Listas, en Proyectos / Procesos y en Grupos LPS. Importar muestra un resumen antes de aplicar, agrega y actualiza, y nunca borra (lo que no está en el archivo se conserva); los valores 🔒 conservan su código y estado | `d9.js` | ✅ |
+| 158 (d10) | Al elegir el Proyecto se pone su Gerencia; con una Gerencia elegida, solo sus proyectos | ✅ Look Ahead y Plan semanal. Además: el proyecto elegido en una actividad sin CET ahora se guarda en la actividad (extra.proyecto_id) y no se pierde al recargar | `d10.js` | ✅ |
+| 159 (d11) | Al elegir el Proyecto, en CET solo sus CET; al elegir el CET, aparece su proyecto | ✅ (también en Servicio) | `d7.js`, `d10.js` | ✅ |
 
 ## Lo que encontró la reconfirmación
 

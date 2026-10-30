@@ -45,9 +45,10 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {}, c
       ayuda: 'Grupo LPS que registra la actividad (el elegido en el menú)' } : null,
     { field: '_proyecto', title: 'Proyecto', tipo: 'lista', ancho: 190, posicionFija: true,
       ayuda: 'Proyecto del CET (al elegir el CET se completa solo; al elegir un proyecto, el CET se elige entre los suyos)',
-      valor: d => d._proyecto || proyectoDeServicio(d.servicio_id) || null,
-      opciones: () => [{ value: null, label: '—' }, ...store.proyectos.filter(p => !p.padre_id)
-        .map(p => ({ value: p.id, label: `${p.codigo} · ${p.nombre_corto}` })).sort((a, b) => a.label.localeCompare(b.label))] },
+      valor: d => proyectoAtendido(d),
+      opciones: () => opcionesProyectoAtendido(),
+      // d10: con una Gerencia elegida, solo los proyectos de esa gerencia
+      opcionesEdicion: d => opcionesProyectoAtendido(d?.gerencia_id) },
     // CET y Servicio van juntos (como nombre y apellido): son el mismo valor de la lista "CET / Servicio" visto por su código
     // o por su nombre. Elegir o pegar uno completa el otro.
     { field: '_cet', title: 'CET', tipo: 'lista', ancho: 100, posicionFija: true, ayuda: 'CET del servicio (al elegirlo se completa el Servicio)',
@@ -104,20 +105,33 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {}, c
   return cols.filter(Boolean);
 }
 
+// Proyecto que atiende la actividad (d7/d10): el de su CET; si no tiene CET, el elegido a mano (se guarda en extra.proyecto_id)
+const elegido = d => (d?._proyecto !== undefined ? d._proyecto : d?.extra?.proyecto_id) || null;
+export const proyectoAtendido = d => proyectoDeServicio(d?.servicio_id) || elegido(d);
+const opcionesProyectoAtendido = (gerencia = null) => [{ value: null, label: '—' }, ...store.proyectos
+  .filter(p => !p.padre_id && (!gerencia || p.gerencia_id === gerencia))
+  .map(p => ({ value: p.id, label: `${p.codigo} · ${p.nombre_corto}` })).sort((a, b) => a.label.localeCompare(b.label))];
 // CET / Servicio que se ofrecen en una fila: si se eligió un Proyecto, solo los de ese proyecto
-const delProyecto = d => o => !d?._proyecto || o.value == null || proyectoDeServicio(o.value) === d._proyecto;
+const delProyecto = d => o => !elegido(d) || o.value == null || proyectoDeServicio(o.value) === elegido(d);
 
 /**
  * Proyecto, Gerencia y CET / Servicio van juntos (Plan, Look Ahead, Plantillas y Cartera):
  * al elegir un proyecto se completan su gerencia y su CET / Servicio (si la lista tiene uno solo asociado);
  * al elegir un CET o un Servicio se completa el otro y, si la fila no tiene proyecto, el proyecto de ese servicio.
  */
-export function derivarProyectoServicio(fila, cambios) {
+// atendido: fila de actividad (Plan / Look Ahead) con «Proyecto» atendido y guardado en extra.proyecto_id (d7/d10)
+export function derivarProyectoServicio(fila, cambios, { atendido = false } = {}) {
   const d = {};
   // Proyecto elegido a mano (d7): si el CET de la fila es de otro proyecto, se limpia para elegir uno de este proyecto
-  if ('_proyecto' in cambios) {
+  if (atendido && '_proyecto' in cambios) {
+    const pid = cambios._proyecto || null;
     const sv = 'servicio_id' in cambios ? cambios.servicio_id : fila.servicio_id;
-    if (cambios._proyecto && sv && proyectoDeServicio(sv) !== cambios._proyecto) d.servicio_id = null;
+    if (pid && sv && proyectoDeServicio(sv) !== pid) d.servicio_id = null;
+    // Se guarda en la actividad (extra.proyecto_id) para que no se pierda al recargar si aún no tiene CET
+    d.extra = { ...(fila.extra || {}), proyecto_id: pid };
+    // d10: la Gerencia es la del proyecto elegido
+    const g = proyecto(pid)?.gerencia_id;
+    if (g) d.gerencia_id = g;
   }
   if ('proyecto_id' in cambios && cambios.proyecto_id) {
     const p = proyecto(cambios.proyecto_id);
@@ -131,7 +145,16 @@ export function derivarProyectoServicio(fila, cambios) {
   if ('_cet' in cambios) d.servicio_id = cambios._cet || null;            // CET elegido → su Servicio
   // CET elegido: el Proyecto es el de ese CET
   const svNuevo = 'servicio_id' in d ? d.servicio_id : 'servicio_id' in cambios ? cambios.servicio_id : undefined;
-  if (svNuevo && '_proyecto' in fila) d._proyecto = null;
+  if (atendido && svNuevo) {
+    // CET elegido: el Proyecto es el de ese CET (y su Gerencia); si el CET no tiene proyecto, se conserva el elegido
+    const pid = proyectoDeServicio(svNuevo);
+    if (pid) {
+      d._proyecto = pid;
+      if (fila.extra?.proyecto_id !== pid && !('_proyecto' in cambios)) d.extra = { ...(fila.extra || {}), proyecto_id: pid };
+      const g = proyecto(pid)?.gerencia_id;
+      if (g) d.gerencia_id = g;
+    }
+  }
   // Servicio de un proyecto elegido en una fila sin proyecto: se completan el proyecto y su gerencia
   const servElegido = '_cet' in cambios ? cambios._cet : 'servicio_id' in cambios ? cambios.servicio_id : undefined;
   if (servElegido && !fila.proyecto_id && !('proyecto_id' in cambios)) {
@@ -145,7 +168,8 @@ export function derivarProyectoServicio(fila, cambios) {
 
 /** Reglas de la fila de actividad: HH total, proyecto ↔ servicio, Estado LA ↔ compromiso y CNC. */
 export function derivarActividad(fila, cambios) {
-  const d = derivarProyectoServicio(fila, cambios);
+  // Solo las actividades guardan el proyecto atendido (las plantillas no tienen campo extra)
+  const d = derivarProyectoServicio(fila, cambios, { atendido: 'extra' in fila });
   if (Object.keys(cambios).some(k => k.startsWith('hh_') && k !== 'hh_real' && k !== 'hh_total')) {
     d.hh_total = DIAS.reduce((s, x) => s + (Number(fila[`hh_${x}`]) || 0), 0);
   }
