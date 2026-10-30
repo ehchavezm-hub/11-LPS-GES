@@ -21,8 +21,12 @@ let grillas = {};
 export const RUTA_CATALOGO = '#/config/listas?lista=__proyectos';
 const rutaCatalogo = () => (esGestor() ? RUTA_CATALOGO : '#/tablero');
 let contenedor = null;
+// Pedido d5: el catálogo de Proyectos y el de Grupos LPS son distintos (un Grupo LPS es un proyecto con padre_id:
+// pertenece a un proyecto, y atiende a los proyectos de los CET / Servicios de sus actividades)
+let modoGrupos = false;
+export const RUTA_GRUPOS = '#/config/listas?lista=__grupos';
 /** Vuelve a dibujar el catálogo donde esté abierto (Configuración o página propia). */
-export function refrescarCatalogo() { if (contenedor?.isConnected) render(contenedor, { incrustado: contenedor.id !== 'contenido' }); }
+export function refrescarCatalogo() { if (contenedor?.isConnected) render(contenedor, { incrustado: contenedor.id !== 'contenido', grupos: modoGrupos }); }
 const todasLasGrillas = () => Object.values(grillas);
 
 export async function render(el, params) {
@@ -32,27 +36,29 @@ export async function render(el, params) {
   // Desde el menú ya no hay página propia: el catálogo se administra en Configuración → Listas
   if (!params.incrustado && esGestor()) { location.hash = RUTA_CATALOGO; return; }
   contenedor = el;
+  modoGrupos = !!params.grupos;
   const puedeCrear = puedeAgregarProyecto();
   const pag = html(`<div>
-    <div class="pagina-cab">${params.incrustado ? '<h2 style="margin:0">Proyectos / Procesos</h2>' : '<h1>Proyectos</h1>'}
-      <span class="pagina-sub">Catálogo que alimenta el menú de selección y las listas de todas las grillas</span>
+    <div class="pagina-cab">${modoGrupos ? '<h2 style="margin:0">Grupos LPS</h2>' : params.incrustado ? '<h2 style="margin:0">Proyectos / Procesos</h2>' : '<h1>Proyectos</h1>'}
+      <span class="pagina-sub">${modoGrupos ? 'Equipos de personas que aplican Last Planner: cada uno pertenece a un proyecto y atiende a los proyectos de los CET / Servicios de sus actividades'
+        : 'Catálogo de proyectos: alimenta el menú de selección y las listas de todas las grillas (los Grupos LPS tienen su propio catálogo)'}</span>
       <span class="flex"></span>
-      ${puedeCrear || puede('crear_cartera') ? `<button class="btn btn-primario" data-a="nuevo">＋ ${puedeCrear ? 'Nuevo proyecto' : 'Proponer proyecto'}</button>` : ''}
-      ${puede('importar_datos') ? '<button class="btn btn-sm" data-a="importar">⬆ Importar desde Excel</button>' : ''}
+      ${puedeCrear || puede('crear_cartera') ? `<button class="btn btn-primario" data-a="nuevo">＋ ${modoGrupos ? (puedeCrear ? 'Nuevo Grupo LPS' : 'Proponer Grupo LPS') : puedeCrear ? 'Nuevo proyecto' : 'Proponer proyecto'}</button>` : ''}
+      ${puede('importar_datos') && !modoGrupos ? '<button class="btn btn-sm" data-a="importar">⬆ Importar desde Excel</button>' : ''}
       <button class="btn btn-sm" data-a="pdf">🖨 PDF</button></div>
     <div data-propuestos></div>
     ${VENTANAS.map(([e, t]) => `<section class="ventana-estado ventana-${e}" data-ventana="${e}">
       <h2 class="ventana-tit">${t} <span class="contador-pestana" data-cuenta="${e}"></span></h2><div data-grilla="${e}"></div></section>`).join('')}
   </div>`);
   el.append(pag);
-  pag.querySelector('[data-a="nuevo"]')?.addEventListener('click', () => formularioProyecto());
+  pag.querySelector('[data-a="nuevo"]')?.addEventListener('click', () => formularioProyecto(null, { sub: modoGrupos }));
   pag.querySelector('[data-a="importar"]')?.addEventListener('click', () => elegirArchivoProyectos());
-  pag.querySelector('[data-a="pdf"]').addEventListener('click', () => imprimirPDF('Catálogo de proyectos', tablaPDF(
+  pag.querySelector('[data-a="pdf"]').addEventListener('click', () => imprimirPDF(modoGrupos ? 'Catálogo de Grupos LPS' : 'Catálogo de proyectos', tablaPDF(
     // Mismas columnas y anchos que las ventanas de proyectos en pantalla
     grillas.activo?.columnasPDF?.() || [
       { titulo: 'Código', valor: p => p.codigo }, { titulo: 'Nombre', valor: p => p.nombre_corto }, { titulo: 'Gerencia', valor: p => etiqueta(p.gerencia_id) },
       { titulo: 'Fase', valor: p => etiqueta(p.fase_id) }, { titulo: 'Estado', valor: p => textoEstado('estados_proyecto', p.estado) }],
-    store.proyectos), { proyectoTexto: 'Todos los proyectos', orientacion: 'landscape' }));
+    store.proyectos.filter(p => !!p.padre_id === modoGrupos)), { proyectoTexto: modoGrupos ? 'Todos los Grupos LPS' : 'Todos los proyectos', orientacion: 'landscape' }));
   pintarPropuestos(pag);
 
   // Quien solo agrega proyectos (líderes) lo hace en la ventana Activos; eliminar sigue siendo de quien administra proyectos
@@ -61,7 +67,10 @@ export async function render(el, params) {
   pintarCuentas();
 }
 
-function proyectosDe(estado) { return store.proyectos.filter(p => (esStaff() || p.estado === 'activo') && ventanaDe(p) === estado); }
+function proyectosDe(estado) { return store.proyectos.filter(p => !!p.padre_id === modoGrupos && (esStaff() || p.estado === 'activo') && ventanaDe(p) === estado); }
+// Proyectos a los que puede pertenecer un Grupo LPS (los que no son a su vez un grupo)
+const opcionesProyectoPadre = () => store.proyectos.filter(p => !p.padre_id && !['cerrado', 'rechazado'].includes(p.estado))
+  .map(p => ({ value: p.id, label: `${p.codigo} · ${p.nombre_corto}` })).sort((a, b) => a.label.localeCompare(b.label));
 
 function pintarCuentas() {
   for (const [e] of VENTANAS) {
@@ -87,19 +96,21 @@ async function redistribuir() {
 }
 
 function configGrilla(estado, puedeCrear) {
+  const grupos = modoGrupos;
   return {
-    id: 'proyectos_' + estado, tabla: 'proyectos', titulo: VENTANAS.find(v => v[0] === estado)[1], puedeCrear,
+    id: (grupos ? 'grupos_' : 'proyectos_') + estado, tabla: 'proyectos', titulo: VENTANAS.find(v => v[0] === estado)[1], puedeCrear,
     alturaAuto: true,
     columnas: [
       { field: 'codigo', title: 'Código', tipo: 'texto', ancho: 90 },
-      { field: 'nombre_corto', title: 'Nombre corto', tipo: 'texto', ancho: 200 },
-      { field: 'nombre_completo', title: 'Nombre completo', tipo: 'texto', ancho: 260 },
-      { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 200, opciones: () => opciones('gerencias') },
-      { field: 'fase_id', title: 'Fase', tipo: 'lista', ancho: 120, opciones: () => opciones('fases') },
+      { field: 'nombre_corto', title: grupos ? 'Nombre del grupo' : 'Nombre corto', tipo: 'texto', ancho: 200 },
+      { field: 'nombre_completo', title: grupos ? 'Descripción' : 'Nombre completo', tipo: 'texto', ancho: 260 },
+      ...(grupos ? [{ field: 'padre_id', title: 'Pertenece al proyecto', tipo: 'lista', ancho: 240, opciones: opcionesProyectoPadre }] : [
+        { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 200, opciones: () => opciones('gerencias') },
+        { field: 'fase_id', title: 'Fase', tipo: 'lista', ancho: 120, opciones: () => opciones('fases') }]),
       { field: 'estado', title: 'Estado', tipo: 'lista', ancho: 115, colorear: true,
         opciones: () => opcionesEstado('estados_proyecto').map(o => ({ ...o, color: colorEstado('estados_proyecto', o.value) })),
         opcionesEdicion: () => opcionesEstado('estados_proyecto').filter(o => ESTADOS_EDITABLES.includes(o.value)) },
-      { field: 'pais_id', title: 'País', tipo: 'lista', ancho: 90, opciones: () => opciones('paises') },
+      ...(grupos ? [] : [{ field: 'pais_id', title: 'País', tipo: 'lista', ancho: 90, opciones: () => opciones('paises') }]),
       { field: 'fecha_inicio', title: 'Inicio', tipo: 'fecha', ancho: 100 },
       { field: 'fecha_fin', title: 'Fin', tipo: 'fecha', ancho: 100 },
       { field: '_ficha', title: '', tipo: 'texto', ancho: 70, calc: true, filtro: false, formato: (v, p) => p.id ? '<button class="mini-btn">Ficha ›</button>' : '',
@@ -109,9 +120,11 @@ function configGrilla(estado, puedeCrear) {
         click: (p, e) => { if (p.id && e.target.closest('button')) eliminarProyecto(p, { confirmaciones: 2 }).then(r => r && redistribuir()); } }] : []),
       ...columnasPersonalizadas('proyectos'),
     ],
-    agrupar: [{ field: 'gerencia_id', label: 'Gerencia' }, { field: 'fase_id', label: 'Fase' }],
+    agrupar: grupos ? [{ field: 'padre_id', label: 'Proyecto' }] : [{ field: 'gerencia_id', label: 'Gerencia' }, { field: 'fase_id', label: 'Fase' }],
     puedeEditarFila: p => !p.id || puedeEditarProyecto(p),
-    nuevaFila: () => ({ area_id: store.area.id, estado, codigo: '', nombre_corto: '', extra: {} }),
+    nuevaFila: () => ({ area_id: store.area.id, estado, codigo: '', nombre_corto: '', extra: {},
+      // Grupo LPS nuevo: sugiere el proyecto elegido en el menú (o el del grupo elegido)
+      ...(grupos ? { padre_id: (() => { const s = proyecto(store.proyectoSel); return s ? (s.padre_id || s.id) : null; })() } : {}) }),
     // Al cambiar el estado se guarda y el proyecto pasa de inmediato a su ventana
     alEditar: async (p, campo) => {
       if (campo !== 'estado' || ventanaDe(p) === estado) return;
@@ -121,7 +134,7 @@ function configGrilla(estado, puedeCrear) {
       toast(`"${p.codigo}" pasó a ${VENTANAS.find(x => x[0] === ventanaDe(p))[1]}.`, 'ok');
     },
     alCambioRemoto: () => { clearTimeout(configGrilla.t); configGrilla.t = setTimeout(redistribuir, 600); },
-    listaParaCrear: p => !!(p.codigo && p.nombre_corto),
+    listaParaCrear: p => !!(p.codigo && p.nombre_corto && (!grupos || p.padre_id)),
     camposCalc: ['created_at', 'updated_at', 'created_by', 'aprobado_at'],
     alGuardar: () => { cargarCatalogo(); pintarCuentas(); },
     // Eliminar (clic derecho → Eliminar fila): solo sin historial; si lo tiene, se ofrece desactivarlo

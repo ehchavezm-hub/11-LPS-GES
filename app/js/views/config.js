@@ -252,7 +252,7 @@ async function listas(el, claveSel) {
     if (g !== GRUPOS_LISTAS[0]) return del.length ? `<optgroup label="${esc(g)}">${del.map(opcion).join('')}</optgroup>` : '';
     // Primer grupo: Gerencias, Proyectos / Procesos y CET / Servicio primero
     const primero = c => del.filter(l => l.clave === c).map(opcion).join('');
-    return `<optgroup label="${esc(g)}">${primero('gerencias')}<option value="__proyectos"${sel === '__proyectos' ? ' selected' : ''}>🏗 Proyectos / Procesos</option>${primero('servicios')}
+    return `<optgroup label="${esc(g)}">${primero('gerencias')}<option value="__proyectos"${sel === '__proyectos' ? ' selected' : ''}>🏗 Proyectos / Procesos</option><option value="__grupos"${sel === '__grupos' ? ' selected' : ''}>👥 Grupos LPS</option>${primero('servicios')}
       ${del.filter(l => !['gerencias', 'servicios'].includes(l.clave)).map(opcion).join('')}</optgroup>`;
   }).join('');
   el.innerHTML = `<div class="barra" style="margin-bottom:10px"><label>Lista: <select class="sel" data-l>${opcionesGrupo}</select></label>
@@ -284,13 +284,13 @@ async function listas(el, claveSel) {
     if (d) listas(el, sel);
   });
   // Proyectos / Procesos: el catálogo completo (tres ventanas, importar, eliminar) se dibuja aquí mismo
-  if (sel === '__proyectos') {
+  if (sel === '__proyectos' || sel === '__grupos') {
     grilla?.destruir(); grilla = null;
     el.querySelector('[data-a="grupo"]')?.remove();
     el.querySelector('.barra .nota')?.remove();
     const m = await import('./proyectos.js');
     catalogoProyectos = m;
-    await m.render(el.querySelector('[data-g]'), { incrustado: true });
+    await m.render(el.querySelector('[data-g]'), { incrustado: true, grupos: sel === '__grupos' });
     return;
   }
   catalogoProyectos?.destruir(); catalogoProyectos = null;
