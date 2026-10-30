@@ -554,7 +554,17 @@ export function crearGrilla(contenedor, cfg) {
   });
 
   // ---------- Guardado automático ----------
-  const camposDB = fila => Object.fromEntries(Object.entries(fila).filter(([k]) => !SOLO_LOCAL(k) && !porCampo.get(k)?.calc && !(cfg.camposCalc || []).includes(k)));
+  // Normaliza "" a null en campos no-texto: Tabulator devuelve "" al limpiar un list-editor;
+  // Supabase rechaza "" en columnas UUID con "invalid input syntax for type uuid: ''".
+  const camposDB = fila => Object.fromEntries(
+    Object.entries(fila)
+      .filter(([k]) => !SOLO_LOCAL(k) && !porCampo.get(k)?.calc && !(cfg.camposCalc || []).includes(k))
+      .map(([k, v]) => {
+        const col = porCampo.get(k);
+        if (v === '' && col && col.tipo !== 'texto' && col.tipo !== 'textoLargo') return [k, null];
+        return [k, v];
+      })
+  );
 
   function diferencias(fila) {
     const prev = servidor.get(fila.id);
@@ -1036,13 +1046,18 @@ export function crearGrilla(contenedor, cfg) {
       if (!listo) return;
       const id = fila?.id || anterior?.id;
       const existente = id && tabla.getRow(id);
+      // El eco debe comprobarse ANTES del filtro de pertenece: si ya aplicamos este cambio
+      // localmente (misma updated_at), ignorarlo evita que una fila recién guardada con un
+      // proyecto_id fuera del filtro actual desaparezca antes de que el usuario pueda verla.
+      if (fila && tipo !== 'DELETE') {
+        const previo = servidor.get(fila.id);
+        if (previo && previo.updated_at === fila.updated_at) return;   // eco de un cambio propio
+      }
       if (tipo === 'DELETE' || (fila && pertenece && !pertenece(fila))) {
         if (existente) { existente.delete(); servidor.delete(id); }
         return;
       }
       if (!fila) return;
-      const previo = servidor.get(fila.id);
-      if (previo && previo.updated_at === fila.updated_at) return;   // eco de un cambio propio
       servidor.set(fila.id, structuredClone(fila));
       if (existente) {
         const editando = existente.getCells().some(c => c.getElement().classList.contains('tabulator-editing'));

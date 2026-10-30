@@ -1,5 +1,5 @@
 // Definición de columnas de la grilla de actividades (Plan semanal y Look Ahead) + columnas personalizadas.
-import { store, opciones, valoresLista, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, servicioDeProyecto, proyectoDeServicio, servicioSirve, esContenedor, opcionesServicio, esGestor, textoEstado, param, enProyectoSel } from '../core/store.js';
+import { store, opciones, valoresLista, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, servicioDeProyecto, proyectoDeServicio, servicioSirve, esContenedor, opcionesServicio, esGestor, textoEstado, param } from '../core/store.js';
 import { DIAS, DIAS_CORTOS, sumarDias, fmtCorto, esc, etiquetaSemana } from '../core/util.js';
 import { semanasPendiente } from './indicadores.js';
 
@@ -38,9 +38,7 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
     { field: 'responsable_id', title: 'Resp. 1', tipo: 'lista', ancho: 130, opciones: opcionesLideres, editable: () => esGestor(),
       ayuda: 'Responsable (el PAC se atribuye a esta persona)' },
     { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 95, opciones: () => opciones('gerencias').map(o => ({ ...o, label: o.value ? (store.valores.get(o.value)?.codigo || o.label) : o.label })) },
-    { field: 'proyecto_id', title: 'Proyecto / Proceso', tipo: 'lista', ancho: 190, opciones: opcionesProyectos,
-      // Al editar, solo los proyectos dentro del contexto seleccionado: evita mover la actividad fuera de la vista actual.
-      opcionesEdicion: () => opcionesProyectos().filter(o => o.value == null || enProyectoSel(o.value)) },
+    { field: 'proyecto_id', title: 'Proyecto / Proceso', tipo: 'lista', ancho: 190, opciones: opcionesProyectos },
     // CET y Servicio van juntos (como nombre y apellido): son el mismo valor de la lista "CET / Servicio" visto por su código
     // o por su nombre. Elegir o pegar uno completa el otro.
     { field: '_cet', title: 'CET', tipo: 'lista', ancho: 100, posicionFija: true, ayuda: 'CET del servicio (al elegirlo se completa el Servicio)',
@@ -112,7 +110,8 @@ export function derivarProyectoServicio(fila, cambios) {
     // No se reemplaza ni limpia un servicio ya elegido: cualquier CET/Servicio es válido para cualquier proyecto.
     if (serv && !fila.servicio_id) d.servicio_id = serv;
   }
-  if ('_cet' in cambios) d.servicio_id = cambios._cet ?? null;            // CET elegido → su Servicio
+  // Tabulator devuelve "" al limpiar un list-editor; usar || null en vez de ?? null para convertirlo a null.
+  if ('_cet' in cambios) d.servicio_id = cambios._cet || null;            // CET elegido → su Servicio
   // Servicio de un proyecto elegido en una fila sin proyecto: se completan el proyecto y su gerencia
   const servElegido = '_cet' in cambios ? cambios._cet : 'servicio_id' in cambios ? cambios.servicio_id : undefined;
   if (servElegido && !fila.proyecto_id && !('proyecto_id' in cambios)) {
@@ -120,7 +119,7 @@ export function derivarProyectoServicio(fila, cambios) {
     // Si el servicio es de un proyecto con sub-proyectos, el LPS va en un sub-proyecto: no se elige el proyecto por la persona
     if (p && ['activo', 'propuesto'].includes(p.estado) && !esContenedor(p)) { d.proyecto_id = p.id; if (p.gerencia_id) d.gerencia_id = p.gerencia_id; }
   }
-  if ('servicio_id' in d || 'servicio_id' in cambios) d._cet = d.servicio_id ?? cambios.servicio_id ?? null;
+  if ('servicio_id' in d || 'servicio_id' in cambios) d._cet = (d.servicio_id || cambios.servicio_id) || null;
   return d;
 }
 
