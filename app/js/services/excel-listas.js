@@ -12,7 +12,7 @@ const texto = v => String(v ?? '').trim();
 // Columnas del archivo según la lista
 function columnas(clave) {
   const cols = [{ cab: 'ID', campo: 'id' }];
-  if (clave === 'servicios') cols.push({ cab: 'Proyecto', campo: '_proyecto' }, { cab: 'CET', campo: 'codigo' }, { cab: 'Servicio', campo: 'valor' });
+  if (clave === 'servicios') cols.push({ cab: 'CET', campo: 'codigo' }, { cab: 'Servicio', campo: 'valor' });   // r3: sin Proyecto (como la pantalla; una columna Proyecto en el archivo se ignora)
   else cols.push({ cab: 'Texto visible', campo: 'valor' }, { cab: 'Código', campo: 'codigo' }, { cab: 'Descripción', campo: 'descripcion' }, { cab: 'Color', campo: 'color' });
   cols.push({ cab: 'Orden', campo: 'orden' }, { cab: 'Activo', campo: 'activo' });
   if (clave === 'ubicaciones') cols.push({ cab: 'Cuenta para capacidad', campo: '_cuenta' });

@@ -31,7 +31,7 @@ const XLSX = require(path.join(__dirname, '..', '..', 'app', 'vendor', 'xlsx.ful
     filas[1][iTxt] = original + ' (editado)';            // un cambio
     filas.splice(2, 1);                                 // una fila borrada del archivo: no debe borrarse de la lista
     const nueva = filas[0].map(() => ''); nueva[iTxt] = 'Valor nuevo d9'; filas.push(nueva);   // un valor nuevo
-    if (clave === 'servicios') { const iP = filas[0].indexOf('Proyecto'), iC = filas[0].indexOf('CET'); nueva[iP] = 'D-101'; nueva[iC] = 'CET-D9'; }
+    if (clave === 'servicios') { chk(!filas[0].includes('Proyecto'), 'r3: el Excel de CET / Servicio no trae la columna Proyecto'); nueva[filas[0].indexOf('CET')] = 'CET-D9'; }
     const wb2 = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb2, XLSX.utils.aoa_to_sheet(filas), 'Lista');
     const editado = path.join(salida, `${clave}-editado.xlsx`); fs.writeFileSync(editado, XLSX.write(wb2, { type: 'buffer', bookType: 'xlsx' }));
     const [fc] = await Promise.all([p.waitForEvent('filechooser'), bImp.click()]); await fc.setFiles(editado); await p.waitForTimeout(1200);
@@ -44,8 +44,7 @@ const XLSX = require(path.join(__dirname, '..', '..', 'app', 'vendor', 'xlsx.ful
     chk(despues.some(v => v.valor === original + ' (editado)'), `${clave}: el cambio se aplicó`);
     if (clave === 'servicios') {
       const n = despues.find(v => v.valor === 'Valor nuevo d9');
-      const pid = await p.evaluate(async () => (await import('./js/core/store.js')).store.proyectos.find(x => x.codigo === 'D-101')?.id);
-      chk(n && n.codigo === 'CET-D9' && n.extra?.proyecto_id === pid, 'servicios: el nuevo CET queda con su código y su proyecto');
+      chk(n && n.codigo === 'CET-D9' && !n.extra?.proyecto_id, 'servicios: el nuevo CET queda con su código y sin proyecto');
     }
   }
   // Proyectos / Procesos y Grupos LPS
