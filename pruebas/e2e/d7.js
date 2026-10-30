@@ -25,7 +25,8 @@ const { chromium } = require('playwright');
     return { G: G.id, P: P.codigo + ' · ' + P.nombre_corto, Q: Q.codigo + ' · ' + Q.nombre_corto, Pid: P.id, total: (await api.list('actividades', {})).length };
   });
   await p.goto(B + '?demo#/lookahead'); await p.waitForTimeout(2200);
-  const titulos = (await p.locator('.tabulator-col-title').allInnerTexts()).map(t => t.trim()).filter(Boolean);
+  const titulos = (await p.evaluate(() => [...document.querySelectorAll('[data-grilla] .tabulator-col')].filter(c => c.offsetParent !== null)
+    .map(c => c.querySelector('.tabulator-col-title')?.innerText.trim() || ''))).filter(Boolean);   // solo las columnas visibles
   console.log('columnas:', titulos.slice(0, 9).join(' | '));
   chk(!titulos.includes('Grupo LPS') && titulos.includes('Proyecto') && !titulos.includes('Proyecto / Proceso'), 'd8: sin columna «Grupo LPS»; está «Proyecto»');
   console.log('  filas:', (await p.locator('.tabulator-row').allInnerTexts()).slice(0, 4).map(t => t.replace(/\s+/g, ' ').slice(0, 120)), await p.locator('.pagina-cab, .barra').first().innerText().catch(() => ''));

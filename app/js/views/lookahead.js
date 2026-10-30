@@ -5,6 +5,7 @@ import { lunes, sumarSemanas, etiquetaSemana, esc, html, num, sumarDias, DIAS, p
 import { actualizarQuery } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
 import { toast, ok, error, modal, pedirDatos, badge } from '../ui/ui.js';
+import { bloqueoCrear, aplicarVistaGrupos, avisoSinGrupo } from '../services/grupos-lps.js';
 import { columnasActividad, derivarActividad, CAMPOS_CALC_ACT } from '../services/columnas.js';
 import { capacidadSemana, colorCarga, restriccionesActivas } from '../services/indicadores.js';
 import { abrirDetalle, abrirRestricciones, confirmarRestricciones } from './detalle.js';
@@ -60,6 +61,7 @@ export async function render(el, { query }) {
   grilla = crearGrilla(pag.querySelector('[data-grilla]'), {
     id: 'lookahead', tabla: 'actividades', titulo: 'Look Ahead',
     columnas: columnasActividad({
+      conGrupo: true,   // visible solo en la vista consolidada (varios Grupos LPS); ver grupos-lps.js
       modo: 'lookahead', semanasLA: estado.semanas, extras: {
         restricciones: { get: id => restriccionesActivas(id, estado.rests).length },
         colaboracion: estado.colab,
@@ -68,7 +70,9 @@ export async function render(el, { query }) {
       },
     }),
     camposCalc: CAMPOS_CALC_ACT,
-    agrupar: [{ field: 'semana', label: 'Semana' }, { field: 'responsable_id', label: 'Responsable' }, { field: 'estado_la', label: 'Estado LA' }],
+    bloqueoCrear,   // sin un Grupo LPS elegido no se crean filas
+    alAplicarVista: () => aplicarVistaGrupos(grilla, { forzar: true }),
+    agrupar: [{ field: 'semana', label: 'Semana' }, { field: 'responsable_id', label: 'Responsable' }, { field: 'proyecto_id', label: 'Grupo LPS' }, { field: 'estado_la', label: 'Estado LA' }],
     // Una comprometida sigue editable mientras no tenga estado final (p. ej. para volver de "Trasladada" a "Lista");
     // una vez reportada en el Plan (completada, no completada o cancelada) queda bloqueada
     puedeEditarFila: a => puedeEditarActividad(a) && (!a.comprometida || a.estado === 'programado'),
@@ -111,6 +115,7 @@ function filtroFila(a) {
 async function cargar() {
   await leer();
   await grilla.inicializar(estado.acts.filter(filtroFila));
+  aplicarVistaGrupos(grilla, { forzar: true });
   if (!grilla.tabla.options.groupBy) grilla.tabla.setGroupBy('semana');
   pintarCabecera();
 }
@@ -128,12 +133,13 @@ async function leer() {
 }
 async function cargarSilencioso() { try { await leer(); pintarCabecera(); grilla.refrescar(); } catch { /* reintento en el próximo cambio */ } }
 async function recargar() { await cargarSilencioso(); }
-async function pintar() { await grilla.setDatos(estado.acts.filter(filtroFila)); pintarCabecera(); }
+async function pintar() { await grilla.setDatos(estado.acts.filter(filtroFila)); aplicarVistaGrupos(grilla); pintarCabecera(); }
 
 function pintarCabecera() {
   const pag = document.querySelector('#contenido');
   if (!pag) return;
-  pag.querySelector('[data-proy]').innerHTML = haySeleccion() ? `<span class="chip-filtro">🏗 ${esc(nombreSeleccion())}</span>` : '';
+  pag.querySelector('[data-proy]').innerHTML = (haySeleccion() ? `<span class="chip-filtro">🏗 ${esc(nombreSeleccion())}</span>` : '')
+    + avisoSinGrupo(estado.acts.filter(a => estado.semanas.includes(a.semana) && (estado.resp === 'todos' || a.responsable_id === estado.resp)));
   const personas = estado.resp === 'todos' ? equipo(estado.acts) : lideres().filter(l => l.id === estado.resp);
   let sobrecargas = 0;
   const filas = personas.map(l => {

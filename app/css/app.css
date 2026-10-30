@@ -440,3 +440,5 @@ html.letra-grande .aviso, html.letra-grande .nota { font-size: 14.5px; }
 /* Pedido d9: botones de Excel (exportar / importar) en verde, distintos del resto */
 .btn-excel { background: #1D6F42; border-color: #1D6F42; color: #fff; }
 .btn-excel:hover { background: #155734; border-color: #155734; }
+/* Actividades fuera de un Grupo LPS (aviso en Look Ahead y Plan semanal) */
+.chip-filtro.chip-alerta { background: #fff4e5; border-color: #f0a443; color: #8a4b00; }

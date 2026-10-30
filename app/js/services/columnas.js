@@ -2,6 +2,7 @@
 import { store, opciones, valoresLista, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, servicioDeProyecto, proyectoDeServicio, servicioSirve, esContenedor, opcionesServicio, esGestor, textoEstado, param } from '../core/store.js';
 import { DIAS, DIAS_CORTOS, sumarDias, fmtCorto, esc, etiquetaSemana } from '../core/util.js';
 import { semanasPendiente } from './indicadores.js';
+import { rotuloGrupo } from './grupos-lps.js';
 
 export function columnasPersonalizadas(grilla) {
   return store.columnas.filter(c => c.grilla === grilla && c.activa).map(c => ({
@@ -41,7 +42,7 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {}, c
       ayuda: 'Responsable (el PAC se atribuye a esta persona)' },
     { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 95, opciones: () => opciones('gerencias').map(o => ({ ...o, label: o.value ? (store.valores.get(o.value)?.codigo || o.label) : o.label })) },
     // Pedido d7: la actividad la registra un Grupo LPS (proyecto_id) y atiende al proyecto de su CET (Actividad → CET → Proyecto)
-    conGrupo ? { field: 'proyecto_id', title: 'Grupo LPS', tipo: 'lista', ancho: 190, opciones: opcionesProyectos,
+    conGrupo ? { field: 'proyecto_id', title: 'Grupo LPS', tipo: 'lista', ancho: 190, opciones: opcionesProyectos, formatoGrupo: rotuloGrupo,
       ayuda: 'Grupo LPS que registra la actividad (el elegido en el menú)' } : null,
     { field: '_proyecto', title: 'Proyecto', tipo: 'lista', ancho: 190, posicionFija: true,
       ayuda: 'Proyecto del CET (al elegir el CET se completa solo; al elegir un proyecto, el CET se elige entre los suyos)',

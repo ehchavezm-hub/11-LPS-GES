@@ -190,6 +190,7 @@ Estado de cada observación al 25/10/2026.
 | 162 (r2) | En la lista CET / Servicio, los CET no están vinculados a un proyecto (un proyecto usa varios CET y un CET atiende a varios proyectos) | ✅ Se retiró solo la columna «Proyecto» de la lista (pedido del dueño: nada más). Los datos guardados no se tocan | regresión | ✅ |
 | 163 (r3) | El Excel exportado de CET / Servicio seguía trayendo la columna Proyecto | ✅ Se quitó del Excel (exportar); al importar, una columna Proyecto se ignora. Los datos guardados no se tocan | `d9.js` | ✅ |
 | 164 | Un usuario nuevo no puede ingresar: «Sin conexión con el servidor» (laptop corporativa) | ✅ Evidencia: sus intentos no llegaron a Supabase (registro de Auth vacío para ese usuario; el servidor y otros usuarios funcionan). El ingreso ahora reintenta una vez y, si el navegador no llega al servidor, muestra un diagnóstico con la causa y los pasos (incógnito → extensión; otra red / VPN; TI: permitir el servidor). Logo de ingreso: LPS-GES | `ingreso_red.js` | ⏳ confirmar con el usuario |
+| 165 | Cada proyecto puede tener varios Grupos LPS y cada grupo sus propias actividades; parecía todo junto | ✅ Look Ahead y Plan: sin un Grupo LPS elegido no se registran filas (pide elegirlo); con un grupo elegido solo sus actividades; en «GT · todos» y demás niveles, todas separadas por grupo con la columna «Grupo LPS» y «⚠ Sin Grupo LPS» para lo que no está en un grupo; aviso «N sin Grupo LPS». Sin cambios en los datos | `grupos.js`, regresión | ✅ |
 
 ## Lo que encontró la reconfirmación
 

@@ -57,6 +57,10 @@ Supabase (sección 2). **Nunca tocar el proyecto Supabase «10-cronograma»** (`
     en Plan y Look Ahead). El **Proyecto** se elige libre y se guarda en `actividades.extra.proyecto_id`; **no está
     vinculado al CET / Servicio** (pedido r1, revierte d7/d11). Filas antiguas sin `extra.proyecto_id` muestran el proyecto
     de su CET hasta que se editan (entonces se fija). Proyecto → Gerencia sí (d10).
+  - **Grupos LPS en Look Ahead y Plan** (`app/js/services/grupos-lps.js`): cada proyecto puede tener varios grupos y cada
+    grupo sus propias actividades. Si la empresa tiene grupos, sin un grupo elegido en el menú no se crean filas
+    (`bloqueoCrear`). Con un grupo elegido se ven solo sus actividades; en niveles superiores (vista consolidada) aparece
+    la columna «Grupo LPS» y la grilla se agrupa por grupo («Sin Grupo LPS» para lo que no está en uno).
   - Usuarios en varias empresas: `empresa_miembros` (migración 030); `profiles.area_id` = empresa activa.
   - Seguridad: RLS por empresa (`mi_area()`), roles en `profiles.rol`, propietarios de la plataforma `es_plataforma`.
 - Catálogos en Configuración › Listas: «Proyectos / Procesos» y «Grupos LPS» son vistas especiales (`__proyectos`,

@@ -6,6 +6,7 @@ import { lunes, sumarSemanas, etiquetaSemana, esc, html, hoy, pct, num, sumarDia
 import { actualizarQuery } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
 import { kpi, toast, ok, error, confirmar, modal, pedirDatos } from '../ui/ui.js';
+import { bloqueoCrear, aplicarVistaGrupos, avisoSinGrupo } from '../services/grupos-lps.js';
 import { columnasActividad, derivarActividad, CAMPOS_CALC_ACT } from '../services/columnas.js';
 import { resumenPAC, colorPAC, capacidadSemana, colorCarga, restriccionesActivas } from '../services/indicadores.js';
 import { abrirDetalle, abrirRestricciones, confirmarRestricciones } from './detalle.js';
@@ -62,6 +63,7 @@ export async function render(el, { query }) {
   grilla = crearGrilla(pag.querySelector('[data-grilla]'), {
     id: 'plan', tabla: 'actividades', titulo: 'Plan semanal',
     columnas: columnasActividad({
+      conGrupo: true,   // visible solo en la vista consolidada (varios Grupos LPS); ver grupos-lps.js
       modo: 'plan', semana: estado.semana, extras: {
         restricciones: { get: id => restriccionesActivas(id, estado.rests).length },
         colaboracion: estado.colab,
@@ -70,7 +72,9 @@ export async function render(el, { query }) {
       },
     }),
     camposCalc: CAMPOS_CALC_ACT,
-    agrupar: [{ field: 'responsable_id', label: 'Responsable' },
+    bloqueoCrear,   // sin un Grupo LPS elegido no se crean filas
+    alAplicarVista: () => aplicarVistaGrupos(grilla, { forzar: true }),
+    agrupar: [{ field: 'responsable_id', label: 'Responsable' }, { field: 'proyecto_id', label: 'Grupo LPS' },
       { field: 'gerencia_id', label: 'Gerencia' }, { field: 'estado', label: 'Estado' }, { field: 'servicio_id', label: 'Servicio' }],
     puedeEditarFila: a => puedeEditarActividad(a) && !cerrada(a.responsable_id),
     nuevaFila,
@@ -158,6 +162,7 @@ async function cargarDatos() {
   estado.colab.clear();
   for (const [id, n] of colab) estado.colab.set(id, n);
   await grilla.inicializar(acts.filter(filtroFila));
+  aplicarVistaGrupos(grilla, { forzar: true });
   pintarCabecera();
   pintarKPIs();
 }
@@ -184,6 +189,7 @@ async function recargarRestricciones() {
 
 async function pintar() {
   await grilla.setDatos(estado.acts.filter(filtroFila));
+  aplicarVistaGrupos(grilla);
   pintarCabecera();
   pintarKPIs();
 }
@@ -196,6 +202,8 @@ function pintarCabecera() {
   pag.querySelector('[data-semana]').textContent = etiquetaSemana(estado.semana);
   pag.querySelector('[data-proy]').innerHTML = haySeleccion()
     ? `<span class="chip-filtro">🏗 ${esc(nombreSeleccion())}<button title="Quitar filtro" data-quitar-proy>✕</button></span>` : '';
+  pag.querySelector('[data-proy]').insertAdjacentHTML('beforeend',
+    avisoSinGrupo(estado.acts.filter(a => a.semana === estado.semana && a.comprometida && (estado.resp === 'todos' || a.responsable_id === estado.resp))));
   pag.querySelector('[data-quitar-proy]')?.addEventListener('click', () => import('../core/store.js').then(m => m.seleccionarProyecto('')));
 
   const resp = estado.resp === 'todos' ? null : estado.resp;

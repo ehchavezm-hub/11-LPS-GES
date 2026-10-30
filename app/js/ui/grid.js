@@ -460,6 +460,7 @@ export function crearGrilla(contenedor, cfg) {
       if (fila) aplicarValores(fila, p.columnas, valores);
       else if (cfg.puedeCrear !== false) sobrantes.push(valores);
     });
+    if (sobrantes.length && bloqueado()) sobrantes.length = 0;
     if (sobrantes.length) {
       (async () => {
         for (const valores of sobrantes) {
@@ -531,7 +532,7 @@ export function crearGrilla(contenedor, cfg) {
     groupStartOpen: true,
     groupHeader: (valor, cantidad, datos) => {
       const g = porCampo.get(tabla.options.groupBy);
-      const t = g ? (g.tipo === 'lista' ? etiquetaOpcion(g, valor, datos[0]) : g.tipo === 'fecha' ? fmtFecha(valor) : g.formatoGrupo ? g.formatoGrupo(valor) : valor) : valor;
+      const t = g ? (g.formatoGrupo ? g.formatoGrupo(valor, datos[0]) : g.tipo === 'lista' ? etiquetaOpcion(g, valor, datos[0]) : g.tipo === 'fecha' ? fmtFecha(valor) : valor) : valor;
       const hh = datos.reduce((s, d) => s + (Number(d.hh_total) || 0), 0);
       return `${esc(t || '(vacío)')} <span class="grupo-info">${cantidad} fila(s)${hh ? ` · ${num(hh)} HH` : ''}</span>`;
     },
@@ -716,8 +717,10 @@ export function crearGrilla(contenedor, cfg) {
     return [...set];
   }
 
+  // Bloqueo momentáneo para crear filas (p. ej. sin un Grupo LPS elegido): cfg.bloqueoCrear() devuelve el motivo o nada
+  const bloqueado = () => { const m = cfg.bloqueoCrear?.(); if (m) toast(m, 'warn'); return !!m; };
   async function nuevaFila(posicion, referencia) {
-    if (cfg.puedeCrear === false) return;
+    if (cfg.puedeCrear === false || bloqueado()) return;
     const base = { ...(cfg.nuevaFila?.() || {}), _nueva: true };
     if (referencia) {
       const ref = referencia.getData();
@@ -892,7 +895,7 @@ export function crearGrilla(contenedor, cfg) {
     };
   }
   function aplicarVista(cfgVista) {
-    if (!cfgVista) return;
+    if (!cfgVista) { cfg.alAplicarVista?.(); return; }
     try {
       if (cfgVista.columnas?.length) {
         // Las vistas guardadas antes también traían el título: se descarta y se usa el actual
@@ -925,6 +928,7 @@ export function crearGrilla(contenedor, cfg) {
       raiz.querySelector('[data-a="agrupar"]').value = cfgVista.agrupar || '';
       tabla.setGroupBy(cfgVista.agrupar || false);
     } catch (e) { console.warn('Vista no aplicable', e); }
+    cfg.alAplicarVista?.();   // la pantalla puede reajustar lo que decide ella (p. ej. columna y agrupación por Grupo LPS)
   }
   // Solo se guarda cuando la persona cambia la disposición: antes cada carga de datos (evento dataSorted) la
   // volvía a escribir en la base, y si se adelantaba a cargarVistas creaba filas duplicadas
@@ -1092,6 +1096,15 @@ export function crearGrilla(contenedor, cfg) {
         .map(col => definicionPDF(porCampo.get(col.getField()), col.getWidth())).filter(Boolean);
     },
     refrescar() { tabla.getRows().forEach(reformatear); },
+    /** Agrupa por un campo (o quita la agrupación con '') y lo refleja en el selector «Agrupar». */
+    agruparPor(campo) {
+      const sel = raiz.querySelector('[data-a="agrupar"]');
+      if (sel && [...sel.options].some(o => o.value === (campo || ''))) sel.value = campo || '';
+      tabla.setGroupBy(campo || false);
+    },
+    agrupadoPor() { return tabla.options.groupBy || ''; },
+    /** Muestra u oculta una columna sin cambiar la vista guardada del usuario. */
+    mostrarColumna(campo, ver) { const c = tabla.getColumn(campo); if (c) (ver ? c.show() : c.hide()); },
     /** Filtro propio de la vista (además de los filtros de cada columna); fn(datosFila) → true para mostrar. */
     filtrar(fn) { if (fn) tabla.setFilter(d => fn(d)); else tabla.clearFilter(); },
     refrescarFiltro() { tabla.refreshFilter(); },
