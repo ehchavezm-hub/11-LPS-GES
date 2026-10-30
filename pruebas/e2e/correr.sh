@@ -12,7 +12,7 @@ if ! curl -s -o /dev/null http://localhost:8099/; then
   sleep 1
 fi
 [ -d node_modules ] || ln -sfn ../node_modules node_modules
-LISTA=${*:-"multi usuarios tarjeta borrar a11 q2 q5 q6 q10 q15 q16 mover adm10 equipo clave aud2"}
+LISTA=${*:-"traslape multi usuarios tarjeta borrar a11 q2 q5 q6 q10 q15 q16 mover adm10 equipo clave aud2"}
 FALLAS=0
 for f in $LISTA; do
   f=${f%.js}

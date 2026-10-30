@@ -426,7 +426,7 @@
 .org-arbol { margin-bottom: 28px; }
 .org-arbol ul { display: flex; justify-content: center; padding-top: 18px; position: relative; margin: 0; padding-left: 0; list-style: none; }
 .org-arbol > ul { padding-top: 0; justify-content: flex-start; }
-.org-arbol li { display: flex; flex-direction: column; align-items: center; position: relative; padding: 18px 4px 0; }
+.org-arbol li { display: flex; flex-direction: column; align-items: center; position: relative; padding: 18px 12px 0; }
 .org-arbol > ul > li { padding-top: 0; }
 /* líneas: horizontal entre hermanos y vertical hacia cada caja */
 .org-arbol li::before, .org-arbol li::after { content: ''; position: absolute; top: 0; width: 50%; height: 18px; border-top: 1.5px solid #7fb3c8; }
@@ -460,7 +460,7 @@
 .org-arbol ul.org-v > li::after { display: none; }
 .org-arbol ul.org-v > li::before { border: 0; border-left: 1.5px solid #7fb3c8; width: 0; height: 10px; left: 50%; right: auto; }
 .org-arbol ul.org-v > li:first-child::before { display: none; }
-.org-arbol ul.org-v ul.org-v { padding-top: 10px; position: relative; left: 30px; }   /* sub-proyectos: corridos bajo su proyecto */
+.org-arbol ul.org-v ul.org-v { padding-top: 10px; position: relative; margin-left: 60px; }   /* sub-proyectos: corridos 30 px bajo su proyecto; el margen reserva el espacio para no montarse en la columna vecina */
 .org-arbol ul.org-v ul.org-v::before { height: 10px; border-left-style: dashed; left: calc(50% - 30px); }
 .org-arbol li.org-grupo { padding-left: 8px; padding-right: 8px; }
 .admin-quien { border: 1px solid #cfe0ea; background: #f3f9fc; border-radius: 8px; padding: 8px 12px; margin-bottom: 8px; }
