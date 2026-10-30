@@ -13,3 +13,7 @@ lpsgt-respaldo*
 .env
 .env.*
 !especificacion/plantillas/*.csv
+# Capturas y salidas de las pruebas de pantallas
+pruebas/e2e/salida/
+pruebas/e2e/shots*/
+pruebas/e2e/*.png
