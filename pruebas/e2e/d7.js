@@ -38,13 +38,14 @@ const { chromium } = require('playwright');
   chk(ops.some(o => o.includes(ini.P)) && !ops.some(o => o.includes('LPS Gestión')), `la lista ofrece los proyectos (${ops.length - 1}), incluido el que tiene grupos, y no los grupos`);
   // elegir otro proyecto: el CET (de otro proyecto) se limpia y se ofrecen solo los del elegido
   await p.locator('.tabulator-edit-list-item', { hasText: ini.Q }).first().click(); await p.waitForTimeout(800);
-  chk((await celda('_cet').innerText()).trim() === '' || (await celda('_cet').innerText()).trim() === '—', 'al cambiar de proyecto se limpia el CET que no es suyo');
+  chk((await celda('_cet').innerText()).includes('CET-P1'), 'r1: al cambiar de proyecto el CET se conserva (desvinculados)');
+  chk((await celda('_proyecto').innerText()).includes(ini.Q), 'r1: y el Proyecto queda el elegido');
   await celda('_cet').dblclick(); await p.waitForTimeout(400);
   const cets = (await p.locator('.tabulator-edit-list-item').allInnerTexts()).map(t => t.trim()).filter(t => t && t !== '—');
   console.log('  CET ofrecidos:', cets.join(', '));
-  chk(cets.length >= 1 && cets.every(c => c.startsWith('CET-Q1') || !c.startsWith('CET-P')), 'solo se ofrecen los CET del proyecto elegido');
-  await p.locator('.tabulator-edit-list-item', { hasText: 'CET-Q1' }).first().click(); await p.waitForTimeout(1200);
-  chk((await celda('_proyecto').innerText()).includes(ini.Q), 'con el CET elegido, el Proyecto es el de ese CET');
+  chk(cets.some(c => c.startsWith('CET-P1')) && cets.some(c => c.startsWith('CET-Q1')), 'r1: el CET ofrece todos los CET');
+  await p.locator('.tabulator-edit-list-item', { hasText: 'CET-P2' }).first().click(); await p.waitForTimeout(1200);
+  chk((await celda('_proyecto').innerText()).includes(ini.Q), 'r1: elegir un CET de otro proyecto no cambia el Proyecto');
   const fin = await p.evaluate(async G => { const { api } = await import('./js/data/api.js'); const a = (await api.list('actividades', {})); const x = a.find(r => r.descripcion === 'Informe BIM');
     return { total: a.length, grupo: x.proyecto_id === G, extra: Object.keys(x).filter(k => k.startsWith('_')) }; }, ini.G);
   chk(fin.total === ini.total && fin.grupo, `sin pérdida ni cambio de grupo (actividades ${fin.total}/${ini.total})`);

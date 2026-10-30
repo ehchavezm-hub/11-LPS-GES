@@ -663,7 +663,8 @@ export function crearGrilla(contenedor, cfg) {
     let v = cell.getValue();
     if (col?.tipo === 'numero' && (v === '' || v == null) && col.vacioCero) { v = 0; cell.setValue(0, false); }
     if (cfg.derivar) {
-      const der = cfg.derivar(fila.getData(), { [cell.getField()]: v });
+      // antes: valor anterior de la celda (p. ej. el CET que tenía la fila, para conservar su proyecto; r1)
+      const der = cfg.derivar(fila.getData(), { [cell.getField()]: v }, { antes: { [cell.getField()]: cell.getOldValue() } });
       if (der && Object.keys(der).length) fila.update(der);
     }
     fila.reformat();

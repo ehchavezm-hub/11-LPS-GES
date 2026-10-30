@@ -18,7 +18,7 @@ const { chromium } = require('playwright');
     await api.update('lista_valores', serv[0].id, { codigo: 'CET-Q', extra: { ...(serv[0].extra || {}), proyecto_id: Q.id } });
     await api.insert('cartera', { area_id: s.store.area.id, descripcion: 'Solicitud aud3', proyecto_id: Q.id, responsable_id: s.store.usuario.id, estado: 'abierta', tipo_id: null });
     const lunes = (() => { const d = new Date(); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 7); return d.toISOString().slice(0, 10); })();
-    for (const t of ['Con CET aud3', 'Supr proyecto aud3', 'Supr CET aud3'])
+    for (const t of ['Con CET aud3', 'Supr proyecto aud3', 'Supr CET aud3', 'Servicio aud3'])
       await api.insert('actividades', { area_id: s.store.area.id, proyecto_id: G.id, servicio_id: serv[0].id, descripcion: t, semana: lunes, responsable_id: s.store.usuario.id });
     await s.cargarCatalogo(); s.seleccionarProyecto(G.id);
     return { G: G.id, Q: Q.id, Qtxt: Q.codigo + ' · ' + Q.nombre_corto, total: (await api.list('actividades', {})).length };
@@ -36,15 +36,20 @@ const { chromium } = require('playwright');
   const c = fila('Con CET aud3').locator('[tabulator-field="_proyecto"]');
   await c.dblclick(); await p.waitForTimeout(400); await p.locator('.tabulator-edit-list-item').first().click(); await p.waitForTimeout(1500);
   const x = await p.evaluate(async () => { const { api } = await import('./js/data/api.js'); return (await api.list('actividades', {})).find(r => r.descripcion === 'Con CET aud3'); });
-  chk(x && !x.servicio_id && !(await c.innerText()).trim().replace('—', ''), 'borrar el Proyecto borra su CET y queda vacío');
+  chk(x && !!x.servicio_id && x.extra?.proyecto_id === null && !(await c.innerText()).trim().replace('—', ''), 'r1: borrar el Proyecto lo deja vacío y conserva el CET');
   // Tecla Supr sobre Proyecto y sobre CET
   const leer = t => p.evaluate(async t => { const { api } = await import('./js/data/api.js'); return (await api.list('actividades', {})).find(r => r.descripcion === t); }, t);
   await fila('Supr proyecto aud3').locator('[tabulator-field="_proyecto"]').click(); await p.keyboard.press('Delete'); await p.waitForTimeout(1500);
   let y = await leer('Supr proyecto aud3');
-  chk(y && !y.servicio_id && !y.extra?.proyecto_id, 'Supr en Proyecto: se guarda vacío (y su CET)');
+  chk(y && !!y.servicio_id && y.extra?.proyecto_id === null, 'Supr en Proyecto: se guarda vacío (el CET se conserva)');
   await fila('Supr CET aud3').locator('[tabulator-field="_cet"]').click(); await p.keyboard.press('Delete'); await p.waitForTimeout(1500);
   y = await leer('Supr CET aud3');
-  chk(y && !y.servicio_id, 'Supr en CET: se guarda vacío');
+  chk(y && !y.servicio_id && y.extra?.proyecto_id === ini.Q, 'Supr en CET: se guarda vacío y la fila conserva el proyecto que mostraba');
+  // Cambiar el Servicio (columna Servicio) en una fila anterior a r1: el Proyecto que mostraba se conserva
+  await fila('Servicio aud3').locator('[tabulator-field="servicio_id"]').dblclick(); await p.waitForTimeout(400);
+  await p.locator('.tabulator-edit-list-item').nth(3).click(); await p.waitForTimeout(1500);
+  y = await leer('Servicio aud3');
+  chk(y && y.extra?.proyecto_id === ini.Q && (await fila('Servicio aud3').locator('[tabulator-field="_proyecto"]').innerText()).includes(ini.Qtxt), 'r1: cambiar el Servicio no cambia el Proyecto');
   await p.goto(B + '?demo#/lookahead'); await p.waitForTimeout(2000);
   chk(!(await fila('Supr CET aud3').locator('[tabulator-field="_cet"]').innerText()).replace('—', '').trim(), 'y sigue vacío al recargar');
   const fin = await p.evaluate(async () => (await (await import('./js/data/api.js')).api.list('actividades', {})).length);

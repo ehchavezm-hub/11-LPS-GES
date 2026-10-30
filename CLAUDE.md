@@ -54,8 +54,9 @@ Supabase (sección 2). **Nunca tocar el proyecto Supabase «10-cronograma»** (`
     `padre_id`; antes «Sub-proyecto»).
   - Un **Grupo LPS** es un equipo de personas que aplica Last Planner; pertenece a un proyecto y atiende a varios proyectos.
   - Actividad (`actividades`): `proyecto_id` = **Grupo LPS** que la registra (el elegido en el menú; la columna está oculta
-    en Plan y Look Ahead). El **Proyecto atendido** = el del CET (`lista_valores.extra.proyecto_id` del CET); si no tiene
-    CET, el elegido a mano se guarda en `actividades.extra.proyecto_id`. Gerencia = la del proyecto.
+    en Plan y Look Ahead). El **Proyecto** se elige libre y se guarda en `actividades.extra.proyecto_id`; **no está
+    vinculado al CET / Servicio** (pedido r1, revierte d7/d11). Filas antiguas sin `extra.proyecto_id` muestran el proyecto
+    de su CET hasta que se editan (entonces se fija). Proyecto → Gerencia sí (d10).
   - Usuarios en varias empresas: `empresa_miembros` (migración 030); `profiles.area_id` = empresa activa.
   - Seguridad: RLS por empresa (`mi_area()`), roles en `profiles.rol`, propietarios de la plataforma `es_plataforma`.
 - Catálogos en Configuración › Listas: «Proyectos / Procesos» y «Grupos LPS» son vistas especiales (`__proyectos`,
