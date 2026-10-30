@@ -1,13 +1,13 @@
-# Traspaso — estado al 30/10/2026 (07:04 UTC)
+# Traspaso — estado al 30/10/2026 (actualizado tras la auditoría 3)
 
 Documento público: sin nombres de la empresa. Los detalles con nombres reales (lista de actividades, capturas, Excel,
 historial completo de la conversación) están en el paquete privado `LPS-GES_traspaso_privado.zip` (Drive del dueño).
 
 ## 1. Estado
 
-- Último cambio publicado: d10 / d11 (Proyecto ↔ Gerencia ↔ CET en Look Ahead y Plan semanal). Ver `docs/OBSERVACIONES.md`
-  filas 136–159.
-- Base de datos: migraciones 001–030 aplicadas en Supabase **11-LPS-GES**. **031 pendiente** (ver 3.1).
+- Último cambio publicado: auditoría 3 (cartera e importación respetan el Grupo LPS; Supr en Proyecto / CET se guarda).
+  Ver `docs/OBSERVACIONES.md` filas 136–160 y `docs/AUDITORIA.md` › Auditoría 3.
+- Base de datos: migraciones 001–031 aplicadas en Supabase **11-LPS-GES** (031 aplicada el 30/10).
 - Función `admin-usuarios`: versión 12 desplegada (igual a `supabase/functions/admin-usuarios/index.ts`).
 - Pruebas: base (`supabase/tests/run.sh`) en verde; 24 pruebas de pantalla de la lista de regresión
   (`pruebas/e2e/correr.sh`) en verde; recorrido `pruebas/humo.mjs` (9 usuarios, 160 pantallas) sin errores.
@@ -39,15 +39,14 @@ from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 
 
 ## 3. Pendientes
 
-1. **Migración 031** (`supabase/migrations/031_grupo_lps.sql`): solo cambia dos mensajes de error a «Grupo LPS». El dueño
-   la ejecuta en SQL Editor de 11-LPS-GES. Verificar:
-   `select position('Grupo LPS' in prosrc) > 0 from pg_proc where proname = 'tg_subproyecto';` → `true`.
-2. **17 actividades sin Grupo LPS asignado** (8 sin grupo y 9 en proyectos): el dueño dirá a qué grupo va cada una
+1. **SQL `aplicar_pendientes_30oct.sql`** (en el paquete privado, carpeta `sql/`): devuelve a su Grupo LPS las 2 actividades
+   del punto 3 y elimina la lista vacía del punto 4. Una sola transacción que se verifica sola. El dueño lo ejecuta en
+   SQL Editor de 11-LPS-GES; después verificar (solo lectura): `devueltas = 2` y `lista_vacia_queda = 0` (consulta al final
+   del archivo). Respaldo previo de esas filas: `respaldos/` del paquete privado.
+2. **17 actividades sin Grupo LPS asignado** (incluye 3 con Gerencia distinta a la del proyecto de su CET; se corrigen con esta decisión): el dueño dirá a qué grupo va cada una
    (lista con descripción en el paquete privado). Respaldar antes de moverlas; verificar conteos después.
-3. **2 actividades que salieron de un Grupo LPS** el 30/10 (05:35 y 05:37 UTC, por edición del dueño en la columna
-   anterior). Preguntar si se devuelven a su grupo (detalle en el paquete privado y en `auditoria`).
-4. **Lista vacía «Grupo LPS»** (clave `grupo_lps`) creada a mano por el dueño: quedó reemplazada por el catálogo
-   «👥 Grupos LPS». Preguntar si se elimina (está vacía).
+3. **2 actividades que salieron de un Grupo LPS** el 30/10: el dueño pidió devolverlas → SQL del punto 1.
+4. **Lista vacía «Grupo LPS»** (clave `grupo_lps`): el dueño pidió eliminarla → SQL del punto 1.
 5. **d4 — árbol del menú «GRUPOS LPS»** con los proyectos que atiende cada grupo: en pausa por decisión del dueño.
    Preguntas abiertas: forma del árbol; cómo se definen los proyectos de un grupo (a mano, por los CET de sus actividades
    o ambos); qué filtra el clic en un proyecto bajo un grupo.
