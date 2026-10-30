@@ -8,7 +8,7 @@ export function mostrarLogin(raiz, continuar) {
   if (modoDemo) return loginDemo(raiz, continuar);
   raiz.innerHTML = '';
   const caja = html(`<div class="login"><div class="login-caja">
-    <div class="logo"><span>LPS<b style="color:var(--naranja)">-GT</b></span></div>
+    <div class="logo"><span>LPS<b style="color:var(--naranja)">-GES</b></span></div>
     <div class="lema">Last Planner System® para la Gerencia Técnica</div>
     <form data-f="ingresar">
       <div class="campo"><label for="l-email">Correo</label><input id="l-email" type="email" autocomplete="username" required></div>
@@ -35,10 +35,18 @@ export function mostrarLogin(raiz, continuar) {
   fIng.addEventListener('submit', async e => {
     e.preventDefault();
     const b = fIng.querySelector('button'); b.disabled = true;
+    const email = caja.querySelector('#l-email').value.trim(), clave = caja.querySelector('#l-clave').value;
     try {
-      await api.auth.ingresar(caja.querySelector('#l-email').value.trim(), caja.querySelector('#l-clave').value);
+      await api.auth.ingresar(email, clave);
       continuar();
-    } catch (err) { error(mensajeError(err)); } finally { b.disabled = false; }
+    } catch (err) {
+      // El pedido no salió del navegador: se reintenta una vez y, si sigue, se diagnostica la conexión (no solo «Sin conexión»)
+      if (!/Failed to fetch|NetworkError|Load failed/i.test(String(err?.message || err))) { error(mensajeError(err)); return; }
+      try { await api.auth.ingresar(email, clave); continuar(); return; } catch (err2) {
+        if (!/Failed to fetch|NetworkError|Load failed/i.test(String(err2?.message || err2))) { error(mensajeError(err2)); return; }
+      }
+      mostrarDiagnostico(caja, await probarConexion());
+    } finally { b.disabled = false; }
   });
   fReg.addEventListener('submit', async e => {
     e.preventDefault();
@@ -78,7 +86,7 @@ function loginDemo(raiz, continuar) {
   const usuarios = api.usuariosDemo().filter(u => u.activo);
   raiz.innerHTML = '';
   const caja = html(`<div class="login"><div class="login-caja">
-    <div class="logo"><span>LPS<b style="color:var(--naranja)">-GT</b></span></div>
+    <div class="logo"><span>LPS<b style="color:var(--naranja)">-GES</b></span></div>
     <div class="lema">Modo demostración · datos ficticios guardados solo en este navegador</div>
     <p style="font-weight:700;margin:0 0 8px">Ingresar como:</p>
     <div class="usuarios-demo">${usuarios.map(u => `<button data-id="${u.id}"><span class="avatar">${esc((u.codigo || '?').slice(0, 2))}</span>
@@ -94,10 +102,40 @@ function loginDemo(raiz, continuar) {
   });
 }
 
+// ¿El navegador llega al servidor de datos? (Supabase Auth /health, con la clave pública del aplicativo)
+async function probarConexion() {
+  const cfg = window.LPSGT_CONFIG || {};
+  const host = String(cfg.supabaseUrl || '').replace(/^https?:\/\//, '');
+  const ctrl = new AbortController(); const t = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const r = await fetch(`${cfg.supabaseUrl}/auth/v1/health`, { headers: { apikey: cfg.supabaseAnonKey }, signal: ctrl.signal, cache: 'no-store' });
+    return { llega: true, estado: r.status, host };
+  } catch (e) {
+    return { llega: false, host, motivo: e?.name === 'AbortError' ? 'no respondió en 8 segundos' : 'el navegador bloqueó o no pudo abrir la conexión' };
+  } finally { clearTimeout(t); }
+}
+
+function mostrarDiagnostico(caja, d) {
+  caja.querySelector('.login-diagnostico')?.remove();
+  const ahora = new Date().toLocaleString();
+  const cuerpo = d.llega
+    ? `<p><b>El servidor responde</b>, pero el ingreso se interrumpió dos veces. Intente de nuevo en unos segundos.</p>`
+    : `<p><b>Este navegador no logra conectarse al servidor de datos</b> (<code>${esc(d.host)}</code>): ${esc(d.motivo)}.
+       La página del aplicativo sí carga, pero el ingreso y los datos van a ese servidor.</p>
+       <p>Pruebe, en este orden:</p><ol>
+       <li>Abrir el aplicativo en una <b>ventana de incógnito</b> (Ctrl+Shift+N). Si ahí funciona, una <b>extensión</b> del navegador lo bloquea.</li>
+       <li>Desactivar la VPN o probar con otra red (por ejemplo, los datos del celular).</li>
+       <li>Si nada funciona: pedir a soporte de TI que permita <code>${esc(d.host)}</code> en el navegador / proxy / antivirus.</li></ol>`;
+  caja.querySelector('[data-f="ingresar"]').insertAdjacentElement('afterend', html(`<div class="login-diagnostico nota" role="alert"
+    style="margin-top:12px;padding:10px 12px;border:1px solid #f0c36d;background:#fff8e6;border-radius:8px;text-align:left;font-size:.85rem">
+    ${cuerpo}<p style="margin:6px 0 0;opacity:.7">Diagnóstico ${esc(ahora)} · ${d.llega ? `servidor ${d.estado}` : 'sin respuesta'}. Envíe una captura de este mensaje al administrador.</p></div>`));
+  error(d.llega ? 'El ingreso se interrumpió. Intente nuevamente.' : 'Este navegador no logra conectarse al servidor de datos.');
+}
+
 export function mostrarPendiente(raiz, mensaje) {
   raiz.innerHTML = '';
   const caja = html(`<div class="login"><div class="login-caja">
-    <div class="logo"><span>LPS<b style="color:var(--naranja)">-GT</b></span></div>
+    <div class="logo"><span>LPS<b style="color:var(--naranja)">-GES</b></span></div>
     <div class="aviso warn" style="margin-top:14px">${esc(mensaje)}</div>
     <button class="btn" data-a="salir">Cerrar sesión</button></div></div>`);
   raiz.append(caja);
@@ -107,7 +145,7 @@ export function mostrarPendiente(raiz, mensaje) {
 export function mostrarNuevaClave(raiz, motivo = '') {
   raiz.innerHTML = '';
   const caja = html(`<div class="login"><div class="login-caja">
-    <div class="logo"><span>LPS<b style="color:var(--naranja)">-GT</b></span></div>
+    <div class="logo"><span>LPS<b style="color:var(--naranja)">-GES</b></span></div>
     <div class="lema">Defina su nueva contraseña</div>
     ${motivo ? `<div class="aviso">${esc(motivo)}</div>` : ''}
     <form><div class="campo"><label for="n1">Nueva contraseña</label><input id="n1" type="password" minlength="8" required autocomplete="new-password"></div>

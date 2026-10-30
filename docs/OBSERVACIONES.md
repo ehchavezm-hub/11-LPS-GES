@@ -189,6 +189,7 @@ Estado de cada observación al 25/10/2026.
 | 161 (r1) | Desvincular el Proyecto del CET / Servicio en Plan semanal y Look Ahead (revierte d7/d11) | ✅ El Proyecto se elige libre y se guarda en la actividad; el CET ofrece todos los CET y cambiarlo no cambia el Proyecto (ni al revés). Las filas antiguas conservan el proyecto que mostraban. Se mantiene Proyecto → Gerencia (d10) | `d7.js`, `aud3.js`, `d10.js` | ✅ |
 | 162 (r2) | En la lista CET / Servicio, los CET no están vinculados a un proyecto (un proyecto usa varios CET y un CET atiende a varios proyectos) | ✅ Se retiró solo la columna «Proyecto» de la lista (pedido del dueño: nada más). Los datos guardados no se tocan | regresión | ✅ |
 | 163 (r3) | El Excel exportado de CET / Servicio seguía trayendo la columna Proyecto | ✅ Se quitó del Excel (exportar); al importar, una columna Proyecto se ignora. Los datos guardados no se tocan | `d9.js` | ✅ |
+| 164 | Un usuario nuevo no puede ingresar: «Sin conexión con el servidor» (laptop corporativa) | ✅ Evidencia: sus intentos no llegaron a Supabase (registro de Auth vacío para ese usuario; el servidor y otros usuarios funcionan). El ingreso ahora reintenta una vez y, si el navegador no llega al servidor, muestra un diagnóstico con la causa y los pasos (incógnito → extensión; otra red / VPN; TI: permitir el servidor). Logo de ingreso: LPS-GES | `ingreso_red.js` | ⏳ confirmar con el usuario |
 
 ## Lo que encontró la reconfirmación
 
