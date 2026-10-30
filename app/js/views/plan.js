@@ -73,6 +73,7 @@ export async function render(el, { query }) {
     }),
     camposCalc: CAMPOS_CALC_ACT,
     bloqueoCrear,   // sin un Grupo LPS elegido no se crean filas
+    alFiltrar: () => pintarKPIs(),   // indicadores de la persona filtrada en «Resp. 1»
     alAplicarVista: () => aplicarVistaGrupos(grilla, { forzar: true }),
     agrupar: [{ field: 'responsable_id', label: 'Responsable' }, { field: 'proyecto_id', label: 'Grupo LPS' },
       { field: 'gerencia_id', label: 'Gerencia' }, { field: 'estado', label: 'Estado' }, { field: 'servicio_id', label: 'Servicio' }],
@@ -236,9 +237,11 @@ function pintarCabecera() {
 function pintarKPIs() {
   const pag = document.querySelector('#contenido [data-kpis]');
   if (!pag) return;
-  const acts = visibles();
+  // Los indicadores siguen lo que muestra la grilla: también el filtro «Resp. 1» del título de la columna y el buscador
+  const acts = grilla?.filasFiltradas ? grilla.filasFiltradas() : visibles();
   const r = resumenPAC(acts);
-  const personas = estado.resp === 'todos' ? lideres().map(l => l.id) : [estado.resp];
+  const filtroResp = grilla?.filtroDe?.('responsable_id');
+  const personas = estado.resp !== 'todos' ? [estado.resp] : filtroResp ? [].concat(filtroResp) : lideres().map(l => l.id);
   const capacidad = personas.reduce((s, id) => s + capacidadSemana(id, estado.semana, estado.ubic), 0);
   const carga = capacidad ? r.hhPlan / capacidad : null;
   pag.innerHTML = [

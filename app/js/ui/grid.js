@@ -673,6 +673,8 @@ export function crearGrilla(contenedor, cfg) {
     cfg.alEditar?.(fila.getData(), cell.getField());
   });
   tabla.on('dataChanged', () => programarGuardado());
+  // Al filtrar (títulos de columna o buscador), la pantalla puede recalcular lo que depende de lo visible (p. ej. indicadores)
+  tabla.on('dataFiltered', () => setTimeout(() => cfg.alFiltrar?.(), 0));
   tabla.on('historyUndo', () => programarGuardado());
   tabla.on('historyRedo', () => programarGuardado());
 
@@ -1103,6 +1105,10 @@ export function crearGrilla(contenedor, cfg) {
       tabla.setGroupBy(campo || false);
     },
     agrupadoPor() { return tabla.options.groupBy || ''; },
+    /** Filas que se ven ahora (respeta los filtros de los títulos de columna y el buscador), sin las filas nuevas sin guardar. */
+    filasFiltradas() { return tabla.getData('active').filter(d => d.id); },
+    /** Valor elegido en el filtro del título de una columna (o null). */
+    filtroDe(campo) { return tabla.getHeaderFilters().find(f => f.field === campo)?.value ?? null; },
     /** Muestra u oculta una columna sin cambiar la vista guardada del usuario. */
     mostrarColumna(campo, ver) { const c = tabla.getColumn(campo); if (c) (ver ? c.show() : c.hide()); },
     /** Filtro propio de la vista (además de los filtros de cada columna); fn(datosFila) → true para mostrar. */
