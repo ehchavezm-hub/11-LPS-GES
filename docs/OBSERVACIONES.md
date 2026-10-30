@@ -191,6 +191,7 @@ Estado de cada observación al 25/10/2026.
 | 163 (r3) | El Excel exportado de CET / Servicio seguía trayendo la columna Proyecto | ✅ Se quitó del Excel (exportar); al importar, una columna Proyecto se ignora. Los datos guardados no se tocan | `d9.js` | ✅ |
 | 164 | Un usuario nuevo no puede ingresar: «Sin conexión con el servidor» (laptop corporativa) | ✅ Evidencia: sus intentos no llegaron a Supabase (registro de Auth vacío para ese usuario; el servidor y otros usuarios funcionan). El ingreso ahora reintenta una vez y, si el navegador no llega al servidor, muestra un diagnóstico con la causa y los pasos (incógnito → extensión; otra red / VPN; TI: permitir el servidor). Logo de ingreso: LPS-GES | `ingreso_red.js` | ⏳ confirmar con el usuario |
 | 165 | Cada proyecto puede tener varios Grupos LPS y cada grupo sus propias actividades; parecía todo junto | ✅ Look Ahead y Plan: sin un Grupo LPS elegido no se registran filas (pide elegirlo); con un grupo elegido solo sus actividades; en «GT · todos» y demás niveles, todas separadas por grupo con la columna «Grupo LPS» y «⚠ Sin Grupo LPS» para lo que no está en un grupo; aviso «N sin Grupo LPS». Sin cambios en los datos | `grupos.js`, regresión | ✅ |
+| 166 | La lista de la columna «Grupo LPS» (Look Ahead y Plan) mostraba proyectos | ✅ Ahora ofrece solo los Grupos LPS activos (también en «Aplicar plantilla de servicio») | `grupos.js` | ✅ |
 
 ## Lo que encontró la reconfirmación
 

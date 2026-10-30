@@ -5,7 +5,7 @@ import { lunes, sumarSemanas, etiquetaSemana, esc, html, num, sumarDias, DIAS, p
 import { actualizarQuery } from '../core/router.js';
 import { crearGrilla } from '../ui/grid.js';
 import { toast, ok, error, modal, pedirDatos, badge } from '../ui/ui.js';
-import { bloqueoCrear, aplicarVistaGrupos, avisoSinGrupo } from '../services/grupos-lps.js';
+import { bloqueoCrear, aplicarVistaGrupos, avisoSinGrupo, opcionesGrupos } from '../services/grupos-lps.js';
 import { columnasActividad, derivarActividad, CAMPOS_CALC_ACT } from '../services/columnas.js';
 import { capacidadSemana, colorCarga, restriccionesActivas } from '../services/indicadores.js';
 import { abrirDetalle, abrirRestricciones, confirmarRestricciones } from './detalle.js';
@@ -188,7 +188,7 @@ const acciones = {
       titulo: 'Aplicar plantilla de servicio', texto: 'Generar actividades',
       campos: [
         { name: 'plantilla', label: 'Plantilla', type: 'select', required: true, options: plantillas.map(p => ({ value: p.id, label: p.nombre })) },
-        { name: 'proyecto', label: 'Grupo LPS', type: 'select', required: true, options: opcionesProyectos(), value: store.proyectoSel },
+        { name: 'proyecto', label: 'Grupo LPS', type: 'select', required: true, options: opcionesGrupos(), value: store.proyectoSel },
         { name: 'responsable', label: 'Responsable', type: 'select', required: true, options: opcionesLideres(), value: estado.resp !== 'todos' ? estado.resp : store.usuario.id },
         { name: 'semana', label: 'Semana de inicio', type: 'select', required: true, options: estado.semanas.map(s => ({ value: s, label: etiquetaSemana(s) })) },
       ],

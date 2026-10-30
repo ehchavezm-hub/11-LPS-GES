@@ -4,7 +4,7 @@
 //  - Con un grupo elegido se ven solo sus actividades (la columna «Grupo LPS» va oculta).
 //  - En los niveles de arriba (proyecto, programa, portafolio, empresa) se ve todo, separado por grupo: aparece la columna
 //    «Grupo LPS» y la grilla se agrupa por ella. Lo que no está en un grupo se rotula «Sin Grupo LPS».
-import { store, proyecto } from '../core/store.js';
+import { store, proyecto, opcionesProyectos } from '../core/store.js';
 import { esc } from '../core/util.js';
 
 /** ¿La empresa trabaja con Grupos LPS? (si aún no tiene ninguno, se mantiene el registro por proyecto) */
@@ -20,6 +20,15 @@ export const fueraDeGrupo = a => usaGrupos() && !proyecto(a.proyecto_id)?.padre_
 export function bloqueoCrear() {
   if (!vistaConsolidada()) return null;
   return 'Para registrar, elija primero un Grupo LPS en el menú de la izquierda (GRUPOS LPS). Cada grupo tiene sus propias actividades.';
+}
+
+/** Opciones para elegir un Grupo LPS: solo los grupos activos (nunca los proyectos). Si la empresa aún no tiene grupos,
+ *  se ofrecen los proyectos como antes. */
+export function opcionesGrupos() {
+  if (!usaGrupos()) return opcionesProyectos();
+  return store.proyectos.filter(p => p.padre_id && ['activo', 'propuesto'].includes(p.estado))
+    .map(p => { const padre = proyecto(p.padre_id); return { value: p.id, label: `${p.nombre_corto}${padre ? ` (${padre.codigo} · ${padre.nombre_corto})` : ''}` }; })
+    .sort((a, b) => a.label.localeCompare(b.label));
 }
 
 /** Rótulo del grupo de filas en la vista consolidada. */

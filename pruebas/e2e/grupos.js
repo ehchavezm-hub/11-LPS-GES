@@ -53,6 +53,12 @@ const { chromium } = require('playwright');
   const cab = (await p.locator('[data-grilla] .tabulator-group').allInnerTexts()).map(x => x.replace(/\s+/g, ' ').trim());
   console.log('  grupos:', cab.join(' | '));
   chk(cab.some(x => x.includes('LPS Gestión')) && cab.some(x => x.includes('LPS ConstruIA')) && cab.some(x => x.includes('Sin Grupo LPS')), 'GT · todos: separadas por grupo (y «Sin Grupo LPS»)');
+  // La lista de la columna «Grupo LPS» ofrece solo los Grupos LPS (nunca los proyectos)
+  await p.locator('.tabulator-row', { hasText: 'Tarea sin grupo' }).locator('[tabulator-field="proyecto_id"]').dblclick(); await p.waitForTimeout(400);
+  const ops = (await p.locator('.tabulator-edit-list-item').allInnerTexts()).map(x => x.trim()).filter(Boolean);
+  console.log('  opciones Grupo LPS:', ops.join(' | '));
+  chk(ops.length === 2 && ops.some(o => o.startsWith('LPS Gestión')) && ops.some(o => o.startsWith('LPS ConstruIA')), 'columna Grupo LPS: solo los 2 grupos');
+  await p.keyboard.press('Escape'); await p.waitForTimeout(300);
   await p.fill('[data-grilla] .grilla-buscar', ''); await p.waitForTimeout(500);
   const antes = await p.locator('[data-grilla] .tabulator-row').count();
   await p.click('[data-a="nueva"]'); await p.waitForTimeout(600);
