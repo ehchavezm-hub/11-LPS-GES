@@ -1,5 +1,5 @@
 // Definición de columnas de la grilla de actividades (Plan semanal y Look Ahead) + columnas personalizadas.
-import { store, opciones, valoresLista, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, servicioDeProyecto, proyectoDeServicio, servicioSirve, esContenedor, opcionesServicio, esGestor, textoEstado, param } from '../core/store.js';
+import { store, opciones, valoresLista, opcionesLideres, opcionesProyectos, opcionesEstado, colorEstado, proyecto, servicioDeProyecto, proyectoDeServicio, servicioSirve, esContenedor, opcionesServicio, esGestor, textoEstado, param, enProyectoSel } from '../core/store.js';
 import { DIAS, DIAS_CORTOS, sumarDias, fmtCorto, esc, etiquetaSemana } from '../core/util.js';
 import { semanasPendiente } from './indicadores.js';
 
@@ -38,7 +38,9 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
     { field: 'responsable_id', title: 'Resp. 1', tipo: 'lista', ancho: 130, opciones: opcionesLideres, editable: () => esGestor(),
       ayuda: 'Responsable (el PAC se atribuye a esta persona)' },
     { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 95, opciones: () => opciones('gerencias').map(o => ({ ...o, label: o.value ? (store.valores.get(o.value)?.codigo || o.label) : o.label })) },
-    { field: 'proyecto_id', title: 'Proyecto / Proceso', tipo: 'lista', ancho: 190, opciones: opcionesProyectos },
+    { field: 'proyecto_id', title: 'Proyecto / Proceso', tipo: 'lista', ancho: 190, opciones: opcionesProyectos,
+      // Al editar, solo los proyectos dentro del contexto seleccionado: evita mover la actividad fuera de la vista actual.
+      opcionesEdicion: () => opcionesProyectos().filter(o => o.value == null || enProyectoSel(o.value)) },
     // CET y Servicio van juntos (como nombre y apellido): son el mismo valor de la lista "CET / Servicio" visto por su código
     // o por su nombre. Elegir o pegar uno completa el otro.
     { field: '_cet', title: 'CET', tipo: 'lista', ancho: 100, posicionFija: true, ayuda: 'CET del servicio (al elegirlo se completa el Servicio)',
