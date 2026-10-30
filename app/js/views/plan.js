@@ -70,7 +70,7 @@ export async function render(el, { query }) {
       },
     }),
     camposCalc: CAMPOS_CALC_ACT,
-    agrupar: [{ field: 'responsable_id', label: 'Responsable' }, { field: 'proyecto_id', label: 'Grupo LPS' },
+    agrupar: [{ field: 'responsable_id', label: 'Responsable' },
       { field: 'gerencia_id', label: 'Gerencia' }, { field: 'estado', label: 'Estado' }, { field: 'servicio_id', label: 'Servicio' }],
     puedeEditarFila: a => puedeEditarActividad(a) && !cerrada(a.responsable_id),
     nuevaFila,

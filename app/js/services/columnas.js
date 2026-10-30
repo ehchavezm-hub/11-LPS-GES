@@ -19,7 +19,9 @@ export function columnasPersonalizadas(grilla) {
  * semana: lunes de referencia (en plan) para poner fechas en las columnas de días
  * extras: { restricciones: Map(actId → n), colaboracion: Map(actId → n), abrir(row) }
  */
-export function columnasActividad({ modo, semana, semanasLA = [], extras = {} }) {
+// conGrupo: incluye la columna «Grupo LPS» (solo Plantillas; el Plan y el Look Ahead la ocultan, pedido d8: el grupo es
+// el elegido en el menú y la actividad se guarda en él)
+export function columnasActividad({ modo, semana, semanasLA = [], extras = {}, conGrupo = false }) {
   const dias = DIAS.map((d, i) => ({
     field: `hh_${d}`, alias: [d, DIAS_CORTOS[i], `hh ${d}`, ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'][i]], title: DIAS_CORTOS[i],
     tipo: 'numero', ancho: 46, minAncho: 38, anchoFijo: true, align: 'center', ocultarCero: true, total: true, vacioCero: true, paso: 0.5, filtro: false,
@@ -39,8 +41,8 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {} })
       ayuda: 'Responsable (el PAC se atribuye a esta persona)' },
     { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 95, opciones: () => opciones('gerencias').map(o => ({ ...o, label: o.value ? (store.valores.get(o.value)?.codigo || o.label) : o.label })) },
     // Pedido d7: la actividad la registra un Grupo LPS (proyecto_id) y atiende al proyecto de su CET (Actividad → CET → Proyecto)
-    { field: 'proyecto_id', title: 'Grupo LPS', tipo: 'lista', ancho: 190, opciones: opcionesProyectos,
-      ayuda: 'Grupo LPS que registra la actividad (el elegido en el menú)' },
+    conGrupo ? { field: 'proyecto_id', title: 'Grupo LPS', tipo: 'lista', ancho: 190, opciones: opcionesProyectos,
+      ayuda: 'Grupo LPS que registra la actividad (el elegido en el menú)' } : null,
     { field: '_proyecto', title: 'Proyecto', tipo: 'lista', ancho: 190, posicionFija: true,
       ayuda: 'Proyecto del CET (al elegir el CET se completa solo; al elegir un proyecto, el CET se elige entre los suyos)',
       valor: d => d._proyecto || proyectoDeServicio(d.servicio_id) || null,

@@ -27,12 +27,11 @@ const { chromium } = require('playwright');
   await p.goto(B + '?demo#/lookahead'); await p.waitForTimeout(2200);
   const titulos = (await p.locator('.tabulator-col-title').allInnerTexts()).map(t => t.trim()).filter(Boolean);
   console.log('columnas:', titulos.slice(0, 9).join(' | '));
-  chk(titulos.includes('Grupo LPS') && titulos.includes('Proyecto') && !titulos.includes('Proyecto / Proceso'), 'columnas «Grupo LPS» y «Proyecto»');
+  chk(!titulos.includes('Grupo LPS') && titulos.includes('Proyecto') && !titulos.includes('Proyecto / Proceso'), 'd8: sin columna «Grupo LPS»; está «Proyecto»');
   console.log('  filas:', (await p.locator('.tabulator-row').allInnerTexts()).slice(0, 4).map(t => t.replace(/\s+/g, ' ').slice(0, 120)), await p.locator('.pagina-cab, .barra').first().innerText().catch(() => ''));
   const fila = p.locator('.tabulator-row', { hasText: 'Informe BIM' });
   const celda = f => fila.locator(`[tabulator-field="${f}"]`);
   chk((await celda('_proyecto').innerText()).includes(ini.P), `la actividad con CET del proyecto muestra «${ini.P}»`);
-  chk((await celda('proyecto_id').innerText()).includes('LPS Gestión'), 'y sigue en su Grupo LPS');
   // lista de la columna Proyecto = lista de Proyectos (incluye el proyecto con grupos, sin grupos)
   await celda('_proyecto').dblclick(); await p.waitForTimeout(400);
   const ops = (await p.locator('.tabulator-edit-list-item').allInnerTexts()).map(t => t.trim());
@@ -50,6 +49,14 @@ const { chromium } = require('playwright');
     return { total: a.length, grupo: x.proyecto_id === G, extra: Object.keys(x).filter(k => k.startsWith('_')) }; }, ini.G);
   chk(fin.total === ini.total && fin.grupo, `sin pérdida ni cambio de grupo (actividades ${fin.total}/${ini.total})`);
   chk(!fin.extra.length, 'no se guarda ningún campo nuevo en la base');
+  // Fila nueva: se guarda en el Grupo LPS elegido en el menú
+  await p.click('[data-a="nueva"]'); await p.waitForTimeout(400);
+  const nueva = p.locator('.tabulator-row.fila-nueva').first();
+  await nueva.locator('[tabulator-field="descripcion"]').dblclick(); await p.keyboard.type('Tarea nueva d8'); await p.keyboard.press('Enter'); await p.waitForTimeout(1500);
+  const g = await p.evaluate(async G => { const { api } = await import('./js/data/api.js'); const x = (await api.list('actividades', {})).find(r => r.descripcion === 'Tarea nueva d8'); return x ? x.proyecto_id === G : null; }, ini.G);
+  chk(g === true, 'una actividad nueva queda en el Grupo LPS elegido en el menú');
+  // Plantillas conserva su columna «Grupo LPS»
+  await p.goto(B + '?demo#/plantillas'); await p.waitForTimeout(1500);
   console.log(errs.length || fallas.length ? ['ERRORES', ...errs, ...fallas] : 'SIN ERRORES');
   await b.close();
 })();

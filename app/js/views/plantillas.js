@@ -87,7 +87,7 @@ async function pintarGrilla() {
  * y el proyecto se eligen al aplicarla; en las recurrentes, la actividad va cada semana a nombre de su dueño.
  */
 export function columnasPlantilla(modo = estado.modo, duenio = estado?.duenio) {
-  const la = new Map(columnasActividad({ modo: 'lookahead', semanasLA: [] }).map(c => [c.field, c]));
+  const la = new Map(columnasActividad({ modo: 'lookahead', semanasLA: [], conGrupo: true }).map(c => [c.field, c]));
   const servicio = modo === 'servicio';
   const alAplicar = () => '<span class="nota">al aplicar</span>';
   return [
