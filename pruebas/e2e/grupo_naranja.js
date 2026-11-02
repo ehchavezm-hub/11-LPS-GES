@@ -27,6 +27,10 @@ const { chromium } = require('playwright');
   chk(f1 === NAR, 'Grupo LPS elegido: fila en naranja');
   chk(await p.locator('.proy-item.grupo-activo').count() === 1, 'solo una fila en naranja');
   chk((await p.locator('.proy-item.grupo-activo').innerText()).includes('LPS Gestión'), 'la fila naranja es la del grupo');
+  // Pedido 172: la sección elegida del menú (Look Ahead) también en naranja, solo esa
+  const sec = await p.evaluate(() => [...document.querySelectorAll('.nav a.activo')].map(a => [a.innerText.trim(), getComputedStyle(a).backgroundColor]));
+  console.log('  sección:', JSON.stringify(sec));
+  chk(sec.length === 1 && sec[0][0].includes('Look Ahead') && sec[0][1] === NAR, 'sección elegida en naranja');
   // Proyecto elegido (no grupo) → sin naranja
   await p.evaluate(async id => { const s = await import('./js/core/store.js'); s.seleccionarProyecto(id); }, ids.P); await p.waitForTimeout(800);
   const f2 = await fondo(ids.P); console.log('  fondo proyecto:', f2);

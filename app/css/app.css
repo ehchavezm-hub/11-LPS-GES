@@ -74,7 +74,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .nav-grupo { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--texto-3); letter-spacing: .6px; margin: 10px 10px 4px; }
 .nav a { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 7px; color: var(--texto-2); text-decoration: none; font-weight: 600; font-size: 13.5px; }
 .nav a:hover { background: var(--surface-2); }
-.nav a.activo { background: var(--azul-claro); color: var(--azul-ejec); box-shadow: inset 3px 0 0 var(--naranja); }
+.nav a.activo, .nav a.activo:hover { background: var(--naranja); color: #fff; }   /* sección elegida en naranja (pedido 172) */
 .nav .ico { width: 18px; text-align: center; }
 
 /* ---------- Grupo LPS activo en la cabecera de módulos (s10) ---------- */

@@ -197,6 +197,7 @@ Estado de cada observación al 25/10/2026.
 | 169 | Backlog del Grupo LPS (Backlog → Look Ahead → Plan semanal) | ✅ Nueva opción «Backlog» debajo de «Look Ahead». Columnas aprobadas: Prioridad, Resp. 1, Gerencia, Proyecto, CET, Servicio, Actividad, HH estimadas, F. requerida, Entra al LA en (calculada), Estado (calculado), 🚧, 💬, Comentario (Solicitante opcional, oculta). «Pasar al Look Ahead» crea la actividad en el mismo grupo, reparte las HH en los días laborables y le pasa las restricciones. Usa la tabla «cartera» (sin cambios en la base); no modifica datos existentes | `backlog.js` | ✅ |
 | 170 | Editar fechas en las grillas fallaba («luxon is not defined») | ✅ Se usa el calendario del navegador (catálogo de proyectos, Cartera, Backlog…) | `fechas.js` | ✅ |
 | 171 | Saber siempre en qué Grupo LPS se está registrando | ✅ En el menú GRUPOS LPS, la fila del Grupo LPS activo va con fondo naranja (solo esa fila; proyectos y niveles superiores no cambian). Sin cambios en los datos | `grupo_naranja.js` | ✅ |
+| 172 | La sección elegida del menú (debajo de PLANIFICACIÓN, etc.) también en naranja | ✅ Fondo naranja y letras blancas, solo en la sección abierta. Sin cambios en los datos | `grupo_naranja.js` | ✅ |
 
 ## Lo que encontró la reconfirmación
 
