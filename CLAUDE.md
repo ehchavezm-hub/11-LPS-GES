@@ -61,6 +61,9 @@ Supabase (sección 2). **Nunca tocar el proyecto Supabase «10-cronograma»** (`
     grupo sus propias actividades. Si la empresa tiene grupos, sin un grupo elegido en el menú no se crean filas
     (`bloqueoCrear`). Con un grupo elegido se ven solo sus actividades; en niveles superiores (vista consolidada) aparece
     la columna «Grupo LPS» y la grilla se agrupa por grupo («Sin Grupo LPS» para lo que no está en uno).
+  - **Guardado de la grilla** (`app/js/ui/grid.js`, pedido 168): envíos con tiempo límite y reintentos; las filas nuevas
+    llevan un id creado en el navegador (`_cid`, se envía como `id`; un «duplicate key» al reintentar = ya guardada);
+    ediciones con falla de red se conservan en `localStorage` y se reaplican al abrir; aviso «⚠ N sin guardar».
   - Usuarios en varias empresas: `empresa_miembros` (migración 030); `profiles.area_id` = empresa activa.
   - Seguridad: RLS por empresa (`mi_area()`), roles en `profiles.rol`, propietarios de la plataforma `es_plataforma`.
 - Catálogos en Configuración › Listas: «Proyectos / Procesos» y «Grupos LPS» son vistas especiales (`__proyectos`,

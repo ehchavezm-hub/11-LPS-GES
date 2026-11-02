@@ -459,6 +459,8 @@ export function crearAdaptadorDemo() {
     async insert(t, filas) {
       db = cargar();
       const arr = (Array.isArray(filas) ? filas : [filas]).map(f => completar(t, f));
+      // Igual que la base: un id repetido se rechaza (lo usa el reintento sin duplicados de la grilla)
+      for (const f of arr) if (f.id && tabla(t).some(r => r.id === f.id)) throw new Error(`duplicate key value violates unique constraint "${t}_pkey"`);
       for (const f of arr) antes(t, 'INSERT', f, null);
       tabla(t).push(...arr);
       for (const f of arr) { auditar(t, 'insert', f, f); despues(t, 'INSERT', f, null); }

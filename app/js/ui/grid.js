@@ -31,9 +31,12 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
   caja.rows = 1;
   caja.style.cssText = 'display:block;width:100%;box-sizing:border-box;padding:4px;border:0;outline:none;resize:none;' +
     'white-space:pre-wrap;overflow-wrap:anywhere;overflow:hidden;font:inherit;line-height:1.35;background:#fff;align-self:stretch;';
+  // La celda puede dejar de existir mientras se escribe (p. ej. la fila se actualizó con datos del servidor):
+  // entonces no se ajusta la altura, pero lo escrito se guarda igual
+  const elementoCelda = () => { try { const e = cell.getElement(); return e instanceof Element ? e : null; } catch { return null; } };
   const crecer = () => {
     caja.style.height = 'auto';
-    const celda = cell.getElement();
+    const celda = elementoCelda();
     const h = Math.max(caja.scrollHeight, celda ? celda.clientHeight - 2 : 0);
     caja.style.height = h + 'px';
     // Tabulator pone height inline en celda y en fila; hay que pisar ambos.
@@ -50,7 +53,7 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
     try { cell.checkHeight(); } catch { /* no disponible */ }
   };
   const limpiarFila = () => {
-    const celda = cell.getElement();
+    const celda = elementoCelda();
     if (celda) { celda.style.height = ''; celda.style.overflow = ''; }
     const fila = celda?.closest('.tabulator-row');
     if (fila) {
@@ -60,7 +63,7 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
     }
   };
   let listo = false;
-  const guardar = () => { if (listo) return; listo = true; limpiarFila(); success(caja.value); };
+  const guardar = () => { if (listo) return; listo = true; try { limpiarFila(); } catch { /* solo estética */ } success(caja.value); };
   caja.addEventListener('input', crecer);
   caja.addEventListener('blur', guardar);
   caja.addEventListener('keydown', e => {
@@ -72,7 +75,7 @@ function editorTextoLargo(cell, onRendered, success, cancel) {
     } else if (e.key === 'Enter') {
       e.preventDefault(); guardar();
     } else if (e.key === 'Escape') {
-      listo = true; limpiarFila(); cancel();
+      listo = true; try { limpiarFila(); } catch { /* solo estética */ } cancel();
     } else if (e.key !== 'Tab') {
       e.stopPropagation();   // flechas, Inicio, Fin… se mueven dentro del texto (Tab sigue pasando a la celda siguiente)
     }
@@ -215,13 +218,41 @@ export function parseTSV(texto) {
   return filas;
 }
 
+// Cambios sin guardar de todas las grillas abiertas: si hay alguno, el navegador pide confirmar antes de cerrar la página
+const registroPendientes = new Map();
+let contadorGrillas = 0;
+window.addEventListener('beforeunload', e => {
+  if ([...registroPendientes.values()].some(n => n > 0)) { e.preventDefault(); e.returnValue = ''; }
+});
+
 export function crearGrilla(contenedor, cfg) {
+  const registroId = ++contadorGrillas;
   const vistasPedidas = pedirVistas(cfg.id);   // en paralelo con los datos de la pantalla
   const columnasCfg = cfg.columnas.filter(Boolean);
   const porCampo = new Map(columnasCfg.map(c => [c.field, c]));
   const servidor = new Map();              // id → copia de la fila tal como está guardada
   let guardando = false;
   let pendiente = false;
+  // ---------- Sincronización segura (como las apps «offline primero») ----------
+  // · Cada fila nueva lleva un identificador creado aquí (_cid) que se envía como id: si un envío se repite (reintento),
+  //   el servidor responde «ya existe» y se toma como guardada: no hay duplicados.
+  // · Cada envío tiene tiempo límite: si la red se cuelga, se libera y se reintenta solo (5 s, 10 s, 20 s… hasta 60 s),
+  //   y también al volver la conexión. Un envío colgado ya no bloquea los siguientes.
+  // · Si falla por la red, el cambio se conserva (no se revierte) y queda guardado en el navegador hasta enviarse.
+  const LIMITE_MS = Number(window.LPSGT_LIMITE_GUARDADO_MS) || 20000;   // configurable solo para pruebas
+  const nuevoCid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); }));
+  const conLimite = p => Promise.race([p, new Promise((_, no) => setTimeout(() => no(new Error('TIEMPO_AGOTADO')), LIMITE_MS))]);
+  const esDeRed = e => /Failed to fetch|NetworkError|Load failed|TIEMPO_AGOTADO|network|fetch/i.test(String(e?.message || e || ''));
+  const esDuplicado = e => /duplicate key|23505|ya existe un registro/i.test(String(e?.message || e?.code || e || ''));
+  let intentos = 0, temporizadorReintento = null, avisoRedMostrado = false;
+  function reintentarLuego() {
+    clearTimeout(temporizadorReintento);
+    const ms = Math.min(60000, 5000 * 2 ** intentos++);
+    temporizadorReintento = setTimeout(() => programarGuardado(), ms);
+  }
+  const alVolverConexion = () => { intentos = 0; programarGuardado(); };
+  window.addEventListener('online', alVolverConexion);
 
   const editableCampo = (fila, col) => {
     if (!col || col.calc || col.editable === false) return false;
@@ -256,6 +287,22 @@ export function crearGrilla(contenedor, cfg) {
   contenedor.append(raiz);
   const estadoEl = raiz.querySelector('.grilla-estado');
   const setEstado = t => { estadoEl.textContent = t; };
+  // Cambios que aún no llegan al servidor (filas nuevas con contenido y ediciones pendientes)
+  function contarPendientes() {
+    let n = 0;
+    for (const row of tabla.getRows()) {
+      const d = row.getData();
+      if (!d.id) { if (!cfg.listaParaCrear || cfg.listaParaCrear(d)) n++; }
+      else if (servidor.has(d.id)) { const dif = diferencias(d); if (dif && Object.keys(dif).length) n++; }
+    }
+    return n;
+  }
+  function pintarPendientes(n = contarPendientes()) {
+    registroPendientes.set(registroId, n);
+    if (!n) { if (/sin guardar/.test(estadoEl.textContent)) setEstado(''); return; }
+    estadoEl.innerHTML = `<span class="grilla-pendientes" title="Estos cambios aún no llegan al servidor. Se reintenta solo; no cierre la página.">⚠ ${n} sin guardar</span>
+      <button class="btn btn-xs" data-a="reintentar" title="Enviar ahora">Reintentar</button>`;
+  }
 
   // ---------- Acceso directo para editar las opciones de una columna de lista ----------
   // Clic derecho en el título de Gerencia, Proyecto, CET / Servicio o CNC lleva a donde se editan sus opciones.
@@ -577,7 +624,7 @@ export function crearGrilla(contenedor, cfg) {
     return dif;
   }
 
-  const programarGuardado = debounce(async () => { await guardar(); guardarBorradores(); }, 350);
+  const programarGuardado = debounce(async () => { await guardar(); guardarBorradores(); guardarCambiosPendientes(); pintarPendientes(); }, 350);
 
   // Filas nuevas aún sin datos (no se guardan en la base hasta tener contenido): se conservan al recargar
   // la grilla o la página, por usuario, grilla y pantalla (p. ej. cada semana del Plan).
@@ -594,10 +641,44 @@ export function crearGrilla(contenedor, cfg) {
   function leerBorradores() {
     try { return JSON.parse(localStorage.getItem(claveBorradores()) || '[]'); } catch { return []; }
   }
+  // Ediciones de filas ya guardadas que aún no llegan al servidor: { id: { cambios, base } } (base = valores del servidor
+  // antes del cambio; al reaplicarlas se verifica que nadie más haya cambiado esos campos)
+  const claveCambios = () => (claveBorradores() ? claveBorradores() + ':cambios' : null);
+  function guardarCambiosPendientes() {
+    const k = claveCambios(); if (!k) return;
+    try {
+      const pend = {};
+      for (const row of tabla.getRows()) {
+        const d = row.getData();
+        if (!d.id || !servidor.has(d.id)) continue;
+        const dif = diferencias(d);
+        if (dif && Object.keys(dif).length) {
+          const prev = servidor.get(d.id);
+          pend[d.id] = { cambios: dif, base: Object.fromEntries(Object.keys(dif).map(c => [c, prev[c] ?? null])) };
+        }
+      }
+      if (Object.keys(pend).length) localStorage.setItem(k, JSON.stringify(pend)); else localStorage.removeItem(k);
+    } catch { /* sin almacenamiento local */ }
+  }
+  function reaplicarCambiosPendientes() {
+    let pend = {};
+    try { pend = JSON.parse(localStorage.getItem(claveCambios()) || '{}'); } catch { return; }
+    let aplicados = 0, conflicto = 0;
+    for (const [id, { cambios, base }] of Object.entries(pend)) {
+      const row = tabla.getRow(id), prev = servidor.get(id);
+      if (!row || !prev) continue;
+      const libres = Object.fromEntries(Object.entries(cambios).filter(([c]) => JSON.stringify(prev[c] ?? null) === JSON.stringify(base?.[c] ?? null)));
+      conflicto += Object.keys(cambios).length - Object.keys(libres).length;
+      if (Object.keys(libres).length) { row.update(libres); aplicados++; }
+    }
+    if (conflicto) toast(`${conflicto} cambio(s) pendiente(s) no se aplicaron porque otra persona modificó esos datos mientras tanto.`, 'warn', 8000);
+    return aplicados;
+  }
 
   async function guardar() {
     if (guardando) { pendiente = true; return; }
     guardando = true;
+    let fallasDeRed = 0;
     try {
       const filas = tabla.getRows();
       let n = 0;
@@ -605,9 +686,16 @@ export function crearGrilla(contenedor, cfg) {
         const d = row.getData();
         // Valores no permitidos (p. ej. relleno sobre celdas de otro): se revierten
         if (d.id && servidor.has(d.id)) {
-          const dif = diferencias(d);
+          let dif = diferencias(d);
           if (!dif || !Object.keys(dif).length) continue;
           const prev = servidor.get(d.id);
+          // Cambios que no pasaron por la edición de celda (p. ej. arrastrar la esquina para rellenar): se aplican las
+          // mismas reglas de la fila (p. ej. «Trasladada al plan» compromete la actividad)
+          if (cfg.derivar) {
+            const der = cfg.derivar({ ...d }, dif, { antes: prev }) || {};
+            const extra = Object.fromEntries(Object.entries(der).filter(([k, v]) => !SOLO_LOCAL(k) && JSON.stringify(v ?? null) !== JSON.stringify(d[k] ?? null)));
+            if (Object.keys(extra).length) { row.update(extra); dif = diferencias(row.getData()) || {}; }
+          }
           const revertir = {};
           for (const k of Object.keys(dif)) {
             const col = porCampo.get(k) || porCampo.get(k.split('.')[0]);
@@ -618,33 +706,50 @@ export function crearGrilla(contenedor, cfg) {
           for (const [k, v] of Object.entries(dif)) if (v === '' && porCampo.get(k)?.tipo !== 'texto' && porCampo.get(k)?.tipo !== 'textoLargo') dif[k] = null;
           setEstado('Guardando…');
           try {
-            const res = await (cfg.actualizar ? cfg.actualizar(d, dif) : api.update(cfg.tabla, d.id, dif));
+            const res = await conLimite(cfg.actualizar ? cfg.actualizar(d, dif) : api.update(cfg.tabla, d.id, dif));
             servidor.set(res.id, structuredClone(res));
             row.update(res);
             n++;
           } catch (e) {
+            // Falla de red o sin respuesta: el cambio se conserva y se reintenta. Rechazo del servidor: se revierte.
+            if (esDeRed(e)) { fallasDeRed++; continue; }
             error(mensajeError(e));
             const prevFila = servidor.get(d.id);
             row.update(prevFila);
           }
         } else if (!d.id && !d._guardando) {
           if (cfg.listaParaCrear && !cfg.listaParaCrear(d)) continue;
-          row.update({ _guardando: true });
+          // Identificador de la fila creado aquí: el mismo en cada reintento (sin duplicados)
+          const cid = d._cid || nuevoCid();
+          row.update({ _guardando: true, _cid: cid });
           setEstado('Guardando…');
           try {
-            const datos = camposDB(d);
-            delete datos.id;
-            const [res] = await (cfg.crear ? cfg.crear(datos) : api.insert(cfg.tabla, datos));
+            const datos = camposDB(row.getData());
+            datos.id = cid;
+            let res;
+            try {
+              [res] = await conLimite(cfg.crear ? cfg.crear(datos) : api.insert(cfg.tabla, datos));
+            } catch (e) {
+              // «Ya existe»: un envío anterior sí llegó (p. ej. se cortó la respuesta). Se toma la fila guardada.
+              if (!esDuplicado(e)) throw e;
+              [res] = await conLimite(api.list(cfg.tabla, { eq: { id: cid } }));
+              if (!res) throw e;
+            }
             servidor.set(res.id, structuredClone(res));
             row.update({ ...res, _guardando: false, _nueva: false });
             reformatear(row);   // columnas calculadas que dependen del id (p. ej. "Ficha ›")
             n++;
           } catch (e) {
-            error(mensajeError(e));
             row.update({ _guardando: false });
+            if (esDeRed(e)) { fallasDeRed++; continue; }
+            error(mensajeError(e));
           }
         }
       }
+      if (fallasDeRed) {
+        if (!avisoRedMostrado) { toast('Sin conexión con el servidor: sus cambios se conservan en este equipo y se enviarán solos al volver la conexión. No cierre la página.', 'warn', 9000); avisoRedMostrado = true; }
+        reintentarLuego();
+      } else { intentos = 0; avisoRedMostrado = false; clearTimeout(temporizadorReintento); }
       setEstado(n ? '✓ Guardado' : '');
       if (n) cfg.alGuardar?.();
       setTimeout(() => { if (estadoEl.textContent === '✓ Guardado') setEstado(''); }, 2500);
@@ -1002,6 +1107,7 @@ export function crearGrilla(contenedor, cfg) {
   raiz.querySelector('.grilla-barra').addEventListener('click', e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'nueva') nuevaFila();
+    if (a === 'reintentar') { intentos = 0; programarGuardado(); }
     if (a === 'pegar') dialogoPegar();
     if (a === 'rellenar') rellenar();
     if (a === 'deshacer') tabla.undo();
@@ -1055,6 +1161,9 @@ export function crearGrilla(contenedor, cfg) {
       for (const f of filas) if (f.id) servidor.set(f.id, structuredClone(f));
       await tabla.replaceData([...filas, ...pendientes.map(d => ({ ...d, _nueva: true }))]);
       tabla.clearHistory();
+      // Al abrir la pantalla: se reaplican las ediciones que no llegaron y se envía todo lo pendiente
+      if (borradores) reaplicarCambiosPendientes();
+      if (contarPendientes()) programarGuardado(); else pintarPendientes(0);
     },
     async inicializar(filas) {
       await alListo;
@@ -1083,7 +1192,10 @@ export function crearGrilla(contenedor, cfg) {
         const editando = existente.getCells().some(c => c.getElement().classList.contains('tabulator-editing'));
         if (!editando) existente.update(fila);
       } else if (tipo === 'INSERT') {
-        const local = tabla.getRows().find(r => !r.getData().id && r.getData()._guardando);
+        // Eco de una fila propia que aún espera respuesta: es la misma (mismo id creado aquí); no se agrega otra
+        const propia = tabla.getRows().find(r => !r.getData().id && r.getData()._cid === fila.id);
+        if (propia) { propia.update({ ...fila, _guardando: false, _nueva: false }); return; }
+        const local = tabla.getRows().find(r => !r.getData().id && r.getData()._guardando && !r.getData()._cid);
         if (!local) tabla.addRow(fila);
       }
       cfg.alCambioRemoto?.();
@@ -1119,7 +1231,14 @@ export function crearGrilla(contenedor, cfg) {
       if (r) { r.update(datos); servidor.set(id, structuredClone(r.getData())); }
     },
     guardarAhora: guardar,
-    destruir() { try { tabla.destroy(); } catch { /* ya destruida */ } },
+    destruir() {
+      clearTimeout(temporizadorReintento);
+      window.removeEventListener('online', alVolverConexion);
+      registroPendientes.delete(registroId);
+      try { tabla.destroy(); } catch { /* ya destruida */ }
+    },
+    /** Cambios que aún no llegan al servidor. */
+    pendientes() { return contarPendientes(); },
   };
   return api_;
 }

@@ -3,7 +3,7 @@
 const { chromium } = require('playwright');
 (async () => {
   const b = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || undefined });
-  const p = await (await b.newContext({ viewport: { width: 1700, height: 1000 } })).newPage();
+  const p = await (await b.newContext({ viewport: { width: 1700, height: 1000 }, serviceWorkers: 'block' })).newPage();   // sin recarga automática por versión nueva
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.route('**/fonts.g*/**', r => r.abort());
   const B = 'http://localhost:8099/';

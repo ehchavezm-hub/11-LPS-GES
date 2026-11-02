@@ -69,6 +69,14 @@ select debe_fallar($q$ insert into actividades (area_id, semana, responsable_id,
   values (mi_area(), current_date - extract(isodow from current_date)::int + 2, auth.uid(), 'No es lunes') $q$);
 
 do $$ begin assert (select hh_total from actividades where descripcion = 'Actividad propia') = 2, 'hh_total'; end $$;
+-- Sincronización de la grilla: la fila nueva lleva un id creado en el navegador; un reintento con el mismo id se rechaza
+-- («duplicate key») y la app lo toma como ya guardado: no hay duplicados
+insert into actividades (id, area_id, semana, responsable_id, descripcion)
+values ('5c1d0000-0000-4000-8000-000000000001', mi_area(), date_trunc('week', current_date)::date, auth.uid(), 'Con id del navegador');
+select debe_fallar($q$ insert into actividades (id, area_id, semana, responsable_id, descripcion)
+  values ('5c1d0000-0000-4000-8000-000000000001', mi_area(), date_trunc('week', current_date)::date, auth.uid(), 'Reintento') $q$, 'duplicate key');
+do $$ begin assert (select count(*) from actividades where id = '5c1d0000-0000-4000-8000-000000000001') = 1, 'id del navegador'; end $$;
+delete from actividades where id = '5c1d0000-0000-4000-8000-000000000001';   -- solo base de pruebas local
 
 -- Cierre: no se puede con compromisos sin estado
 select debe_fallar($q$ insert into cierres (area_id, responsable_id, semana)
