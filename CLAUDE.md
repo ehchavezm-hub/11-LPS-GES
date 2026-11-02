@@ -78,7 +78,7 @@ Supabase (sección 2). **Nunca tocar el proyecto Supabase «10-cronograma»** (`
 ```bash
 bash supabase/tests/run.sh                      # reglas de la base en Postgres local (migraciones 001…031)
 bash pruebas/e2e/correr.sh                      # pantallas en modo demo (lista de regresión); o: correr.sh d10 d9
-cd pruebas && npm install && npx playwright install chromium && node humo.mjs   # recorrido de 160 pantallas
+cd pruebas && npm install && npx playwright install chromium && node humo.mjs   # recorrido de 168 pantallas
 ```
 `correr.sh` levanta un servidor local en el puerto 8099. Las pruebas `d*.js`, `q*.js`, etc. tienen el nombre de la
 observación que verifican.

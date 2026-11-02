@@ -1,34 +1,40 @@
-# Traspaso — estado al 30/10/2026 (actualizado tras la auditoría 3)
+# Traspaso — estado al 02/11/2026 (pedidos hasta 173)
 
-Documento público: sin nombres de la empresa. Los detalles con nombres reales (lista de actividades, capturas, Excel,
-historial completo de la conversación) están en el paquete privado `LPS-GES_traspaso_privado.zip` (Drive del dueño).
+Documento público: sin nombres de la empresa. Los detalles con nombres reales (historial completo de la conversación,
+capturas, Excel, SQL) están en el paquete privado `LPS-GES_traspaso_privado.zip` (Drive del dueño).
 
 ## 1. Estado
 
-- Último cambio publicado: auditoría 3 (cartera e importación respetan el Grupo LPS; Supr en Proyecto / CET se guarda).
-  Ver `docs/OBSERVACIONES.md` filas 136–160 y `docs/AUDITORIA.md` › Auditoría 3.
-- Base de datos: migraciones 001–031 aplicadas en Supabase **11-LPS-GES** (031 aplicada el 30/10).
-- Función `admin-usuarios`: versión 12 desplegada (igual a `supabase/functions/admin-usuarios/index.ts`).
-- Pruebas: base (`supabase/tests/run.sh`) en verde; 24 pruebas de pantalla de la lista de regresión
-  (`pruebas/e2e/correr.sh`) en verde; recorrido `pruebas/humo.mjs` (9 usuarios, 160 pantallas) sin errores.
-- Pruebas antiguas que fallan **desde antes** (esperan textos de pedidos ya cambiados; no son defectos):
-  `superadmin.js`, `roles.js`, `emp113.js`, `proyform.js`, `cetserv.js`, `plat.js` (solo avisos de fuentes bloqueadas).
+- Todo el código está en GitHub `main` (= aplicativo publicado) y en la rama `claude/cool-feynman-br5fpv` (mismo commit).
+  No hay cambios sin subir. Las ramas `claude/exciting-pascal-dxit5d` y `exciting` son antiguas (no se usan).
+- Últimos cambios publicados (ver `docs/OBSERVACIONES.md` filas 161–173):
+  Grupos LPS en Look Ahead / Plan, guardado seguro de la grilla (168), Backlog (169), fechas con calendario del
+  navegador (170), Grupo LPS activo y sección elegida del menú en naranja (171–172), Tablero para todos (173).
+- Base de datos: migraciones 001–031 aplicadas en Supabase **11-LPS-GES**. Función `admin-usuarios`: versión 12.
+- Pruebas: base (`supabase/tests/run.sh`) en verde; lista de regresión (`pruebas/e2e/correr.sh`, 31 pruebas) en verde;
+  recorrido `pruebas/humo.mjs` (9 usuarios, 168 pantallas) sin errores.
+- Pruebas antiguas que fallan **desde antes** (esperan textos de pedidos ya cambiados o el Excel privado; no son defectos):
+  `superadmin.js`, `roles.js`, `emp113.js`, `proyform.js`, `cetserv.js`, `plat.js`, `cet.js`, `cetsync.js`, `imp*.js`, `lista.js`.
+- El workflow `respaldo.yml` corre pero termina en segundos: faltan sus secrets (`SUPABASE_URL`,
+  `SUPABASE_SERVICE_ROLE_KEY`, `RCLONE_CONF`), así que **no** sube respaldos al Drive. Respaldo manual: aplicativo ›
+  Configuración › Respaldo (descargar y guardar en el Drive privado).
 
-## 2. Foto de la base (para comparar al retomar; solo lectura)
+## 2. Foto de la base al 02/11/2026 22:30 UTC (para comparar al retomar; solo lectura)
 
 | Tabla | Filas | | Tabla | Filas |
 |---|---|---|---|---|
-| actividades | 54 | | lista_valores | 456 |
-| proyectos (proyectos + Grupos LPS) | 52 | | listas | 92 |
+| actividades | 92 | | lista_valores | 540 |
+| proyectos (proyectos + Grupos LPS) | 62 | | listas | 92 |
 | portafolios | 11 | | ubicaciones_dia | 154 |
-| programas | 17 | | vistas | 21 |
+| programas | 17 | | vistas | 30 |
 | areas (empresas) | 5 | | permisos | 300 |
 | profiles (usuarios) | 7 | | parametros | 68 |
-| empresa_miembros | 10 | | auditoria | 2159 |
-| plantillas / plantilla_items | 2 / 2 | | notificaciones | 6 |
+| empresa_miembros | 10 | | auditoria | 2827 |
+| plantillas / plantilla_items | 3 / 2 | | notificaciones | 6 |
 | organigrama_nodos | 6 | | delegado_historial | 1 |
+| cartera (Backlog) | 1 | | | |
 
-En 0: acuerdos, cartera, cierres, columnas_personalizadas, comentarios, enlaces, hitos, pac_historico, proyecto_favoritos,
+En 0: acuerdos, cierres, columnas_personalizadas, comentarios, enlaces, hitos, pac_historico, proyecto_favoritos,
 proyecto_lideres, restricciones, reuniones, solicitudes_cambio.
 
 Consulta para repetir la foto:
@@ -37,26 +43,23 @@ select c.relname as tabla, (xpath('/row/n/text()', query_to_xml(format('select c
 from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' order by 1;
 ```
 
-## 3. Pendientes
+## 3. Pendientes (esperan decisión del dueño)
 
-1. **SQL `aplicar_pendientes_30oct.sql`** (en el paquete privado, carpeta `sql/`): devuelve a su Grupo LPS las 2 actividades
-   del punto 3 y elimina la lista vacía del punto 4. Una sola transacción que se verifica sola. El dueño lo ejecuta en
-   SQL Editor de 11-LPS-GES; después verificar (solo lectura): `devueltas = 2` y `lista_vacia_queda = 0` (consulta al final
-   del archivo). Respaldo previo de esas filas: `respaldos/` del paquete privado.
-2. **17 actividades sin Grupo LPS asignado** (incluye 3 con Gerencia distinta a la del proyecto de su CET; se corrigen con esta decisión): el dueño dirá a qué grupo va cada una
-   (lista con descripción en el paquete privado). Respaldar antes de moverlas; verificar conteos después.
-3. **2 actividades que salieron de un Grupo LPS** el 30/10: el dueño pidió devolverlas → SQL del punto 1.
-4. **Lista vacía «Grupo LPS»** (clave `grupo_lps`): el dueño pidió eliminarla → SQL del punto 1.
-5. **d4 — árbol del menú «GRUPOS LPS»** con los proyectos que atiende cada grupo: en pausa por decisión del dueño.
-   Preguntas abiertas: forma del árbol; cómo se definen los proyectos de un grupo (a mano, por los CET de sus actividades
-   o ambos); qué filtra el clic en un proyecto bajo un grupo.
-6. **s47 — parpadeo en Configuración › Proyectos**: no se pudo reproducir (ni en demo ni hay bucles en la base). Faltan
-   datos del dueño: pantalla exacta, cuándo ocurre, qué parpadea, navegador.
-7. Recomendación de seguridad: en Supabase › Authentication, «Minimum password length» = 8 (la protección de contraseñas
-   filtradas es solo del plan Pro).
-8. `SESION_HANDOFF.md` (de la otra cuenta) contiene nombres reales; el dueño decidió dejarlo como está.
+1. **No modificar** las actividades registradas por los usuarios del equipo sin pedido expreso del dueño
+   (el SQL `aplicar_pendientes_30oct.sql` quedó **anulado**).
+2. **17 actividades sin Grupo LPS** de la semana del 26/10 (lista en el paquete privado): el dueño dirá si se mueven.
+3. **Dos cuentas del dueño** (con y sin tilde en el nombre): confunden el filtro «Resp. 1». Propuesto unificarlas;
+   antes, mostrarle qué tiene cada una. No hacer nada sin su visto bueno.
+4. **3 filas repetidas** sin comprometer en el Look Ahead del 02/11 (misma descripción, creadas en 1 minuto): el dueño decide.
+5. Propuestas sin respuesta: actualizar solo el aplicativo cuando hay versión nueva y el usuario no está editando;
+   aviso «Registrando en: <Grupo LPS>».
+6. **Respaldo automático**: configurar los secrets de `respaldo.yml` (o seguir con el respaldo manual).
+7. **d4 — árbol del menú** con los proyectos que atiende cada grupo: en pausa.
+8. **s47 — parpadeo en Configuración › Proyectos**: no reproducido; faltan datos.
+9. **s40 — tabla `supervisiones`**: nunca se creó su migración.
+10. Seguridad: en Supabase › Authentication, «Minimum password length» = 8.
 
-## 4. Historial de decisiones recientes (d1–d11)
+## 4. Historial de decisiones (d1–d11; las siguientes en OBSERVACIONES.md)
 
 | Pedido | Qué se hizo |
 |---|---|
