@@ -4,7 +4,7 @@
 import { chromium } from 'playwright';
 
 const BASE = process.argv[2] || 'http://localhost:8099/';
-const RUTAS = ['/plan', '/lookahead', '/restricciones', '/cartera', '/tablero', '/reunion', '/equipo', '/plantillas',
+const RUTAS = ['/plan', '/lookahead', '/backlog', '/restricciones', '/cartera', '/tablero', '/reunion', '/equipo', '/plantillas',
   '/config/usuarios', '/config/listas', '/config/listas?lista=__proyectos', '/config/parametros', '/config/permisos',
   '/config/columnas', '/config/importar', '/config/respaldo', '/config/auditoria', '/reportes', '/mejoras', '/ayuda'];
 

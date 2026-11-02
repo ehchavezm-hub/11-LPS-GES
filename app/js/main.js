@@ -29,6 +29,7 @@ async function verificarUsuarioLocal(id) {
 
 ruta('/plan', () => import('./views/plan.js'), { staff: true });
 ruta('/lookahead', () => import('./views/lookahead.js'), { staff: true });
+ruta('/backlog', () => import('./views/backlog.js'), { staff: true });
 ruta('/restricciones', () => import('./views/restricciones.js'), { staff: true });
 ruta('/cartera', () => import('./views/cartera.js'));
 ruta('/cartera/:id', () => import('./views/cartera.js'));

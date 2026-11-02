@@ -432,7 +432,8 @@ export function crearGrilla(contenedor, cfg) {
       case 'texto': def.editor = 'input'; break;
       case 'textoLargo': def.editor = editorTextoLargo; def.formatter = 'textarea'; def.variableHeight = true; break;
       case 'numero': def.editor = 'number'; def.editorParams = { step: c.paso || 0.5, min: c.min ?? 0, selectContents: true }; break;
-      case 'fecha': def.editor = 'date'; def.editorParams = { format: 'yyyy-MM-dd' }; break;
+      // Calendario del navegador (aaaa-mm-dd, como se guarda). Con «format», Tabulator exige la librería luxon (no incluida)
+      case 'fecha': def.editor = 'date'; break;
       case 'casilla': def.editor = 'tickCross'; def.formatter = 'tickCross'; def.hozAlign = 'center'; break;
       case 'lista':
         def.editor = 'list';

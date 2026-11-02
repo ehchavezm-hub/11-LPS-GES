@@ -95,14 +95,18 @@ export async function abrirDetalle(entidad, fila, { titulo, alCambiar } = {}) {
 }
 
 /** Restricciones de una actividad: lista y alta rápida (RN-07). */
-export async function abrirRestricciones(act, { alCambiar } = {}) {
+// item: también un ítem del Backlog (tabla cartera): sus restricciones se guardan sin actividad, con extra.cartera_id, y
+// pasan a la actividad cuando el ítem se lleva al Look Ahead
+export async function abrirRestricciones(act, { alCambiar, item = false } = {}) {
   const cuerpo = html('<div><div data-lista></div></div>');
   const m = modal({
-    titulo: 'Restricciones de la actividad', cuerpo, ancho: 860,
+    titulo: item ? 'Restricciones del ítem del Backlog' : 'Restricciones de la actividad', cuerpo, ancho: 860,
     botones: [{ texto: 'Cerrar' }, { texto: '＋ Nueva restricción', clase: 'btn-primario', accion: async () => { await nueva(); return false; } }],
   });
   async function pintar() {
-    const rs = await api.list('restricciones', { eq: { actividad_id: act.id }, order: [['created_at', true]] });
+    const rs = item
+      ? (await api.list('restricciones', { eq: { area_id: store.area.id }, order: [['created_at', true]] })).filter(r => r.extra?.cartera_id === act.id && !r.actividad_id)
+      : await api.list('restricciones', { eq: { actividad_id: act.id }, order: [['created_at', true]] });
     cuerpo.querySelector('[data-lista]').innerHTML = `<p class="nota">${esc(act.descripcion)}</p>` + (rs.length ? `<table class="simple">
       <tr><th>Restricción</th><th>Tipo</th><th>Responsable</th><th>F. requerida</th><th>F. prometida</th><th>Estado</th><th></th></tr>
       ${rs.map(r => `<tr><td>${esc(r.descripcion)}</td><td>${esc(etiqueta(r.tipo_id))}</td><td>${esc(r.responsable || nombre(r.responsable_id))}</td>
@@ -117,8 +121,11 @@ export async function abrirRestricciones(act, { alCambiar } = {}) {
       titulo: 'Nueva restricción', campos: camposRestriccion(),
       valores: { f_identificada: hoy(), estado: 'pendiente' },
       alGuardar: async d => {
-        await api.insert('restricciones', { ...d, area_id: store.area.id, actividad_id: act.id, proyecto_id: act.proyecto_id });
-        await sincronizarEstadoLA(act.id);
+        if (item) await api.insert('restricciones', { ...d, area_id: store.area.id, actividad_id: null, proyecto_id: act.proyecto_id, extra: { cartera_id: act.id } });
+        else {
+          await api.insert('restricciones', { ...d, area_id: store.area.id, actividad_id: act.id, proyecto_id: act.proyecto_id });
+          await sincronizarEstadoLA(act.id);
+        }
         ok('Restricción registrada.');
       },
     });
@@ -130,7 +137,7 @@ export async function abrirRestricciones(act, { alCambiar } = {}) {
     try {
       await api.update('restricciones', b.dataset.levantar, { estado: 'levantada', f_levantada: hoy() });
       await pintar();
-      await sincronizarEstadoLA(act.id);
+      if (!item) await sincronizarEstadoLA(act.id);
       alCambiar?.();
     } catch (err) { error(mensajeError(err)); }
   });

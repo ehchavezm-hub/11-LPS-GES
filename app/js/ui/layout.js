@@ -12,6 +12,7 @@ export const NAV = [
   { grupo: 'Planificación' },
   { ruta: '/plan', ico: '📅', texto: 'Plan semanal', si: esStaff },
   { ruta: '/lookahead', ico: '🔭', texto: 'Look Ahead', si: esStaff },
+  { ruta: '/backlog', ico: '🗃', texto: 'Backlog', si: esStaff },   // trabajo pendiente del Grupo LPS, antes del Look Ahead
   { ruta: '/restricciones', ico: '🚧', texto: 'Restricciones', si: esStaff },
   { ruta: '/cartera', ico: '🗂', texto: 'Cartera y solicitudes', si: () => esStaff() || puede('crear_solicitud') },
   { grupo: 'Seguimiento' },

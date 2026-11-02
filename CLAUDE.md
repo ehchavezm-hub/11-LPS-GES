@@ -64,6 +64,10 @@ Supabase (sección 2). **Nunca tocar el proyecto Supabase «10-cronograma»** (`
   - **Guardado de la grilla** (`app/js/ui/grid.js`, pedido 168): envíos con tiempo límite y reintentos; las filas nuevas
     llevan un id creado en el navegador (`_cid`, se envía como `id`; un «duplicate key» al reintentar = ya guardada);
     ediciones con falla de red se conservan en `localStorage` y se reaplican al abrir; aviso «⚠ N sin guardar».
+  - **Backlog** (`app/js/views/backlog.js`, pedido 169): ítems en la tabla `cartera` (origen interna; `proyecto_id` = Grupo
+    LPS; `extra.prioridad`, `extra.hh_estimadas`, `extra.comentario`, `extra.proyecto_id`). «Pasar al Look Ahead» crea
+    actividades con `cartera_id`; el Estado se calcula con ellas. Restricciones del ítem: `restricciones.extra.cartera_id`
+    sin actividad, y pasan a la actividad al llevarlo al Look Ahead.
   - Usuarios en varias empresas: `empresa_miembros` (migración 030); `profiles.area_id` = empresa activa.
   - Seguridad: RLS por empresa (`mi_area()`), roles en `profiles.rol`, propietarios de la plataforma `es_plataforma`.
 - Catálogos en Configuración › Listas: «Proyectos / Procesos» y «Grupos LPS» son vistas especiales (`__proyectos`,
