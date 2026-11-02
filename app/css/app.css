@@ -433,6 +433,9 @@ html.letra-grande .aviso, html.letra-grande .nota { font-size: 14.5px; }
 .proy-item.arbol-cont .arbol-flecha { cursor: pointer; }
 .proy-item.arbol-sub .nom { font-size: 12px; }
 .proy-item.arbol-sub .arbol-ico { color: var(--texto-3); }
+/* Grupo LPS elegido: fila en naranja para saber siempre dónde se registra */
+.proy-item.grupo-activo, .proy-item.grupo-activo:hover { background: var(--naranja); color: #fff; }
+.proy-item.grupo-activo .arbol-ico, .proy-item.grupo-activo .cod { color: #fff; }
 
 /* ---------- Grupos de empresa en panel de usuarios (s12) ---------- */
 .empresa-grupo-cab { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--borde); font-weight: 700; font-size: 14px; color: var(--azul-ejec); background: var(--azul-claro); border-radius: 10px 10px 0 0; }

@@ -202,7 +202,7 @@ function pintarProyectos() {
   const programas = (store.programas || []).filter(x => x.estado !== 'inactivo');
   const idsPort = new Set(portafolios.map(x => x.id)), idsProg = new Set(programas.map(x => x.id));
 
-  const item = (p, nivel, sub) => `<div class="proy-item arbol-n${nivel}${sub ? ' arbol-sub' : ''}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto}${sub ? ' (Grupo LPS)' : ''}`)}">
+  const item = (p, nivel, sub) => `<div class="proy-item arbol-n${nivel}${sub ? ' arbol-sub' : ''}${store.proyectoSel === p.id ? ` activo${p.padre_id ? ' grupo-activo' : ''}` : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto}${sub ? ' (Grupo LPS)' : ''}`)}">
       <span class="arbol-ico">${sub ? '▫' : '📋'}</span><span class="nom">${esc(p.nombre_corto)}${p.estado === 'propuesto' ? ' ⏳' : ''}</span></div>`;
   // Proyecto con Grupos LPS (pedido a7): se elige completo con un clic en el nombre; la flecha lo abre o cierra
   const hijosDe = p => lista.filter(x => x.padre_id === p.id);
