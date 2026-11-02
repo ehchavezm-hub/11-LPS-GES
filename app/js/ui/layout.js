@@ -16,7 +16,7 @@ export const NAV = [
   { ruta: '/restricciones', ico: '🚧', texto: 'Restricciones', si: esStaff },
   { ruta: '/cartera', ico: '🗂', texto: 'Cartera y solicitudes', si: () => esStaff() || puede('crear_solicitud') },
   { grupo: 'Seguimiento' },
-  { ruta: '/tablero', ico: '📊', texto: 'Tablero', si: () => puede('ver_indicadores') },
+  { ruta: '/tablero', ico: '📊', texto: 'Tablero', si: () => true },   // pedido 173: todos los usuarios ven el Tablero
   { ruta: '/reunion', ico: '👥', texto: 'Reunión semanal', si: esStaff },
   { ruta: '/equipo', ico: '🧭', texto: 'Equipo y capacidad', si: esStaff },
   { ruta: '/reportes', ico: '🖨', texto: 'Reportes', si: () => esStaff() || puede('ver_indicadores') },

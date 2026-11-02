@@ -198,6 +198,7 @@ Estado de cada observación al 25/10/2026.
 | 170 | Editar fechas en las grillas fallaba («luxon is not defined») | ✅ Se usa el calendario del navegador (catálogo de proyectos, Cartera, Backlog…) | `fechas.js` | ✅ |
 | 171 | Saber siempre en qué Grupo LPS se está registrando | ✅ En el menú GRUPOS LPS, la fila del Grupo LPS activo va con fondo naranja (solo esa fila; proyectos y niveles superiores no cambian). Sin cambios en los datos | `grupo_naranja.js` | ✅ |
 | 172 | La sección elegida del menú (debajo de PLANIFICACIÓN, etc.) también en naranja | ✅ Fondo naranja y letras blancas, solo en la sección abierta. Sin cambios en los datos | `grupo_naranja.js` | ✅ |
+| 173 | Opción «Tablero» para todos los usuarios | ✅ El Tablero aparece en el menú para todos los roles (antes los líderes no lo veían por el permiso «ver indicadores»). El usuario pendiente de aprobación sigue sin acceso hasta ser aprobado. Sin cambios en los datos ni en la matriz de permisos | `tablero_todos.js` | ✅ |
 
 ## Lo que encontró la reconfirmación
 
