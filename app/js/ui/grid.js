@@ -278,7 +278,7 @@ export function crearGrilla(contenedor, cfg) {
       <span class="grilla-estado" aria-live="polite"></span>
       <span class="flex"></span>
       ${cfg.extraBarra || ''}
-      <button class="btn btn-sm" data-a="excel" title="Exportar a Excel">⬇ Excel</button>
+      <button class="btn btn-sm" data-a="excel" title="Exportar a Excel">⬇ Excel ▾</button>
     </div>
     <div class="grilla-tabla"></div>
     <div class="grilla-ayuda">Doble clic o Enter para editar · Alt+Enter: nueva línea en Actividad · Selecciona un rango con el mouse o Shift+flechas · Ctrl+C / Ctrl+V con Excel · Supr borra · Clic derecho en una fila para más opciones, o en el título de Gerencia, Proyecto o Servicio para editar sus opciones</div>
@@ -1115,7 +1115,7 @@ export function crearGrilla(contenedor, cfg) {
     if (a === 'rehacer') tabla.redo();
     if (a === 'columnas') dialogoColumnas();
     if (a === 'vistas') menuVistas(e.target);
-    if (a === 'excel') exportarExcel();
+    if (a === 'excel') menuExcel(e.target.closest('[data-a="excel"]'));
   });
   raiz.querySelector('[data-a="agrupar"]').addEventListener('change', e => {
     tabla.setGroupBy(e.target.value || false);
@@ -1131,11 +1131,99 @@ export function crearGrilla(contenedor, cfg) {
     }));
   }, 250));
 
-  async function exportarExcel() {
+  function menuExcel(boton) {
+    document.querySelector('.menu-excel-fl')?.remove();
+    const div = document.createElement('div');
+    div.className = 'menu-excel-fl';
+    div.innerHTML = `
+      <div class="menu-excel-tit">Exportar a Excel</div>
+      <button data-ag="todo">📊 Todo el equipo</button>
+      <button data-ag="resp">👤 Agrupar por Resp. 1</button>
+      <button data-ag="gerencia">🏛 Agrupar por Gerencia</button>
+      <button data-ag="proyecto">🏗 Agrupar por Proyecto</button>`;
+    const r = boton.getBoundingClientRect();
+    div.style.cssText = `position:fixed;top:${r.bottom + 4}px;right:${innerWidth - r.right}px`;
+    document.body.append(div);
+    div.addEventListener('click', e => {
+      const ag = e.target.closest('[data-ag]')?.dataset.ag;
+      if (ag) { div.remove(); exportarExcel(ag); }
+    });
+    setTimeout(() => document.addEventListener('click', () => div.remove(), { once: true }), 0);
+  }
+
+  async function exportarExcel(agrupacion = 'todo') {
     if (cfg.exportar === false) return;
-    const nombre = nombreArchivo(cfg.titulo || cfg.id || 'Datos') + '.xlsx';   // misma regla que los PDF
     try { await libExcel(); } catch (e) { error(e.message); return; }
-    tabla.download('xlsx', nombre, { sheetName: (cfg.titulo || 'Datos').slice(0, 30) });
+    const XLSX = window.XLSX;
+
+    // Columnas visibles, excluye botones (los que tienen .click o pdf===false)
+    const colsDef = tabla.getColumns()
+      .filter(col => col.isVisible() && porCampo.has(col.getField()))
+      .map(col => porCampo.get(col.getField()))
+      .filter(c => !c.click && c.pdf !== false);
+
+    // Valor legible de cada celda, números como Number para que Excel los reconozca
+    const valExcel = (c, f) => {
+      const v = c.valor ? c.valor(f) : f[c.field];
+      if (c.exportar) return c.exportar(v, f);
+      if (c.formato && !c.colorear) return textoHTML(c.formato(v, f));
+      if (c.tipo === 'lista') return etiquetaOpcion(c, v, f);
+      if (c.tipo === 'casilla') return v ? 'Sí' : '';
+      if (c.tipo === 'numero') return (v == null || v === '') ? null : +Number(v).toFixed(2) || null;
+      return v ?? '';
+    };
+
+    const filasData = tabla.getData('active').filter(f => f.id);
+    const wb = XLSX.utils.book_new();
+
+    // — Hoja "Datos": todas las columnas, todas las filas activas, con auto-filtro —
+    const hdrs = colsDef.map(c => c.title);
+    const rows = filasData.map(f => colsDef.map(c => valExcel(c, f)));
+    const ws = XLSX.utils.aoa_to_sheet([hdrs, ...rows]);
+    ws['!autofilter'] = { ref: ws['!ref'] };
+    ws['!cols'] = colsDef.map(c => ({ wch: Math.max(8, Math.min(50, (c.ancho || 100) / 7)) }));
+    XLSX.utils.book_append_sheet(wb, ws, 'Datos');
+
+    // — Hoja "Resumen": tabla dinámica pre-calculada agrupada por dimensión —
+    const dimMap = {
+      resp:     { field: 'responsable_id', label: 'Responsable', titulo: 'Por Responsable' },
+      gerencia: { field: 'gerencia_id',    label: 'Gerencia',    titulo: 'Por Gerencia'    },
+      proyecto: { field: 'proyecto_id',    label: 'Proyecto',    titulo: 'Por Proyecto'    },
+    };
+    const dim = dimMap[agrupacion];
+    const colDim = dim ? porCampo.get(dim.field) : null;
+    const etqFila = f => colDim ? (etiquetaOpcion(colDim, f[dim.field], f) || '(sin asignar)') : 'Total general';
+    const tituloRes = dim?.titulo || 'Resumen';
+    const labelDim = dim?.label || 'Indicador';
+
+    const grupos = new Map();
+    for (const f of filasData) {
+      const k = etqFila(f);
+      const g = grupos.get(k) || { n: 0, hh: 0 };
+      g.n++;
+      g.hh += Number(f.hh_total) || 0;
+      grupos.set(k, g);
+    }
+    const totalN = filasData.length;
+    const totalHH = filasData.reduce((s, f) => s + (Number(f.hh_total) || 0), 0);
+
+    const aoaRes = [
+      [tituloRes],
+      [],
+      [labelDim, '# Actividades', 'HH Total'],
+      ...[...grupos.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, { n, hh }]) => [k, n, +hh.toFixed(1)]),
+      [],
+      ['TOTAL', totalN, +totalHH.toFixed(1)],
+      [],
+      ['Exportado: ' + new Date().toLocaleDateString('es-PE')],
+    ];
+    const wsRes = XLSX.utils.aoa_to_sheet(aoaRes);
+    wsRes['!cols'] = [{ wch: 38 }, { wch: 16 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, wsRes, tituloRes.slice(0, 30));
+
+    const sufijos = { todo: '', resp: ' - Resp', gerencia: ' - Gerencia', proyecto: ' - Proyecto' };
+    const nombre = nombreArchivo(cfg.titulo || cfg.id || 'Datos') + (sufijos[agrupacion] || '') + '.xlsx';
+    XLSX.writeFile(wb, nombre);
   }
 
   // ---------- API pública ----------
