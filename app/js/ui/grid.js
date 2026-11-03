@@ -1133,25 +1133,53 @@ export function crearGrilla(contenedor, cfg) {
 
   function menuExcel(boton) {
     document.querySelector('.menu-excel-fl')?.remove();
+
+    // Semanas disponibles en los datos activos
+    const filasVivas = tabla.getData('active').filter(f => f.id);
+    const semanas = [...new Set(filasVivas.map(f => f.semana).filter(Boolean))]
+      .sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true }));
+    const colSem = porCampo.get('semana');
+    const labelSem = s => {
+      if (colSem?.tipo === 'lista') return etiquetaOpcion(colSem, s, {}) || `S-${s}`;
+      if (colSem?.formato) return textoHTML(colSem.formato(s, {})) || `S-${s}`;
+      return `S-${s}`;
+    };
+    const opsSem = semanas.map(s =>
+      `<label class="mex-radio"><input type="radio" name="mex-sem" value="${s}"> ${labelSem(s)}</label>`
+    ).join('');
+
     const div = document.createElement('div');
     div.className = 'menu-excel-fl';
     div.innerHTML = `
-      <div class="menu-excel-tit">Exportar a Excel</div>
+      <div class="menu-excel-tit">Período</div>
+      <label class="mex-radio"><input type="radio" name="mex-sem" value="" checked> Todas las semanas</label>
+      ${opsSem}
+      <div class="menu-excel-sep"></div>
+      <div class="menu-excel-tit">Agrupar por</div>
       <button data-ag="todo">📊 Todo el equipo</button>
-      <button data-ag="resp">👤 Agrupar por Resp. 1</button>
-      <button data-ag="gerencia">🏛 Agrupar por Gerencia</button>
-      <button data-ag="proyecto">🏗 Agrupar por Proyecto</button>`;
+      <button data-ag="resp">👤 Resp. 1</button>
+      <button data-ag="gerencia">🏛 Gerencia</button>
+      <button data-ag="proyecto">🏗 Proyecto</button>`;
     const r = boton.getBoundingClientRect();
     div.style.cssText = `position:fixed;top:${r.bottom + 4}px;right:${innerWidth - r.right}px`;
     document.body.append(div);
+
     div.addEventListener('click', e => {
-      const ag = e.target.closest('[data-ag]')?.dataset.ag;
-      if (ag) { div.remove(); exportarExcel(ag); }
+      const btn = e.target.closest('[data-ag]');
+      if (!btn) return;
+      const ag = btn.dataset.ag;
+      const sem = div.querySelector('input[name="mex-sem"]:checked')?.value || null;
+      div.remove();
+      exportarExcel(ag, sem || null);
     });
-    setTimeout(() => document.addEventListener('click', () => div.remove(), { once: true }), 0);
+    // Cerrar al clic fuera del menú
+    setTimeout(() => {
+      const cerrar = e => { if (!div.contains(e.target)) { div.remove(); document.removeEventListener('click', cerrar); } };
+      document.addEventListener('click', cerrar);
+    }, 0);
   }
 
-  async function exportarExcel(agrupacion = 'todo') {
+  async function exportarExcel(agrupacion = 'todo', semFiltro = null) {
     if (cfg.exportar === false) return;
     try { await libExcel(); } catch (e) { error(e.message); return; }
     const XLSX = window.XLSX;
@@ -1162,7 +1190,7 @@ export function crearGrilla(contenedor, cfg) {
       .map(col => porCampo.get(col.getField()))
       .filter(c => !c.click && c.pdf !== false);
 
-    // Valor legible de cada celda, números como Number para que Excel los reconozca
+    // Valor legible de cada celda; números como Number para que Excel los reconozca
     const valExcel = (c, f) => {
       const v = c.valor ? c.valor(f) : f[c.field];
       if (c.exportar) return c.exportar(v, f);
@@ -1173,10 +1201,12 @@ export function crearGrilla(contenedor, cfg) {
       return v ?? '';
     };
 
-    const filasData = tabla.getData('active').filter(f => f.id);
+    // Filas activas, filtradas por período si se eligió uno
+    // eslint-disable-next-line eqeqeq
+    const filasData = tabla.getData('active').filter(f => f.id && (!semFiltro || f.semana == semFiltro));
     const wb = XLSX.utils.book_new();
 
-    // — Hoja "Datos": todas las columnas, todas las filas activas, con auto-filtro —
+    // — Hoja "Datos": todas las columnas, filas del período, con auto-filtro —
     const hdrs = colsDef.map(c => c.title);
     const rows = filasData.map(f => colsDef.map(c => valExcel(c, f)));
     const ws = XLSX.utils.aoa_to_sheet([hdrs, ...rows]);
@@ -1208,7 +1238,7 @@ export function crearGrilla(contenedor, cfg) {
     const totalHH = filasData.reduce((s, f) => s + (Number(f.hh_total) || 0), 0);
 
     const aoaRes = [
-      [tituloRes],
+      [tituloRes + (semFiltro ? ` · S-${semFiltro}` : '')],
       [],
       [labelDim, '# Actividades', 'HH Total'],
       ...[...grupos.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([k, { n, hh }]) => [k, n, +hh.toFixed(1)]),
@@ -1221,8 +1251,9 @@ export function crearGrilla(contenedor, cfg) {
     wsRes['!cols'] = [{ wch: 38 }, { wch: 16 }, { wch: 12 }];
     XLSX.utils.book_append_sheet(wb, wsRes, tituloRes.slice(0, 30));
 
+    const sufSem = semFiltro ? ` S-${semFiltro}` : '';
     const sufijos = { todo: '', resp: ' - Resp', gerencia: ' - Gerencia', proyecto: ' - Proyecto' };
-    const nombre = nombreArchivo(cfg.titulo || cfg.id || 'Datos') + (sufijos[agrupacion] || '') + '.xlsx';
+    const nombre = nombreArchivo(cfg.titulo || cfg.id || 'Datos') + sufSem + (sufijos[agrupacion] || '') + '.xlsx';
     XLSX.writeFile(wb, nombre);
   }
 
