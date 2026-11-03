@@ -168,9 +168,9 @@ const acciones = {
   async comprometer() {
     const siguiente = estado.semanas[0];
     const sel = grilla.tabla.getRanges().flatMap(r => r.getRows()).map(r => r.getData()).filter(a => a.id);
-    let cands = (sel.length ? sel : estado.acts.filter(filtroFila).filter(a => a.estado_la === 'lista'))
+    let cands = (sel.length ? sel : estado.acts.filter(filtroFila).filter(a => ['lista', 'trasladada'].includes(a.estado_la)))
       .filter(a => a.semana === siguiente && !a.comprometida && puedeEditarActividad(a));
-    if (!cands.length) return toast(`Seleccione filas de la ${etiquetaSemana(siguiente)} o marque actividades como "Lista".`, 'info');
+    if (!cands.length) return toast(`Seleccione filas de la ${etiquetaSemana(siguiente)} o marque actividades como "Lista" o "Trasladada al plan".`, 'info');
     if (!await confirmarRestricciones(cands, estado.rests)) return;
     let n = 0;
     for (const a of cands) {
