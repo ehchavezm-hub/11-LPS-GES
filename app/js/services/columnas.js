@@ -176,6 +176,10 @@ export function derivarActividad(fila, cambios, { antes = {} } = {}) {
   }
   if ('estado' in cambios && cambios.estado !== 'no_completado' && fila.cnc_id) d.cnc_id = null;
   if ('estado' in cambios && cambios.estado === 'completado' && fila.hh_real == null && fila.hh_total) d.hh_real = fila.hh_total;
+  // Reparación de invariante: estado_la='trasladada' siempre debe tener comprometida=true.
+  // Si hay un registro inconsistente (estado_la='trasladada' pero comprometida=false en BD), se corrige
+  // al próximo guardado sin que el usuario tenga que hacer nada extra.
+  if (!('comprometida' in d) && fila.estado_la === 'trasladada' && !fila.comprometida) d.comprometida = true;
   return d;
 }
 
