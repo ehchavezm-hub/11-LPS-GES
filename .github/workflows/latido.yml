@@ -1,0 +1,103 @@
+# Latido (keep-alive) y control de salud de la infraestructura. Solo lectura: no toca datos.
+# - Supabase (plan gratuito) se pausa tras 7 días sin actividad de base de datos: cada 2 días se hace una
+#   consulta que llega a Postgres (API REST con la clave publicable, que es pública por diseño; RLS devuelve []).
+# - Verifica también el aplicativo publicado (GitHub Pages) y el servicio de ingreso (Auth).
+# - GitHub desactiva los workflows programados tras 60 días sin actividad en el repositorio: en cada ejecución
+#   este workflow se vuelve a habilitar a sí mismo y al de respaldo por la API (sin commits de relleno).
+# - Si algo falla, el job termina en rojo y GitHub envía un correo al dueño (Settings › Notifications › Actions),
+#   con los pasos para restaurar en el resumen de la ejecución. Runbook: docs/infraestructura.md.
+name: Latido y salud
+
+on:
+  schedule:
+    - cron: '41 14 */2 * *'   # cada 2 días, 09:41 Lima (umbral de Supabase: 7 días)
+  workflow_dispatch:
+    inputs:
+      url_prueba:
+        description: 'Solo para probar la alerta: URL de Supabase a usar en lugar de la real (p. ej. una inválida)'
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+  actions: write   # solo para volver a habilitar los workflows programados de este repositorio
+
+concurrency:
+  group: latido
+  cancel-in-progress: false
+
+jobs:
+  latido:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SITIO: https://ehchavezm-hub.github.io/11-LPS-GES/
+    steps:
+      - uses: actions/checkout@v4
+      - name: Datos de conexión (públicos)
+        env:
+          URL_PRUEBA: ${{ inputs.url_prueba }}
+        run: |
+          URL=$(grep -oE "supabaseUrl: '[^']*'" app/config.js | cut -d"'" -f2)
+          KEY=$(grep -oE "supabaseAnonKey: '[^']*'" app/config.js | cut -d"'" -f2)
+          if [ -n "$URL_PRUEBA" ]; then
+            [[ "$URL_PRUEBA" =~ ^https://[A-Za-z0-9.-]+$ ]] || { echo "::error::url_prueba no válida"; exit 1; }
+            URL="$URL_PRUEBA"; echo "::warning::Prueba de alerta: se usa $URL en lugar de la URL real."
+          fi
+          [ -n "$URL" ] && [ -n "$KEY" ] || { echo "::error::app/config.js sin URL o clave publicable"; exit 1; }
+          case "$KEY" in sb_secret_*) echo "::error::config.js tiene una clave secreta"; exit 1;; esac
+          echo "::add-mask::$KEY"
+          { echo "SB_URL=$URL"; echo "SB_KEY=$KEY"; } >> "$GITHUB_ENV"
+      - name: Supabase — consulta a la base (cuenta como actividad)
+        run: |
+          r=$(curl -sS -o cuerpo.txt -w '%{http_code}' --max-time 20 --retry 4 --retry-delay 15 --retry-all-errors \
+                -H "apikey: $SB_KEY" "$SB_URL/rest/v1/areas?select=id&limit=1") || r=000
+          echo "Base de datos (REST): HTTP $r · $(head -c 80 cuerpo.txt)"
+          [ "$r" = 200 ] || { echo "::error::Supabase base de datos respondió HTTP $r"; echo "FALLA_SB=1" >> "$GITHUB_ENV"; exit 1; }
+      - name: Supabase — servicio de ingreso (Auth)
+        run: |
+          r=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 --retry 4 --retry-delay 15 --retry-all-errors \
+                -H "apikey: $SB_KEY" "$SB_URL/auth/v1/health") || r=000
+          echo "Auth: HTTP $r"
+          [ "$r" = 200 ] || { echo "::error::Supabase Auth respondió HTTP $r"; echo "FALLA_SB=1" >> "$GITHUB_ENV"; exit 1; }
+      - name: GitHub Pages — aplicativo publicado
+        env:
+          URL_PRUEBA: ${{ inputs.url_prueba }}
+        run: |
+          r=$(curl -sS -o pagina.html -w '%{http_code}' --max-time 20 --retry 4 --retry-delay 15 --retry-all-errors "$SITIO") || r=000
+          echo "Aplicativo: HTTP $r"
+          [ "$r" = 200 ] && grep -q 'LPS' pagina.html || { echo "::error::El aplicativo respondió HTTP $r"; echo "FALLA_WEB=1" >> "$GITHUB_ENV"; exit 1; }
+          c=$(curl -sS --max-time 20 --retry 3 "${SITIO}config.js" | grep -c "$SB_URL" || true)
+          [ -n "$URL_PRUEBA" ] || [ "$c" -ge 1 ] || { echo "::error::config.js publicado no apunta a Supabase (modo demostración)"; echo "FALLA_WEB=1" >> "$GITHUB_ENV"; exit 1; }
+      - name: Mantener habilitados los workflows programados
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for w in latido.yml respaldo.yml; do
+            r=$(curl -sS -o /dev/null -w '%{http_code}' -X PUT --max-time 20 --retry 3 \
+                  -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+                  "https://api.github.com/repos/${{ github.repository }}/actions/workflows/$w/enable") || r=000
+            echo "Habilitar $w: HTTP $r"
+            [ "$r" = 204 ] || echo "::warning::No se pudo volver a habilitar $w (HTTP $r)"
+          done
+      - name: Pasos para restaurar (solo si falló)
+        if: failure()
+        run: |
+          {
+            echo "## ⚠ Falla en el latido de LPS-GES"
+            if [ "$FALLA_SB" = 1 ]; then
+              echo "**Supabase no responde.** Revise si el proyecto está pausado:"
+              echo "1. Abra https://supabase.com/dashboard/project/nyvtpmydrsaofjmfwdia"
+              echo "2. Si dice *Paused*, pulse **Restore project** (tarda unos minutos). Los datos se conservan."
+              echo "3. Vuelva a ejecutar este workflow (Actions › Latido y salud › Run workflow) y confirme que queda en verde."
+              echo "4. Estado general del proveedor: https://status.supabase.com"
+            fi
+            if [ "$FALLA_WEB" = 1 ]; then
+              echo "**El aplicativo publicado no responde bien.**"
+              echo "1. Revise Settings › Pages del repositorio y la última ejecución de *Publicar aplicativo*."
+              echo "2. Vuelva a publicar: Actions › Publicar aplicativo › Run workflow."
+              echo "3. Estado de GitHub: https://www.githubstatus.com"
+            fi
+            echo "Runbook completo: docs/infraestructura.md"
+          } >> "$GITHUB_STEP_SUMMARY"
