@@ -13,7 +13,8 @@ paquete `LPS-GES_traspaso_privado.zip` que el dueño guarda en su Google Drive p
 | Aplicativo publicado | GitHub Pages: <https://ehchavezm-hub.github.io/11-LPS-GES/> (se publica solo al subir a `main`, workflow `publicar.yml`) | GitHub |
 | Datos (empresas, proyectos, Grupos LPS, actividades, usuarios) | Supabase, proyecto **11-LPS-GES** (ref `nyvtpmydrsaofjmfwdia`, us-east-1) | cuenta Supabase del dueño |
 | Función de servidor `admin-usuarios` | Supabase Edge Functions (versión 12; fuente en `supabase/functions/admin-usuarios/index.ts`) | Supabase |
-| Respaldos | Google Drive privado (workflow `respaldo.yml` semanal + «Respaldo» del aplicativo) | Drive del dueño |
+| Respaldos | Google Drive privado (workflow `respaldo.yml` semanal, **inactivo hasta cargar sus secrets** + «Respaldo» del aplicativo) | Drive del dueño |
+| Latido y salud | Workflow `latido.yml` cada 2 días (mantiene activa la base; alerta por correo). Ver `docs/infraestructura.md` | GitHub |
 
 Cambiar de cuenta de Claude **no mueve ni borra nada** de lo anterior: solo hay que conectar la nueva cuenta a GitHub y a
 Supabase (sección 2). **Nunca tocar el proyecto Supabase «10-cronograma»** (`rduzdeojbcelfjqsuvht`): es otro aplicativo.
