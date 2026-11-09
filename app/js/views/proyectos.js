@@ -351,14 +351,15 @@ export async function formularioProyecto(p = null, { sub = false } = {}) {
       { name: 'fase_id', label: 'Fase', type: 'select', options: opciones('fases') },
       { name: 'pais_id', label: 'País', type: 'select', options: opciones('paises') },
       // Grupo LPS (pedido a7): el LPS se registra en los Grupos LPS; heredan portafolio, programa y líderes
-      ...(store.proyectos.some(x => x.padre_id === p?.id) ? [] : [{ name: 'padre_id', label: 'Grupo LPS de (opcional)', type: 'select',
-        options: store.proyectos.filter(x => !x.padre_id && x.id !== p?.id && !['cerrado', 'rechazado'].includes(x.estado))
-          .map(x => ({ value: x.id, label: `${x.codigo} · ${x.nombre_corto}` })) }]),
+      ...(p && store.proyectos.some(x => x.padre_id === p.id) ? [] : [{ name: 'padre_id', label: 'Grupo LPS de (opcional)', type: 'select',
+        // Opción vacía primero: sin ella el navegador elegía el primer proyecto y el proyecto nuevo quedaba como Grupo LPS
+        options: [{ value: '', label: '— Ninguno (es un proyecto) —' }, ...store.proyectos.filter(x => !x.padre_id && x.id !== p?.id && !['cerrado', 'rechazado'].includes(x.estado))
+          .map(x => ({ value: x.id, label: `${x.codigo} · ${x.nombre_corto}` }))] }]),
       { name: 'portafolio_id', label: 'Portafolio', type: 'select',
-        options: portafolios.filter(x => x.estado !== 'inactivo' || x.id === p?.portafolio_id).map(x => ({ value: x.id, label: x.nombre })) },
+        options: [{ value: '', label: '—' }, ...portafolios.filter(x => x.estado !== 'inactivo' || x.id === p?.portafolio_id).map(x => ({ value: x.id, label: x.nombre }))] },
       { name: 'programa_id', label: 'Programa', type: 'select',
-        options: programas.filter(x => x.estado !== 'inactivo' || x.id === p?.programa_id)
-          .map(x => ({ value: x.id, label: nomPort(x.portafolio_id) ? `${nomPort(x.portafolio_id)} › ${x.nombre}` : x.nombre })) },
+        options: [{ value: '', label: '—' }, ...programas.filter(x => x.estado !== 'inactivo' || x.id === p?.programa_id)
+          .map(x => ({ value: x.id, label: nomPort(x.portafolio_id) ? `${nomPort(x.portafolio_id)} › ${x.nombre}` : x.nombre }))] },
       { name: 'fecha_inicio', label: 'Inicio previsto', type: 'date' },
       { name: 'fecha_fin', label: 'Fin previsto', type: 'date' },
       { name: 'observaciones', label: 'Observaciones', type: 'textarea' },

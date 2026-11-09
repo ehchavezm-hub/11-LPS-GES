@@ -199,6 +199,7 @@ Estado de cada observación al 25/10/2026.
 | 171 | Saber siempre en qué Grupo LPS se está registrando | ✅ En el menú GRUPOS LPS, la fila del Grupo LPS activo va con fondo naranja (solo esa fila; proyectos y niveles superiores no cambian). Sin cambios en los datos | `grupo_naranja.js` | ✅ |
 | 172 | La sección elegida del menú (debajo de PLANIFICACIÓN, etc.) también en naranja | ✅ Fondo naranja y letras blancas, solo en la sección abierta. Sin cambios en los datos | `grupo_naranja.js` | ✅ |
 | 173 | Opción «Tablero» para todos los usuarios | ✅ El Tablero aparece en el menú para todos los roles (antes los líderes no lo veían por el permiso «ver indicadores»). El usuario pendiente de aprobación sigue sin acceso hasta ser aprobado. Sin cambios en los datos ni en la matriz de permisos | `tablero_todos.js` | ✅ |
+| 174 | Proyecto nuevo (PyL007) no aparecía en la lista de proyectos | ✅ Causa: en «Nuevo proyecto», el campo «Grupo LPS de (opcional)» no tenía opción vacía y el navegador elegía solo el primer proyecto; el proyecto se guardaba como Grupo LPS. Ahora empieza en «— Ninguno (es un proyecto) —» (igual Portafolio y Programa). Afectó a 2 registros (PyL007 y PI-005), sin actividades; su corrección queda a decisión del dueño | `proy_padre.js` (falla con la versión anterior, pasa con la nueva) | ✅ |
 
 ## Lo que encontró la reconfirmación
 
