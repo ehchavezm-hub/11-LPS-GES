@@ -13,7 +13,7 @@ paquete `LPS-GES_traspaso_privado.zip` que el dueño guarda en su Google Drive p
 | Aplicativo publicado | GitHub Pages: <https://ehchavezm-hub.github.io/11-LPS-GES/> (se publica solo al subir a `main`, workflow `publicar.yml`) | GitHub |
 | Datos (empresas, proyectos, Grupos LPS, actividades, usuarios) | Supabase, proyecto **11-LPS-GES** (ref `nyvtpmydrsaofjmfwdia`, us-east-1) | cuenta Supabase del dueño |
 | Función de servidor `admin-usuarios` | Supabase Edge Functions (versión 12; fuente en `supabase/functions/admin-usuarios/index.ts`) | Supabase |
-| Respaldos | Google Drive privado (workflow `respaldo.yml` semanal, **inactivo hasta cargar sus secrets** + «Respaldo» del aplicativo) | Drive del dueño |
+| Respaldos | Foto diaria completa dentro de Supabase (esquema `respaldo`, migración 032, activa) + `respaldo.yml` diario cifrado fuera de Supabase (**espera los secrets del dueño**) + «Respaldo» del aplicativo | Supabase / GitHub / Drive del dueño |
 | Latido y salud | Workflow `latido.yml` cada 2 días (mantiene activa la base; alerta por correo). Ver `docs/infraestructura.md` | GitHub |
 
 Cambiar de cuenta de Claude **no mueve ni borra nada** de lo anterior: solo hay que conectar la nueva cuenta a GitHub y a
@@ -33,6 +33,10 @@ Supabase (sección 2). **Nunca tocar el proyecto Supabase «10-cronograma»** (`
 - **No perder datos.** Antes de cualquier movimiento de datos: foto de conteos + respaldo de las filas a tocar (archivo
   para el Drive privado, nunca al repositorio). Probar primero en local; en la base real, una sola transacción.
   Después, comparar conteos. Nada se borra sin preguntar.
+- **El aplicativo está en uso mientras se mejora.** Antes de aplicar una migración, mover datos o publicar un cambio que
+  toque datos: `select respaldo.tomar_foto('antes de <cambio>');` (foto completa en el esquema `respaldo`, ver
+  `docs/infraestructura.md` › 5). Las migraciones deben ser **aditivas** (nada de `drop`/`delete`/`truncate` sobre datos
+  sin aprobación expresa del dueño). Probar siempre antes en modo demostración y en `supabase/tests/run.sh`.
 - No romper lo que ya funciona. Tras cada cambio: verificar que **todo funcione** y que **no haya efectos colaterales**;
   si los hay, corregirlos. No decir «listo» sin haber verificado.
 - Prioridad: la última observación del dueño.
@@ -77,7 +81,7 @@ Supabase (sección 2). **Nunca tocar el proyecto Supabase «10-cronograma»** (`
 ## 5. Pruebas (correr antes de publicar)
 
 ```bash
-bash supabase/tests/run.sh                      # reglas de la base en Postgres local (migraciones 001…031)
+bash supabase/tests/run.sh                      # reglas de la base en Postgres local (migraciones 001…032)
 bash pruebas/e2e/correr.sh                      # pantallas en modo demo (lista de regresión); o: correr.sh d10 d9
 cd pruebas && npm install && npx playwright install chromium && node humo.mjs   # recorrido de 168 pantallas
 ```

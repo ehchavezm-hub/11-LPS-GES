@@ -1,6 +1,6 @@
 # Infraestructura de LPS-GES: riesgos, latido (keep-alive), alertas y runbook
 
-Revisado el 08/11/2026. Presupuesto: **solo gratuito**. Alertas: **correo** (notificaciones de GitHub Actions).
+Revisado el 08/11/2026; respaldos actualizados el 09/11/2026. Presupuesto: **solo gratuito**. Alertas: **correo** (notificaciones de GitHub Actions).
 Entorno: solo producción (no hay staging). Documento público: sin datos de la empresa ni claves.
 
 ## 1. Inventario y límites
@@ -59,7 +59,8 @@ Nada estaba pausado ni suspendido: no hubo que reactivar nada.
 | GitHub Actions (programados se apagan a los 60 días) | Medio | En cada latido se vuelve a habilitar por la API a `latido.yml` y `respaldo.yml` (`PUT …/actions/workflows/{id}/enable`, permiso `actions: write` limitado a este repositorio). Sin commits de relleno | Ejecución real: HTTP 204 en ambos | ✅ Activo | [ejecución 1](https://github.com/ehchavezm-hub/11-LPS-GES/actions/runs/42492293877): base `HTTP 200 · []`, Auth `HTTP 200`, aplicativo `HTTP 200`, habilitar `HTTP 204` ×2 |
 | GitHub Pages | Bajo | Solo control de salud en el latido (HTTP 200 y que `config.js` apunte a Supabase, no al modo demostración) | Ejecución real: HTTP 200 | ✅ Activo | [ejecución 1](https://github.com/ehchavezm-hub/11-LPS-GES/actions/runs/42492293877): base `HTTP 200 · []`, Auth `HTTP 200`, aplicativo `HTTP 200`, habilitar `HTTP 204` ×2 |
 | Alerta de falla | — | Si un control falla, el job termina en rojo → GitHub envía **correo** al dueño; el resumen de la ejecución trae los pasos para restaurar | Ejecución de prueba contra una URL inválida (`url_prueba`) | ✅ La ejecución falla y queda en rojo. ⚠ **Falta que confirmes que te llegó el correo** (no lo puedo ver) | [ejecución 2](https://github.com/ehchavezm-hub/11-LPS-GES/actions/runs/42492296517): 5 intentos con espera de 15 s (`curl: (6) Could not resolve host`), `##[error]Supabase base de datos respondió HTTP 000`, resumen con los pasos para restaurar; la re-habilitación corrió igual (`HTTP 204`) |
-| Respaldo fuera del proveedor | Alto | **Propuesto, pendiente de tu aprobación** (sección 5). No se activó nada | — | ⏳ Pendiente | — |
+| Pérdida por error del aplicativo o de una migración | Alto (desarrollo en paralelo al uso) | **Foto diaria completa dentro de Supabase** (migración 032): todas las tablas, en el esquema aparte `respaldo` que la API no ve; pg_cron todos los días 23:37 Lima; no se borran solas. Además, la tabla `auditoria` guarda la fila completa de cada borrado y el antes/después de cada cambio | Foto real tomada el 09/11/2026 12:32 UTC: conteos idénticos a los de antes (129 actividades, 62 proyectos, 541 valores…); permisos: anon/authenticated sin acceso (consultado) | ✅ Activo | Consultas de solo lectura del 09/11/2026 |
+| Respaldo fuera del proveedor | Alto | `respaldo.yml` ahora es **diario**, exporta **todas** las tablas (`respaldo_completo`, solo con la clave secreta), lo **cifra** (AES-256) y lo guarda como artefacto 90 días (y en Drive si hay `RCLONE_CONF`). Controla también que la foto interna tenga < 36 h. **Falta que cargues 2 secrets** (sección 5); hasta entonces falla a diario a propósito, para que no quede en silencio | Cifrado/descifrado probado en local | ⏳ Esperando tus secrets | — |
 | Cuotas (base, disco, egreso) | Bajo hoy (3,6 %) | Revisión trimestral (sección 6). Un aviso automático al 80 % necesitaría un token de administración de Supabase (sección 4) | Consulta de solo lectura | 📄 Documentado | — |
 | Google Fonts, dominio, certificado | Bajo | Solo documentado | — | 📄 Documentado | — |
 
@@ -82,20 +83,35 @@ Nada estaba pausado ni suspendido: no hubo que reactivar nada.
 6. **Cierre automático de semanas vencidas**: hoy no corre (necesita la clave `service_role`; ver sección 5). Es lógica del
    negocio: no se cambió.
 
-## 5. Propuesta de respaldo automático (pendiente de tu aprobación)
+## 5. Respaldos: qué hay y qué falta
 
-El workflow **ya existe** (`respaldo.yml`): cada sábado exporta toda la base (`exportar_respaldo`), la comprime y la sube a
-tu Google Drive (borra copias de más de 365 días). También ejecuta el cierre automático de semanas. Solo faltan 3 secrets
-(GitHub › Settings › Secrets and variables › Actions › *New repository secret*):
+**Ya activo (no necesita nada tuyo):**
+- **Foto diaria interna** (migración `032_respaldo_interno.sql`): `respaldo.tomar_foto('diaria')` todos los días a las
+  23:37 Lima (pg_cron, job `respaldo-diario`). Guarda todas las tablas de `public` en `respaldo.fotos` (unos 0,5 MB por
+  foto ≈ 15 MB/mes; la base usa 18 MB de 500 MB). Antes de cada cambio a la base o publicación, Claude toma una foto
+  con motivo `antes de <cambio>` (regla en `CLAUDE.md`). **Las fotos no se borran solas**; la revisión trimestral vigila el
+  espacio y, si hace falta, te propondrá conservar por ejemplo los últimos 90 días.
+- **Auditoría**: cada alta, cambio y baja de actividades, proyectos, listas, cartera, restricciones, permisos, perfiles…
+  queda en `auditoria` con la fila completa (bajas) o el antes/después (cambios).
 
-| Secret | De dónde sale |
+**Falta (respaldo fuera de Supabase, diario y cifrado):** carga en GitHub › Settings › Secrets and variables › Actions ›
+*New repository secret*:
+
+| Secret | Qué poner |
 |---|---|
-| `SUPABASE_URL` | `https://nyvtpmydrsaofjmfwdia.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase › Project Settings › API Keys › clave **secreta** (`service_role` / `sb_secret_…`). Nunca va al código |
-| `RCLONE_CONF` | En tu PC: instalar rclone, `rclone config` → remoto llamado `gdrive`, tipo Google Drive; copiar el contenido de `rclone.conf` |
+| `RESPALDO_CLAVE` | Una contraseña larga que tú inventes. **Guárdala también en tu gestor de contraseñas o Drive**: sin ella el respaldo no se puede abrir |
+| `RCLONE_CONF` (opcional) | Para copiar además a tu Google Drive: en tu PC, `rclone config` → remoto `gdrive` (Google Drive); pegar el contenido de `rclone.conf` |
 
-Cuando los cargues, se ejecuta a mano una vez (Actions › Respaldo y mantenimiento › Run workflow) y se confirma que el
-archivo llegó a `LPS-GT/respaldos` en tu Drive. **No se hará nada de esto sin tu aprobación.**
+Luego: Actions › **Respaldo y mantenimiento** › *Run workflow* → debe quedar en verde con el artefacto
+`respaldo-cifrado-…`. El cierre automático de semanas **sigue apagado** (es lógica del negocio): se activa solo si creas la
+variable `CIERRE_AUTOMATICO = si`.
+
+**Cómo abrir un respaldo cifrado** (en tu PC, con OpenSSL):
+```bash
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -in lpsges_respaldo_FECHA.json.gz.enc -out respaldo.json.gz   # pide RESPALDO_CLAVE
+gunzip respaldo.json.gz     # queda un JSON con todas las tablas
+```
 
 ## 6. Revisión trimestral
 
@@ -130,7 +146,14 @@ Supabase lo dirá en su resumen, y entonces la medición del tamaño de la base 
 2. Disco ≥ 95 %: la guía [S4] explica cómo liberar espacio. **No borrar datos sin decisión del dueño.**
 3. Si el uso real creció, evaluar Supabase Pro (unos US$ 25/mes).
 
-### Falla el respaldo semanal (cuando esté activo)
+### Recuperar datos borrados o cambiados por error
+1. **No volver a editar** las filas afectadas. Avisar a Claude con la hora aproximada y la pantalla.
+2. Primero se busca en `auditoria` (fila completa de lo borrado; antes/después de lo cambiado) y en `respaldo.fotos` (foto
+   del día anterior o la tomada «antes de» un cambio). Solo lectura.
+3. Se prepara un SQL que devuelve solo esas filas (con respaldo previo y conteos antes/después), en una transacción. El
+   dueño lo aprueba antes de ejecutarlo.
+
+### Falla el respaldo diario
 1. Ver el log de **Respaldo y mantenimiento**. Si el error es de Drive, el token de rclone pudo vencer: volver a ejecutar
    `rclone config reconnect gdrive:` en tu PC y actualizar el secret `RCLONE_CONF`.
 2. Mientras tanto, respaldo manual desde el aplicativo (Configuración › Respaldo).

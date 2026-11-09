@@ -1,70 +1,117 @@
-# Respaldo semanal de la base de datos en Google Drive + mantener activo Supabase (plan gratuito)
-# + cierre automático de semanas vencidas (respaldo de pg_cron).
+# Respaldo DIARIO de toda la base, fuera de Supabase, y control de la foto diaria interna (migración 032).
 #
-# Secrets requeridos (Settings → Secrets and variables → Actions → Secrets):
-#   SUPABASE_URL               https://xxxx.supabase.co
-#   SUPABASE_SERVICE_ROLE_KEY  service_role key (NUNCA en el código ni en config.js)
-#   RCLONE_CONF                contenido de rclone.conf con un remoto "gdrive" (Google Drive)
-# Variable opcional:
-#   GDRIVE_CARPETA             carpeta destino en Drive (por defecto LPS-GT/respaldos)
+# Secrets (Settings → Secrets and variables → Actions → Secrets):
+#   SUPABASE_SERVICE_ROLE_KEY  clave secreta de Supabase (service_role / sb_secret_…). NUNCA en el código.   [obligatorio]
+#   RESPALDO_CLAVE             contraseña para cifrar el respaldo (guárdela también en un lugar seguro).    [obligatorio
+#                              si no hay RCLONE_CONF] El respaldo cifrado queda como artefacto de la ejecución (90 días).
+#   RCLONE_CONF                (opcional) rclone.conf con un remoto "gdrive": además sube el respaldo a Google Drive.
+#   SUPABASE_URL               (opcional) por defecto se toma de app/config.js.
+# Variables (Settings → Secrets and variables → Actions → Variables):
+#   GDRIVE_CARPETA             carpeta en Drive (por defecto LPS-GT/respaldos)
+#   CIERRE_AUTOMATICO          'si' para cerrar también las semanas vencidas (por defecto NO: es lógica del negocio)
 #
-# Los respaldos NO se guardan en el repositorio (es público): solo en Google Drive.
+# El repositorio es público: el respaldo nunca se sube sin cifrar ni se escribe en el repositorio.
+# Si algo falla (o faltan los secrets), la ejecución termina en rojo y GitHub avisa por correo.
+# Cómo restaurar: docs/infraestructura.md › Runbook.
 name: Respaldo y mantenimiento
 
 on:
   schedule:
-    - cron: '17 11 * * 1,4'   # lunes y jueves 06:17 (Lima): mantiene activo el proyecto
-    - cron: '23 4 * * 6'      # sábado 23:23 (viernes, Lima): respaldo semanal tras el cierre
+    - cron: '53 4 * * *'      # todos los días 23:53 (Lima), después de la foto interna de las 23:37
   workflow_dispatch:
-    inputs:
-      respaldo:
-        description: 'Generar respaldo ahora'
-        type: boolean
-        default: true
 
 permissions:
   contents: read
 
+concurrency:
+  group: respaldo
+  cancel-in-progress: false
+
 jobs:
-  mantenimiento:
+  respaldo:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
+      - uses: actions/checkout@v4
       - name: Verificar configuración
+        env:
+          RESPALDO_CLAVE: ${{ secrets.RESPALDO_CLAVE }}
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
         run: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo "::notice::Faltan los secrets SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY. Nada que hacer."; echo "SIN_CONFIG=1" >> "$GITHUB_ENV"
+          [ -n "$SUPABASE_URL" ] || SUPABASE_URL=$(grep -oE "supabaseUrl: '[^']*'" app/config.js | cut -d"'" -f2)
+          echo "SUPABASE_URL=$SUPABASE_URL" >> "$GITHUB_ENV"
+          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
+            echo "::error::Falta el secret SUPABASE_SERVICE_ROLE_KEY: NO se hizo el respaldo. Ver docs/infraestructura.md (sección 5)."; exit 1
           fi
-      - name: Cierre automático de semanas vencidas
-        if: env.SIN_CONFIG != '1'
+          if [ -z "$RESPALDO_CLAVE" ] && [ -z "$RCLONE_CONF" ]; then
+            echo "::error::Falta RESPALDO_CLAVE (o RCLONE_CONF): no hay dónde guardar el respaldo. Ver docs/infraestructura.md (sección 5)."; exit 1
+          fi
+          [ -z "$RESPALDO_CLAVE" ] || echo "CIFRAR=1" >> "$GITHUB_ENV"
+          [ -z "$RCLONE_CONF" ] || echo "DRIVE=1" >> "$GITHUB_ENV"
+      - name: Exportar toda la base
+        run: |
+          mkdir -p salida
+          ARCHIVO="salida/lpsges_respaldo_$(TZ=America/Lima date +%Y-%m-%d_%H%M).json"
+          r=$(curl -sS -o "$ARCHIVO" -w '%{http_code}' --max-time 120 --retry 4 --retry-delay 20 --retry-all-errors \
+                -X POST "$SUPABASE_URL/rest/v1/rpc/respaldo_completo" \
+                -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Content-Type: application/json" -d '{}') || r=000
+          echo "Exportación: HTTP $r"
+          [ "$r" = 200 ] || { echo "::error::La exportación respondió HTTP $r"; exit 1; }
+          # Conteo por tabla (solo números) y control mínimo: debe traer actividades y proyectos
+          python3 - "$ARCHIVO" <<'PY'
+          import json, sys
+          d = json.load(open(sys.argv[1]))
+          conteo = {k: len(v) for k, v in d.items() if isinstance(v, list)}
+          print(conteo)
+          assert len(conteo) >= 30 and conteo.get('actividades', 0) > 0 and conteo.get('proyectos', 0) > 0, 'respaldo incompleto'
+          PY
+          gzip -9 "$ARCHIVO"
+          echo "ARCHIVO=$ARCHIVO.gz" >> "$GITHUB_ENV"
+      - name: Foto interna diaria al día
+        run: |
+          u=$(curl -sS --max-time 30 --retry 3 -X POST "$SUPABASE_URL/rest/v1/rpc/ultima_foto_respaldo" \
+                -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Content-Type: application/json" -d '{}' | tr -d '"')
+          echo "Última foto interna: $u"
+          edad=$(( $(date +%s) - $(date -d "$u" +%s 2>/dev/null || echo 0) ))
+          [ "$edad" -lt 129600 ] || { echo "::error::La foto interna diaria tiene más de 36 h (última: ${u:-ninguna}). Revisar el programa 'respaldo-diario' (pg_cron)."; exit 1; }
+      - name: Cifrar
+        env:
+          RESPALDO_CLAVE: ${{ secrets.RESPALDO_CLAVE }}
+        if: env.CIFRAR == '1'
+        run: |
+          openssl enc -aes-256-cbc -pbkdf2 -iter 200000 -salt -in "$ARCHIVO" -out "$ARCHIVO.enc" -pass env:RESPALDO_CLAVE
+          rm -f "$ARCHIVO"
+          ls -la salida
+      - name: Guardar respaldo cifrado (artefacto, 90 días)
+        if: env.CIFRAR == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: respaldo-cifrado-${{ github.run_id }}
+          path: salida/*.enc
+          retention-days: 90
+          if-no-files-found: error
+      - name: Subir a Google Drive (opcional)
+        env:
+          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
+          CARPETA: ${{ vars.GDRIVE_CARPETA || 'LPS-GT/respaldos' }}
+        if: env.DRIVE == '1'
+        run: |
+          sudo apt-get install -y -qq rclone >/dev/null
+          mkdir -p ~/.config/rclone && printf '%s' "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
+          rclone copy salida "gdrive:$CARPETA" --no-traverse
+          echo "Respaldo subido a gdrive:$CARPETA"
+          rm -f ~/.config/rclone/rclone.conf
+      - name: Cierre automático de semanas vencidas (solo si CIERRE_AUTOMATICO = si)
+        if: vars.CIERRE_AUTOMATICO == 'si'
         run: |
           curl -fsS -X POST "$SUPABASE_URL/rest/v1/rpc/cerrar_semanas_vencidas" \
             -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
             -H "Content-Type: application/json" -d '{}'
-          echo
-      - name: Exportar respaldo
-        if: env.SIN_CONFIG != '1' && (github.event.schedule == '23 4 * * 6' || inputs.respaldo)
-        run: |
-          mkdir -p salida
-          ARCHIVO="salida/lpsgt_respaldo_$(TZ=America/Lima date +%Y-%m-%d_%H%M).json"
-          curl -fsS -X POST "$SUPABASE_URL/rest/v1/rpc/exportar_respaldo" \
-            -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
-            -H "Content-Type: application/json" -d '{}' -o "$ARCHIVO"
-          python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print({k: len(v) for k, v in d.items() if isinstance(v, list)})" "$ARCHIVO"
-          gzip "$ARCHIVO"
-          echo "HAY_RESPALDO=1" >> "$GITHUB_ENV"
-      - name: Subir a Google Drive
-        if: env.HAY_RESPALDO == '1'
-        env:
-          RCLONE_CONF: ${{ secrets.RCLONE_CONF }}
-          CARPETA: ${{ vars.GDRIVE_CARPETA || 'LPS-GT/respaldos' }}
-        run: |
-          if [ -z "$RCLONE_CONF" ]; then echo "::warning::Falta el secret RCLONE_CONF: el respaldo no se subió."; exit 0; fi
-          sudo apt-get install -y -qq rclone >/dev/null
-          mkdir -p ~/.config/rclone && printf '%s' "$RCLONE_CONF" > ~/.config/rclone/rclone.conf
-          rclone copy salida "gdrive:$CARPETA" --no-traverse
-          rclone delete "gdrive:$CARPETA" --min-age 365d || true
-          echo "Respaldo subido a gdrive:$CARPETA"
-          rm -rf salida ~/.config/rclone/rclone.conf
+      - name: Limpiar
+        if: always()
+        run: rm -rf salida ~/.config/rclone/rclone.conf

@@ -656,3 +656,23 @@ begin
   delete from public.vistas where grilla = 'prueba028';
   raise notice '028 OK';
 end $$;
+
+-- 032: foto completa de la base, sin tocar datos y sin acceso desde la API
+do $$
+declare c jsonb; antes bigint; despues bigint;
+begin
+  select count(*) into antes from public.actividades;
+  c := respaldo.tomar_foto('prueba 032');
+  select count(*) into despues from public.actividades;
+  assert antes = despues, '032: la foto cambió los datos';
+  assert (c->>'actividades')::bigint = antes, '032: conteo de actividades distinto';
+  assert (select datos ? 'auditoria' and datos ? 'empresa_miembros' from respaldo.fotos order by id desc limit 1), '032: faltan tablas en la foto';
+  assert not has_schema_privilege('anon', 'respaldo', 'usage') and not has_schema_privilege('authenticated', 'respaldo', 'usage'), '032: la API ve el esquema respaldo';
+  assert not has_function_privilege('authenticated', 'respaldo.tomar_foto(text)', 'execute'), '032: la API puede tomar fotos';
+  assert public.ultima_foto_respaldo() is not null, '032: ultima_foto_respaldo vacía';
+  assert not has_function_privilege('authenticated', 'public.ultima_foto_respaldo()', 'execute'), '032: la API ve la hora de la foto';
+  assert not has_function_privilege('authenticated', 'public.respaldo_completo()', 'execute')
+     and not has_function_privilege('anon', 'public.respaldo_completo()', 'execute'), '032: la API puede exportar todo';
+  assert public.respaldo_completo() ? 'empresa_miembros', '032: respaldo_completo sin empresa_miembros';
+  raise notice '032 OK';
+end $$;
