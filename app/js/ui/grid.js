@@ -224,6 +224,8 @@ let contadorGrillas = 0;
 window.addEventListener('beforeunload', e => {
   if ([...registroPendientes.values()].some(n => n > 0)) { e.preventDefault(); e.returnValue = ''; }
 });
+/** ¿Hay cambios de alguna grilla que aún no llegan al servidor? (la actualización automática espera) */
+export const hayCambiosSinGuardar = () => [...registroPendientes.values()].some(n => n > 0);
 
 export function crearGrilla(contenedor, cfg) {
   const registroId = ++contadorGrillas;

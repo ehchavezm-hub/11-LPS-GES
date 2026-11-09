@@ -31,6 +31,20 @@ const { chromium } = require('playwright');
   console.log('  creado:', JSON.stringify(r && { padre_id: r.padre_id, portafolio_id: r.portafolio_id, programa_id: r.programa_id }));
   chk(!!r && !r.padre_id, 'el proyecto nuevo se guarda como proyecto (sin padre)');
   chk(!!r && !r.portafolio_id && !r.programa_id, 'sin portafolio ni programa elegidos a la fuerza');
+  // Pedido 175: si se elige un proyecto en «Grupo LPS de», se pide confirmación; al decir que no, no se guarda
+  await p.evaluate(async () => { const m = await import('./js/views/proyectos.js'); m.formularioProyecto(); });
+  await p.waitForSelector('select[name="padre_id"]');
+  await p.fill('input[name="codigo"]', 'PRB-175'); await p.fill('input[name="nombre_corto"]', 'Prueba 175');
+  await p.evaluate(() => { for (const n of ['gerencia_id', 'padre_id']) { const s = document.querySelector(`select[name="${n}"]`); s.value = s.options[1].value; s.dispatchEvent(new Event('change', { bubbles: true })); } });
+  await p.locator('.modal-fondo .btn-primario').last().click(); await p.waitForTimeout(600);
+  const pregunta = await p.locator('.modal-fondo').last().innerText();
+  chk(/Grupo LPS o proyecto/.test(pregunta), 'pide confirmación al elegir «Grupo LPS de»');
+  await p.locator('.modal-fondo').last().locator('button:not(.btn-primario)').last().click(); await p.waitForTimeout(800);
+  const r2 = await p.evaluate(async () => { const { api } = await import('./js/data/api.js'); return (await api.list('proyectos', {})).find(x => x.codigo === 'PRB-175'); });
+  chk(!r2, 'al responder que no, no se guarda');
+  chk(await p.locator('select[name="padre_id"]').count() === 1, 'el formulario sigue abierto para corregir');
+  // La actualización automática existe (pedido 175)
+  chk(await p.evaluate(async () => typeof (await import('./js/ui/grid.js')).hayCambiosSinGuardar === 'function'), 'la actualización automática sabe si hay cambios sin guardar');
   chk(!errs.length, 'sin errores de página ' + errs.join(' / '));
   await b.close(); console.log(fallas.length ? `FALLAS: ${fallas.length}` : 'SIN ERRORES'); process.exit(fallas.length ? 1 : 0);
 })();

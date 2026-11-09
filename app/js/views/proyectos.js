@@ -369,6 +369,11 @@ export async function formularioProyecto(p = null, { sub = false } = {}) {
       if ('padre_id' in v) datos.padre_id = v.padre_id || null;
       // Un Grupo LPS hereda la ubicación de su proyecto (en la base lo asegura public.tg_subproyecto)
       const padre = datos.padre_id && store.proyectos.find(x => x.id === datos.padre_id);
+      // Pedido 175: en «Nuevo / Editar proyecto», elegir «Grupo LPS de» lo convierte en Grupo LPS: se pide confirmación
+      if (!sub && padre && !p?.padre_id && !(await confirmar(`«${v.nombre_corto}» se guardará como GRUPO LPS dentro de «${padre.codigo} · ${padre.nombre_corto}» y NO aparecerá en la lista de proyectos. ¿Es correcto?`,
+        { titulo: '¿Grupo LPS o proyecto?', texto: 'Sí, es un Grupo LPS' }))) {
+        throw new Error('No se guardó. Para registrarlo como proyecto, en «Grupo LPS de» elija «— Ninguno (es un proyecto) —».');
+      }
       if (padre) {
         datos.portafolio_id = padre.portafolio_id || null; datos.programa_id = padre.programa_id || null;
         if (!datos.gerencia_id) datos.gerencia_id = padre.gerencia_id || null;

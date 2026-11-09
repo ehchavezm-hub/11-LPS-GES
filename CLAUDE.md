@@ -85,6 +85,7 @@ bash supabase/tests/run.sh                      # reglas de la base en Postgres 
 bash pruebas/e2e/correr.sh                      # pantallas en modo demo (lista de regresión); o: correr.sh d10 d9
 cd pruebas && npm install && npx playwright install chromium && node humo.mjs   # recorrido de 168 pantallas
 ```
+`AUTO_DIR=<copia de app/ servida en el puerto 8098> node pruebas/e2e/auto_version.js` prueba la actualización automática (pedido 175).
 `correr.sh` levanta un servidor local en el puerto 8099. Las pruebas `d*.js`, `q*.js`, etc. tienen el nombre de la
 observación que verifican.
 

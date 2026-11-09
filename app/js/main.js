@@ -50,19 +50,43 @@ ruta('/admin', () => import('./views/admin-console.js').then(m => ({
   render(el) { el.innerHTML = ''; m.showAdminConsole(undefined, el); },
 })), { admin: true });
 
+/** Recarga a la versión nueva sin perder trabajo: espera a que no haya cambios sin guardar ni formularios abiertos. */
+function actualizarCuandoSeaSeguro() {
+  const seguro = async () => {
+    if (document.querySelector('.modal-fondo, .tabulator-editing')) return false;
+    try { return !(await import('./ui/grid.js')).hayCambiosSinGuardar(); } catch { return true; }
+  };
+  const intentar = async () => {
+    if (!(await seguro())) return false;
+    toast('Actualizando a la versión nueva del aplicativo…', 'info', 3000);
+    setTimeout(() => location.reload(), 1500);
+    return true;
+  };
+  intentar().then(listo => {
+    if (listo) return;
+    toast('Hay una versión nueva del aplicativo: se actualizará sola en cuanto termine de guardar lo que está editando.', 'info', 15000);
+    const t = setInterval(async () => { if (await intentar()) clearInterval(t); }, 5000);
+  });
+}
+
 async function arrancar() {
   iniciarMonitoreo();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-    // Versión nueva publicada: el service worker la descarga en segundo plano y toma el control. Si la página se
-    // acaba de abrir se recarga sola; si la persona ya está trabajando, se le avisa para no interrumpirla.
+    // Versión nueva publicada (pedido 175): todos deben usar siempre la última versión, para que una corrección
+    // llegue a todos en minutos. Se busca una versión nueva cada 5 minutos y al volver a la pestaña; cuando el
+    // service worker nuevo toma el control, la página se recarga sola apenas sea seguro (sin cambios sin guardar,
+    // sin formularios abiertos y sin una celda en edición).
+    const reg = navigator.serviceWorker.register('sw.js').catch(() => null);
+    const buscar = () => reg.then(r => r?.update?.()).catch(() => {});
+    setInterval(buscar, 5 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) buscar(); });
     const habia = !!navigator.serviceWorker.controller, inicio = Date.now();
     let avisado = false;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!habia || avisado) return;
       avisado = true;
-      if (Date.now() - inicio < 20000) location.reload();
-      else toast('Hay una versión nueva del aplicativo. Pulse «Actualizar» (arriba a la derecha) o recargue la página para usarla.', 'info', 30000);
+      if (Date.now() - inicio < 20000) return location.reload();
+      actualizarCuandoSeaSeguro();
     });
   }
   api.auth.alCambiar((evento) => {
