@@ -46,8 +46,8 @@ export function numeroSemana(s) {
 }
 
 export function etiquetaSemana(semana) {
-  const { semana: n } = numeroSemana(semana);
-  return `S-${String(n).padStart(2, '0')} · ${fmtCorto(semana)} – ${fmtCorto(sumarDias(semana, 6))}`;
+  const { anio, semana: n } = numeroSemana(semana);
+  return `S-${String(n).padStart(2, '0')}/${String(anio).slice(-2)} · ${fmtCorto(semana)} – ${fmtCorto(sumarDias(semana, 6))}`;
 }
 
 export function semanasEntre(a, b) {
