@@ -1,5 +1,6 @@
 // Estructura general: cabecera, navegación lateral y menú de proyectos (6.3), notificaciones y usuario. v1.1
 import { api, modoDemo, mensajeError } from '../data/api.js';
+import { forzarVerificacion } from '../core/conexion.js';
 import { store, on, esGestor, esStaff, esAdmin, puede, seleccionarProyecto, seleccionarNivel, cargarCatalogo, rol } from '../core/store.js';
 import { ROLES } from '../data/catalogos.js';
 import { esc, html, normalizar, fmtFechaHora } from '../core/util.js';
@@ -36,6 +37,11 @@ export function montarLayout(raiz, { alSalir }) {
   const iniciales = (u.codigo || u.nombre || '?').slice(0, 2).toUpperCase();
   raiz.innerHTML = '';
   const app = html(`<div id="app">
+    <div class="banner-sin-conexion" id="banner-sin-conexion" role="alert" aria-live="assertive" hidden>
+      <span class="banner-icono">📡</span>
+      <span class="banner-texto"><strong>Sin conexión con la base de datos</strong> — los cambios <strong>NO se guardarán</strong>. Verifica tu red o usa datos móviles en lugar del WiFi corporativo.</span>
+      <span class="banner-reint"><button onclick="document.getElementById('banner-sin-conexion').dataset.reintentando='1';this.disabled=true;this.textContent='Verificando…'" title="Forzar una verificación ahora">Reintentar</button></span>
+    </div>
     <header class="cabecera">
       <button class="btn-icono btn-menu" data-a="menu" aria-label="Contraer o expandir el menú" title="Contraer / expandir el menú lateral">☰</button>
       <a class="logo" href="#/"><span>LPS<b>-GES</b></span></a>
@@ -69,6 +75,23 @@ export function montarLayout(raiz, { alSalir }) {
   document.addEventListener('ruta', pintarNav);
   on('catalogo', () => { pintarProyectos(); });
   on('proyecto', () => { pintarProyectos(); pintarNav(); });
+
+  // ── Banner de sin conexión ───────────────────────────────────────────────
+  const banner = app.querySelector('#banner-sin-conexion');
+  const btnReint = banner?.querySelector('button');
+  on('conexion', ({ ok: conectado }) => {
+    if (!banner) return;
+    banner.hidden = !!conectado;
+    document.body.classList.toggle('sin-conexion', !conectado);
+    if (conectado && btnReint) { btnReint.disabled = false; btnReint.textContent = 'Reintentar'; }
+  });
+  if (btnReint) {
+    btnReint.addEventListener('click', () => {
+      btnReint.disabled = true;
+      btnReint.textContent = 'Verificando…';
+      forzarVerificacion();
+    });
+  }
 
   app.querySelector('.menu-proy input').addEventListener('input', e => { filtroProy = e.target.value; pintarProyectos(); });
   app.querySelector('.proy-lista').addEventListener('click', e => {
