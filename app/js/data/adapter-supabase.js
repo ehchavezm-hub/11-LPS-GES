@@ -1,4 +1,7 @@
 // Adaptador Supabase: consultas genéricas, autenticación y tiempo real.
+import { notificarOk, notificarErrorRed } from '../core/conexion.js';
+
+const esErrorRed = e => e instanceof TypeError || /Failed to fetch|NetworkError|ERR_SSL|ERR_NETWORK/i.test(e?.message || '');
 
 function aplicarFiltros(q, f = {}) {
   for (const [k, v] of Object.entries(f.eq || {})) q = q.eq(k, v);
@@ -49,26 +52,35 @@ export function crearAdaptadorSupabase(url, key) {
     },
     async insert(tabla, filas) {
       const arr = Array.isArray(filas) ? filas : [filas];
-      return ok(await sb.from(tabla).insert(arr).select());
+      try { const r = ok(await sb.from(tabla).insert(arr).select()); notificarOk(); return r; }
+      catch (e) { if (esErrorRed(e)) notificarErrorRed(); throw e; }
     },
     async upsert(tabla, filas, onConflict) {
       const arr = Array.isArray(filas) ? filas : [filas];
-      return ok(await sb.from(tabla).upsert(arr, onConflict ? { onConflict } : undefined).select());
+      try { const r = ok(await sb.from(tabla).upsert(arr, onConflict ? { onConflict } : undefined).select()); notificarOk(); return r; }
+      catch (e) { if (esErrorRed(e)) notificarErrorRed(); throw e; }
     },
     async update(tabla, id, cambios) {
-      const r = ok(await sb.from(tabla).update(cambios).eq('id', id).select());
-      if (!r.length) throw new Error('No tiene permiso para modificar este registro o ya no existe.');
-      return r[0];
+      try {
+        const r = ok(await sb.from(tabla).update(cambios).eq('id', id).select());
+        if (!r.length) throw new Error('No tiene permiso para modificar este registro o ya no existe.');
+        notificarOk(); return r[0];
+      } catch (e) { if (esErrorRed(e)) notificarErrorRed(); throw e; }
     },
     async updateWhere(tabla, f, cambios) {
-      return ok(await aplicarFiltros(sb.from(tabla).update(cambios), f).select());
+      try { const r = ok(await aplicarFiltros(sb.from(tabla).update(cambios), f).select()); notificarOk(); return r; }
+      catch (e) { if (esErrorRed(e)) notificarErrorRed(); throw e; }
     },
     async remove(tabla, id) {
-      const r = ok(await sb.from(tabla).delete().eq('id', id).select());
-      if (!r.length) throw new Error('No tiene permiso para eliminar este registro o ya no existe.');
+      try {
+        const r = ok(await sb.from(tabla).delete().eq('id', id).select());
+        if (!r.length) throw new Error('No tiene permiso para eliminar este registro o ya no existe.');
+        notificarOk();
+      } catch (e) { if (esErrorRed(e)) notificarErrorRed(); throw e; }
     },
     async removeWhere(tabla, f) {
-      ok(await aplicarFiltros(sb.from(tabla).delete(), f));
+      try { ok(await aplicarFiltros(sb.from(tabla).delete(), f)); notificarOk(); }
+      catch (e) { if (esErrorRed(e)) notificarErrorRed(); throw e; }
     },
     async rpc(nombre, args = {}) {
       return ok(await sb.rpc(nombre, args));

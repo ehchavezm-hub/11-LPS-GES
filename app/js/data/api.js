@@ -2,6 +2,7 @@
 // (datos ficticios guardados solo en este navegador).
 import { crearAdaptadorSupabase } from './adapter-supabase.js';
 import { crearAdaptadorDemo } from './adapter-demo.js';
+import { iniciarMonitor } from '../core/conexion.js';
 
 const cfg = window.LPSGT_CONFIG || {};
 // Protección: nunca operar con una clave secreta en el navegador
@@ -21,6 +22,11 @@ export const modoDemo = forzarDemo || !cfg.supabaseUrl || !cfg.supabaseAnonKey;
 export const api = modoDemo ? crearAdaptadorDemo() : crearAdaptadorSupabase(cfg.supabaseUrl, cfg.supabaseAnonKey);
 
 export const supabaseConfigurado = !!(cfg.supabaseUrl && cfg.supabaseAnonKey);
+
+// Arrancar monitor de conexión solo en modo real (no demo)
+if (!modoDemo && cfg.supabaseUrl && cfg.supabaseAnonKey) {
+  iniciarMonitor(cfg.supabaseUrl, cfg.supabaseAnonKey);
+}
 
 export function usarModo(modo) {
   if (modo === 'demo') localStorage.setItem('lpsgt-modo', 'demo');

@@ -3,6 +3,7 @@
 //   · proyecto_id = Grupo LPS (como las actividades); extra.proyecto_id = Proyecto; servicio_id = CET / Servicio;
 //   · extra.prioridad, extra.hh_estimadas y extra.comentario; f_requerida; solicitante (opcional).
 // El Estado se calcula con las actividades creadas desde el ítem (actividades.cartera_id).
+// Segunda ventana: ítems sin f_requerida; «Entra al LA en» es editable (extra.entra_en, semana libre).
 import { api, mensajeError } from '../data/api.js';
 import { store, on, esGestor, lideres, nombre, proyecto, param, opciones, opcionesLideres, enProyectoSel, haySeleccion, nombreSeleccion, semanasLookAhead } from '../core/store.js';
 import { lunes, sumarSemanas, etiquetaSemana, esc, html, num, DIAS, sumarDias } from '../core/util.js';
@@ -13,12 +14,17 @@ import { columnasActividad, derivarProyectoServicio } from '../services/columnas
 import { capacidadSemana } from '../services/indicadores.js';
 import { abrirDetalle, abrirRestricciones, sincronizarEstadoLA } from './detalle.js';
 
-let grilla, desuscribir = [], estado;
+let grilla, grilla2, desuscribir = [], estado;
 
 const PRIORIDADES = [{ value: 'alta', label: 'Alta', color: '#E15759' }, { value: 'media', label: 'Media', color: '#F28E2B' }, { value: 'baja', label: 'Baja', color: '#59A14F' }];
 const ESTADOS = { backlog: ['En backlog', '#76B7B2'], la: ['En Look Ahead', '#4E79A7'], completada: ['Completada', '#59A14F'] };
-// Campo virtual (editable) guardado en extra
 const deExtra = (campo, clave) => d => (d[campo] !== undefined ? d[campo] : d.extra?.[clave] ?? null);
+
+/** Semanas para 'Entra al LA en' editable: semana actual + 25 más (más allá del horizonte del LA). */
+function semanasAmpliadas() {
+  const hoy = lunes(new Date().toISOString().slice(0, 10));
+  return Array.from({ length: 26 }, (_, i) => sumarSemanas(hoy, i));
+}
 
 /** Estado del ítem según las actividades que salieron de él. */
 function estadoItem(c) {
@@ -35,6 +41,19 @@ function semanaEntrada(c) {
   return s < primera ? primera : s;
 }
 
+/** Ítems CON fecha requerida (ventana principal). */
+function filtroConFecha(c) {
+  if (['nueva', 'rechazada'].includes(c.estado)) return false;
+  if (!c.f_requerida) return false;
+  return enProyectoSel(c.proyecto_id);
+}
+/** Ítems SIN fecha requerida (segunda ventana). */
+function filtroSinFecha(c) {
+  if (['nueva', 'rechazada'].includes(c.estado)) return false;
+  if (c.f_requerida) return false;
+  return enProyectoSel(c.proyecto_id);
+}
+
 export async function render(el) {
   estado = { items: [], vinculos: new Map(), rests: [], colab: new Map(), ubic: [] };
   const pag = html(`<div>
@@ -47,44 +66,51 @@ export async function render(el) {
     <div class="barra" style="margin-bottom:10px">
       <button class="btn btn-sm btn-azul" data-a="pasar" title="Crear en el Look Ahead las actividades de los ítems elegidos">➡ Pasar al Look Ahead</button>
     </div>
-    <div data-grilla></div></div>`);
+    <div data-grilla></div>
+    <div style="margin-top:16px;margin-bottom:4px;display:flex;align-items:baseline;gap:10px;border-top:1px solid var(--borde);padding-top:12px">
+      <strong style="font-size:14px">Sin fecha requerida</strong>
+      <span class="pagina-sub">Ítems sin fecha estimada — indique la semana para el Look Ahead cuando corresponda.</span>
+    </div>
+    <div data-grilla2></div></div>`);
   el.append(pag);
   pag.addEventListener('click', e => { if (e.target.closest('[data-a="pasar"]')) pasarAlLookAhead(); });
 
   const la = new Map(columnasActividad({ modo: 'lookahead', semanasLA: [], conGrupo: true }).map(c => [c.field, c]));
   const yo = store.usuario.id;
-  grilla = crearGrilla(pag.querySelector('[data-grilla]'), {
-    id: 'backlog', tabla: 'cartera', titulo: 'Backlog',
-    columnas: [
-      la.get('proyecto_id'),   // «Grupo LPS»: visible solo en la vista consolidada
-      { field: '_prioridad', title: 'Prioridad', tipo: 'lista', ancho: 95, colorear: true, valor: deExtra('_prioridad', 'prioridad'),
-        opciones: () => [{ value: null, label: '—' }, ...PRIORIDADES] },
-      { ...la.get('responsable_id'), editable: () => true },
-      la.get('gerencia_id'),
-      la.get('_proyecto'),
-      la.get('_cet'),
-      la.get('servicio_id'),
-      { ...la.get('descripcion'), title: 'Actividad' },
-      { field: '_hh', title: 'HH estimadas', tipo: 'numero', ancho: 90, total: true, valor: deExtra('_hh', 'hh_estimadas'),
-        ayuda: 'Total de horas; al pasar al Look Ahead se reparten en los días laborables de la semana' },
-      { field: 'f_requerida', title: 'F. requerida', tipo: 'fecha', ancho: 105 },
-      { field: '_entra', title: 'Entra al LA en', tipo: 'texto', ancho: 120, calc: true, filtro: false,
-        formato: (v, c) => { const s = semanaEntrada(c); return s ? esc(etiquetaSemana(s).split('·')[0].trim()) : ''; },
-        ayuda: 'Semana sugerida para pasarlo al Look Ahead (según la F. requerida)' },
-      { field: '_estado', title: 'Estado', tipo: 'texto', ancho: 120, calc: true, filtro: false,
-        formato: (v, c) => (c.id ? badge(...ESTADOS[estadoItem(c)]) : ''), ayuda: 'Se actualiza solo con las actividades creadas desde el ítem' },
-      { field: '_restr', title: '🚧', tipo: 'texto', ancho: 48, calc: true, filtro: false, ordenable: false, ayuda: 'Restricciones conocidas',
-        formato: (v, c) => { const n = estado.rests.filter(r => r.extra?.cartera_id === c.id && !r.actividad_id && r.estado !== 'levantada').length;
-          return c.id ? `<button class="mini-btn" title="Ver / agregar restricciones">${n ? `<b style="color:var(--rojo)">${n}</b>` : '＋'}</button>` : ''; },
-        click: (c, e) => { if (c.id && e.target.closest('button')) abrirRestricciones(c, { item: true, alCambiar: recargar }); } },
-      { field: '_colab', title: '💬', tipo: 'texto', ancho: 48, calc: true, filtro: false, ordenable: false, ayuda: 'Comentarios y enlaces',
-        formato: (v, c) => (c.id ? `<button class="mini-btn" title="Comentarios y enlaces">${estado.colab.get(c.id) || '＋'}</button>` : ''),
-        click: (c, e) => { if (c.id && e.target.closest('button')) abrirDetalle('cartera', c, { alCambiar: n => { estado.colab.set(c.id, n); grilla.refrescar(); } }); } },
-      { field: '_comentario', title: 'Comentario', tipo: 'textoLargo', ancho: 220, valor: deExtra('_comentario', 'comentario') },
-      { field: 'solicitante', title: 'Solicitante', tipo: 'texto', ancho: 140, visible: false },
-    ],
+
+  // ── Columnas compartidas por ambas grillas ──────────────────────────────────
+  const colsBase = [
+    la.get('proyecto_id'),
+    { field: '_prioridad', title: 'Prioridad', tipo: 'lista', ancho: 95, colorear: true, valor: deExtra('_prioridad', 'prioridad'),
+      opciones: () => [{ value: null, label: '—' }, ...PRIORIDADES] },
+    { ...la.get('responsable_id'), editable: () => true },
+    la.get('gerencia_id'),
+    la.get('_proyecto'),
+    la.get('_cet'),
+    la.get('servicio_id'),
+    { ...la.get('descripcion'), title: 'Actividad' },
+    { field: '_hh', title: 'HH estimadas', tipo: 'numero', ancho: 90, total: true, valor: deExtra('_hh', 'hh_estimadas'),
+      ayuda: 'Total de horas; al pasar al Look Ahead se reparten en los días laborables de la semana' },
+    { field: 'f_requerida', title: 'F. requerida', tipo: 'fecha', ancho: 105 },
+  ];
+  const colsSufijo = [
+    { field: '_estado', title: 'Estado', tipo: 'texto', ancho: 120, calc: true, filtro: false,
+      formato: (v, c) => (c.id ? badge(...ESTADOS[estadoItem(c)]) : ''), ayuda: 'Se actualiza solo con las actividades creadas desde el ítem' },
+    { field: '_restr', title: '🚧', tipo: 'texto', ancho: 48, calc: true, filtro: false, ordenable: false, ayuda: 'Restricciones conocidas',
+      formato: (v, c) => { const n = estado.rests.filter(r => r.extra?.cartera_id === c.id && !r.actividad_id && r.estado !== 'levantada').length;
+        return c.id ? `<button class="mini-btn" title="Ver / agregar restricciones">${n ? `<b style="color:var(--rojo)">${n}</b>` : '＋'}</button>` : ''; },
+      click: (c, e) => { if (c.id && e.target.closest('button')) abrirRestricciones(c, { item: true, alCambiar: recargar }); } },
+    { field: '_colab', title: '💬', tipo: 'texto', ancho: 48, calc: true, filtro: false, ordenable: false, ayuda: 'Comentarios y enlaces',
+      formato: (v, c) => (c.id ? `<button class="mini-btn" title="Comentarios y enlaces">${estado.colab.get(c.id) || '＋'}</button>` : ''),
+      click: (c, e) => { if (c.id && e.target.closest('button')) abrirDetalle('cartera', c, { alCambiar: n => { estado.colab.set(c.id, n); grilla?.refrescar(); grilla2?.refrescar(); } }); } },
+    { field: '_comentario', title: 'Comentario', tipo: 'textoLargo', ancho: 220, valor: deExtra('_comentario', 'comentario') },
+    { field: 'solicitante', title: 'Solicitante', tipo: 'texto', ancho: 140, visible: false },
+  ];
+
+  // ── Config y derivar base (sin _entra) ─────────────────────────────────────
+  const cfgComun = {
+    tabla: 'cartera',
     bloqueoCrear,
-    alAplicarVista: () => aplicarVistaGrupos(grilla, { forzar: true }),
     agrupar: [{ field: 'responsable_id', label: 'Responsable' }, { field: 'proyecto_id', label: 'Grupo LPS' }, { field: '_prioridad', label: 'Prioridad' }],
     puedeEditarFila: c => !c.id || esGestor() || c.responsable_id === yo || c.created_by === yo,
     campoInicial: 'descripcion',
@@ -94,39 +120,75 @@ export async function render(el) {
       return { area_id: store.area.id, origen: 'interna', estado: 'abierta', responsable_id: yo, proyecto_id: g?.id || store.proyectoSel || null,
         gerencia_id: null, extra: { prioridad: 'media' } };
     },
-    derivar: (c, cambios, ctx) => {
-      const d = derivarProyectoServicio(c, cambios, { atendido: true, ...(ctx || {}) });
-      const extra = { ...(c.extra || {}), ...(d.extra || {}) };
-      let cambia = !!d.extra;
-      if ('_prioridad' in cambios) { extra.prioridad = cambios._prioridad || null; cambia = true; }
-      if ('_hh' in cambios) { extra.hh_estimadas = cambios._hh === '' || cambios._hh == null ? null : Number(cambios._hh); cambia = true; }
-      if ('_comentario' in cambios) { extra.comentario = cambios._comentario || null; cambia = true; }
-      if (cambia) d.extra = extra;
-      return d;
-    },
     alGuardar: () => cargarSilencioso(),
     menuFila: c => [
       { label: '➡ Pasar al Look Ahead…', action: () => c.id && pasarAlLookAhead([c.id]) },
       { label: '🚧 Restricciones…', action: () => c.id && abrirRestricciones(c, { item: true, alCambiar: recargar }) },
-      { label: '💬 Comentarios y enlaces…', action: () => c.id && abrirDetalle('cartera', c, { alCambiar: n => { estado.colab.set(c.id, n); grilla.refrescar(); } }) },
+      { label: '💬 Comentarios y enlaces…', action: () => c.id && abrirDetalle('cartera', c, { alCambiar: n => { estado.colab.set(c.id, n); grilla?.refrescar(); grilla2?.refrescar(); } }) },
     ],
+  };
+  const derivarBase = (c, cambios, ctx) => {
+    const d = derivarProyectoServicio(c, cambios, { atendido: true, ...(ctx || {}) });
+    const extra = { ...(c.extra || {}), ...(d.extra || {}) };
+    let cambia = !!d.extra;
+    if ('_prioridad' in cambios) { extra.prioridad = cambios._prioridad || null; cambia = true; }
+    if ('_hh' in cambios) { extra.hh_estimadas = cambios._hh === '' || cambios._hh == null ? null : Number(cambios._hh); cambia = true; }
+    if ('_comentario' in cambios) { extra.comentario = cambios._comentario || null; cambia = true; }
+    if (cambia) d.extra = extra;
+    return d;
+  };
+
+  // ── Grilla 1: ítems con fecha requerida ────────────────────────────────────
+  grilla = crearGrilla(pag.querySelector('[data-grilla]'), {
+    id: 'backlog', titulo: 'Backlog', ...cfgComun,
+    columnas: [
+      ...colsBase,
+      { field: '_entra', title: 'Entra al LA en', tipo: 'texto', ancho: 120, calc: true, filtro: false,
+        formato: (v, c) => { const s = semanaEntrada(c); return s ? esc(etiquetaSemana(s).split('·')[0].trim()) : ''; },
+        ayuda: 'Semana sugerida para pasarlo al Look Ahead (según la F. requerida)' },
+      ...colsSufijo,
+    ],
+    alAplicarVista: () => aplicarVistaGrupos(grilla, { forzar: true }),
+    derivar: derivarBase,
   });
+
+  // ── Grilla 2: ítems sin fecha requerida («Entra al LA en» editable) ─────────
+  grilla2 = crearGrilla(pag.querySelector('[data-grilla2]'), {
+    id: 'backlog-sf', titulo: 'Sin fecha requerida', ...cfgComun,
+    columnas: [
+      ...colsBase,
+      { field: '_entra', title: 'Entra al LA en', tipo: 'lista', ancho: 120,
+        valor: deExtra('_entra', 'entra_en'),
+        opciones: () => [{ value: null, label: '—' }, ...semanasAmpliadas().map(s => ({ value: s, label: etiquetaSemana(s).split('·')[0].trim() }))],
+        ayuda: 'Semana planificada para pasarlo al Look Ahead (editable, no limitada al horizonte actual)' },
+      ...colsSufijo,
+    ],
+    alAplicarVista: () => aplicarVistaGrupos(grilla2, { forzar: true }),
+    derivar: (c, cambios, ctx) => {
+      const d = derivarBase(c, cambios, ctx);
+      if ('_entra' in cambios) {
+        const extra = { ...(c.extra || {}), ...(d.extra || {}) };
+        extra.entra_en = cambios._entra || null;
+        d.extra = extra;
+      }
+      return d;
+    },
+  });
+
   desuscribir.push(api.subscribe(['cartera', 'actividades', 'restricciones'], ev => {
-    if (ev.tabla === 'cartera') grilla.aplicarRemoto(ev, filtroFila);
+    if (ev.tabla === 'cartera') {
+      grilla.aplicarRemoto(ev, filtroConFecha);
+      grilla2.aplicarRemoto(ev, filtroSinFecha);
+    }
     cargarSilencioso();
   }));
   desuscribir.push(on('proyecto', () => pintar()));
   await cargar();
 }
 
-export function destruir() { desuscribir.forEach(f => f && f()); desuscribir = []; grilla?.destruir(); }
+export function destruir() { desuscribir.forEach(f => f && f()); desuscribir = []; grilla?.destruir(); grilla2?.destruir(); }
 
 // Ítems del backlog: cartera interna o solicitudes ya aceptadas (no las nuevas ni las rechazadas), del grupo elegido
-function filtroFila(c) {
-  if (['nueva', 'rechazada'].includes(c.estado)) return false;
-  return enProyectoSel(c.proyecto_id);
-}
-
 async function leer() {
   const area = store.area.id;
   const semana = semanasLookAhead()[0];
@@ -149,29 +211,41 @@ async function leer() {
 }
 async function cargar() {
   await leer();
-  await grilla.inicializar(estado.items.filter(filtroFila));
+  await Promise.all([
+    grilla.inicializar(estado.items.filter(filtroConFecha)),
+    grilla2.inicializar(estado.items.filter(filtroSinFecha)),
+  ]);
   aplicarVistaGrupos(grilla, { forzar: true });
+  aplicarVistaGrupos(grilla2, { forzar: true });
   pintarCabecera();
 }
-async function cargarSilencioso() { try { await leer(); grilla.refrescar(); pintarCabecera(); } catch { /* reintento en el próximo cambio */ } }
+async function cargarSilencioso() { try { await leer(); grilla.refrescar(); grilla2.refrescar(); pintarCabecera(); } catch { /* reintento en el próximo cambio */ } }
 async function recargar() { await cargarSilencioso(); }
-async function pintar() { await grilla.setDatos(estado.items.filter(filtroFila)); aplicarVistaGrupos(grilla); pintarCabecera(); }
+async function pintar() {
+  await Promise.all([
+    grilla.setDatos(estado.items.filter(filtroConFecha)),
+    grilla2.setDatos(estado.items.filter(filtroSinFecha)),
+  ]);
+  aplicarVistaGrupos(grilla);
+  aplicarVistaGrupos(grilla2);
+  pintarCabecera();
+}
 
 function pintarCabecera() {
   const pag = document.querySelector('#contenido');
   if (!pag?.querySelector('[data-kpis]')) return;
+  const todosVisibles = estado.items.filter(c => filtroConFecha(c) || filtroSinFecha(c));
   pag.querySelector('[data-proy]').innerHTML = (haySeleccion() ? `<span class="chip-filtro">🏗 ${esc(nombreSeleccion())}</span>` : '')
     + avisoSinGrupo(estado.items.filter(c => !['nueva', 'rechazada'].includes(c.estado)));
-  const visibles = estado.items.filter(filtroFila);
-  const pendientes = visibles.filter(c => estadoItem(c) === 'backlog');
+  const pendientes = todosVisibles.filter(c => estadoItem(c) === 'backlog');
   const hh = pendientes.reduce((s, c) => s + (Number(c.extra?.hh_estimadas) || 0), 0);
   const semana = semanasLookAhead()[0];
-  const personas = [...new Set(visibles.map(c => c.responsable_id).filter(Boolean))];
+  const personas = [...new Set(todosVisibles.map(c => c.responsable_id).filter(Boolean))];
   const capacidad = (personas.length ? personas : lideres().map(l => l.id)).reduce((s, id) => s + capacidadSemana(id, semana, estado.ubic), 0);
   const semanas = capacidad ? hh / capacidad : null;
   const tarjeta = (t, v, sub) => kpi(t, v, { sub });
   pag.querySelector('[data-kpis]').innerHTML = [
-    tarjeta('En backlog', pendientes.length, `${visibles.filter(c => estadoItem(c) === 'la').length} en Look Ahead · ${visibles.filter(c => estadoItem(c) === 'completada').length} completados`),
+    tarjeta('En backlog', pendientes.length, `${todosVisibles.filter(c => estadoItem(c) === 'la').length} en Look Ahead · ${todosVisibles.filter(c => estadoItem(c) === 'completada').length} completados`),
     tarjeta('HH en backlog', num(hh), 'suma de HH estimadas pendientes'),
     tarjeta('Capacidad semanal', num(capacidad), `HH de ${personas.length || lideres().length} persona(s)`),
     tarjeta('Trabajo en cola', semanas == null ? '—' : `${num(semanas, 1)} sem.`, 'HH en backlog ÷ capacidad semanal'),
@@ -183,16 +257,17 @@ function pintarCabecera() {
 // estimadas repartidas en los días laborables. El ítem queda «En Look Ahead» y sus restricciones pasan a la actividad.
 async function pasarAlLookAhead(idsElegidos) {
   const semanas = semanasLookAhead();
-  const candidatos = estado.items.filter(filtroFila).filter(c => estadoItem(c) === 'backlog');
+  const candidatos = estado.items.filter(c => filtroConFecha(c) || filtroSinFecha(c)).filter(c => estadoItem(c) === 'backlog');
   if (!candidatos.length) return toast('No hay ítems en backlog para pasar al Look Ahead.', 'info');
   const marcados = new Set(idsElegidos || []);
   const cuerpo = html(`<div>
     <div class="campo"><label>Semana del Look Ahead</label><select class="sel" data-sem>${semanas.map(s => `<option value="${s}">${esc(etiquetaSemana(s))}</option>`).join('')}</select></div>
     <p class="nota">Las HH estimadas se reparten en los días laborables de la semana. Puede ajustarlas después en el Look Ahead.</p>
     <table class="simple" style="margin-top:8px"><tr><th></th><th>Prioridad</th><th>Responsable</th><th>Actividad</th><th>HH</th><th>Entra al LA en</th></tr>
-    ${candidatos.map(c => { const s = semanaEntrada(c); return `<tr><td><input type="checkbox" value="${c.id}" ${marcados.has(c.id) ? 'checked' : ''}></td>
-      <td>${esc(PRIORIDADES.find(p => p.value === c.extra?.prioridad)?.label || '')}</td><td>${esc(nombre(c.responsable_id))}</td>
-      <td>${esc(c.descripcion)}</td><td>${num(Number(c.extra?.hh_estimadas) || 0)}</td><td>${s ? esc(etiquetaSemana(s).split('·')[0].trim()) : ''}</td></tr>`; }).join('')}</table></div>`);
+    ${candidatos.map(c => { const s = c.f_requerida ? semanaEntrada(c) : c.extra?.entra_en;
+      return `<tr><td><input type="checkbox" value="${c.id}" ${marcados.has(c.id) ? 'checked' : ''}></td>
+        <td>${esc(PRIORIDADES.find(p => p.value === c.extra?.prioridad)?.label || '')}</td><td>${esc(nombre(c.responsable_id))}</td>
+        <td>${esc(c.descripcion)}</td><td>${num(Number(c.extra?.hh_estimadas) || 0)}</td><td>${s ? esc(etiquetaSemana(s).split('·')[0].trim()) : ''}</td></tr>`; }).join('')}</table></div>`);
   modal({ titulo: 'Pasar al Look Ahead', cuerpo, ancho: 900, botones: [{ texto: 'Cancelar' }, { texto: 'Crear en el Look Ahead', clase: 'btn-primario', accion: async () => {
     const ids = [...cuerpo.querySelectorAll('input:checked')].map(i => i.value);
     const semana = cuerpo.querySelector('[data-sem]').value;
