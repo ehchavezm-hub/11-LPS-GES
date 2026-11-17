@@ -17,24 +17,39 @@ let dejarEscuchar = null;
 // ---------- Menú ----------
 const esPlataforma = () => !!store.usuario?.es_plataforma;
 const MENU_PLATAFORMA = [
-  { id: 'p-resumen',     ico: '📊', texto: 'Resumen' },
-  { id: 'p-empresas',    ico: '🏢', texto: 'Empresas' },
-  { id: 'p-usuarios',    ico: '👥', texto: 'Usuarios' },
-  { id: 'p-estructura',  ico: '🌳', texto: 'Estructura de todas las empresas' },
+  { id: 'p-resumen',      ico: '📊', texto: 'Resumen' },
+  { id: 'p-empresas',     ico: '🏢', texto: 'Empresas' },
+  { id: 'p-usuarios',     ico: '👥', texto: 'Usuarios' },
+  { id: 'p-estructura',   ico: '🌳', texto: 'Estructura de todas las empresas' },
   { id: 'p-propietarios', ico: '👑', texto: 'Propietarios' },
-  { id: 'p-auditoria',   ico: '📜', texto: 'Auditoría' },
-  { id: 'p-reportes',    ico: '📄', texto: 'Reportes' },
+  { id: 'p-auditoria',    ico: '📜', texto: 'Auditoría' },
+  { id: 'p-reportes',     ico: '📄', texto: 'Reportes' },
 ];
-const MENU = [
-  { id: 'resumen',       ico: '📊', texto: 'Resumen',                 si: esAdmin },
-  { sep: true },
-  // Usuarios y roles, Administrador delegado y Matriz de permisos son de los Grupos LPS: quedan en Configuración (pedido 16)
-  { id: 'estructura',    ico: '🌐', texto: 'Estructura de la empresa', si: esAdmin },
-  // Portafolios y Programas van dentro de «Estructura de la empresa» (con las mismas dos pestañas de Plataforma)
-  // Listas configurables, Parámetros y Calendario aplican a los Grupos LPS: quedan en Configuración (pedido a11)
-  { sep: true },
-  { id: 'auditoria',     ico: '🕑', texto: 'Auditoría',               si: esAdmin },
+const MENU_EMPRESA = [
+  { id: 'resumen',    ico: '📊', texto: 'Resumen',                 si: esAdmin },
+  { id: 'usuarios',   ico: '👤', texto: 'Usuarios y roles',        si: esAdmin },
+  { id: 'estructura', ico: '🌐', texto: 'Estructura de la empresa', si: esAdmin },
+  { id: 'listas',     ico: '📋', texto: 'Listas',                   si: esAdmin },
+  { id: 'parametros', ico: '🔧', texto: 'Parámetros',               si: esAdmin },
+  { id: 'permisos',   ico: '🔐', texto: 'Permisos',                  si: esAdmin },
+  { id: 'respaldo',   ico: '💾', texto: 'Respaldo',                  si: esAdmin },
+  { id: 'auditoria',  ico: '🕑', texto: 'Auditoría',                 si: esAdmin },
 ];
+const MENU_PROYECTO = [
+  { id: 'proy-resumen',    ico: '📊', texto: 'Resumen del Proyecto' },
+  { id: 'proy-equipo',     ico: '👥', texto: 'Equipo del proyecto' },
+  { id: 'proy-grupos',     ico: '🗂️', texto: 'Grupos LPS' },
+  { id: 'proy-columnas',   ico: '📐', texto: 'Columnas personalizadas' },
+  { id: 'proy-parametros', ico: '🔧', texto: 'Parámetros del proyecto' },
+];
+const MENU_GRUPO = [
+  { id: 'g-resumen',       ico: '📊', texto: 'Resumen del Grupo LPS' },
+  { id: 'g-equipo',        ico: '👷', texto: 'Equipo del grupo' },
+  { id: 'g-restricciones', ico: '🔒', texto: 'Restricciones activas' },
+  { id: 'g-listas',        ico: '📋', texto: 'Listas del grupo' },
+];
+// alias legacy para no romper referencias internas
+const MENU = MENU_EMPRESA;
 
 
 // ---------- API pública ----------
@@ -125,19 +140,33 @@ async function repintarCabecera() {
       ${empresas.map(e => `<option value="${e.id}" ${e.id === store.area?.id ? 'selected' : ''}>${esc(e.nombre)}</option>`).join('')}</select></label>
     <span class="admin-miga-sep">›</span>
     <label class="admin-miga-sel"><span>${grupoSel ? 'GRUPO LPS' : 'PROYECTO'}</span><select data-sel="proyecto"><option value="">Elegir proyecto o Grupo LPS…</option>
-      ${ordenados.map(p => `<option value="${p.id}" ${p.id === store.proyectoSel ? 'selected' : ''}>${p.padre_id ? '\u00a0\u00a0↳ ' : ''}${esc(p.codigo)} · ${esc(p.nombre_corto)}${p.padre_id ? ' (Grupo LPS)' : ''}</option>`).join('')}</select></label>`;
+      ${ordenados.map(p => `<option value="${p.id}" ${p.id === store.proyectoSel ? 'selected' : ''}>${p.padre_id ? '  ↳ ' : ''}${esc(p.codigo)} · ${esc(p.nombre_corto)}${p.padre_id ? ' (Grupo LPS)' : ''}</option>`).join('')}</select></label>`;
 }
 
 // ---------- Navegación ----------
 function pintarMenu() {
   const nav = contenedor?.querySelector('.admin-nav');
   if (!nav) return;
-  const item = m => m.sep ? '<hr class="admin-nav-sep">' : `<button class="admin-item${panelActivo === m.id ? ' activo' : ''}" data-panel="${m.id}">
+  const item = m => `<button class="admin-item${panelActivo === m.id ? ' activo' : ''}" data-panel="${m.id}">
       <span class="admin-ico">${m.ico}</span><span class="admin-txt">${esc(m.texto)}</span></button>`;
-  const empresaItems = MENU.filter(m => !m.si || m.si());
-  // Quién administra cada bloque (pedido q5): la plataforma, el propietario; la empresa, la del usuario
-  nav.innerHTML = (esPlataforma() ? `<div class="admin-nav-grupo" title="Solo los propietarios de la plataforma">Plataforma (Propietario)</div>${MENU_PLATAFORMA.map(item).join('')}<hr class="admin-nav-sep">` : '') +
-    `<div class="admin-nav-grupo" title="${esc(store.area?.nombre || '')}">Empresa (${esc(store.area?.nombre || '')})</div>${empresaItems.map(item).join('')}`;
+  const empresaItems = MENU_EMPRESA.filter(m => !m.si || m.si());
+  // Separar proyecto del grupo LPS seleccionado
+  const selEntry = store.proyectoSel ? (store.proyectos || []).find(p => p.id === store.proyectoSel) : null;
+  const esGrupoSel = !!selEntry?.padre_id;
+  const proySelObj = esGrupoSel ? (store.proyectos || []).find(p => p.id === selEntry?.padre_id) : selEntry;
+  const grupoSelObj = esGrupoSel ? selEntry : null;
+  const proyLabel = proySelObj ? `${esc(proySelObj.codigo)} · ${esc(proySelObj.nombre_corto)}` : 'Sin proyecto seleccionado';
+  const grupoLabel = grupoSelObj ? `${esc(grupoSelObj.codigo)} · ${esc(grupoSelObj.nombre_corto)}` : 'Sin grupo seleccionado';
+  nav.innerHTML =
+    (esPlataforma()
+      ? `<div class="admin-nav-nivel">NIVEL 1 · PLATAFORMA</div>${MENU_PLATAFORMA.map(item).join('')}`
+      : '') +
+    `<div class="admin-nav-nivel ${esPlataforma() ? 'admin-nav-nivel-sep' : ''}">NIVEL 2 · EMPRESA<span class="admin-nav-nivel-sub">${esc(store.area?.nombre || '')}</span></div>` +
+    empresaItems.map(item).join('') +
+    `<div class="admin-nav-nivel admin-nav-nivel-sep">NIVEL 3 · PROYECTO<span class="admin-nav-nivel-sub">${proyLabel}</span></div>` +
+    MENU_PROYECTO.map(item).join('') +
+    `<div class="admin-nav-nivel admin-nav-nivel-sep">NIVEL 4 · GRUPO LPS<span class="admin-nav-nivel-sub">${grupoLabel}</span></div>` +
+    MENU_GRUPO.map(item).join('');
 }
 
 function navegarA(id) {
@@ -171,11 +200,23 @@ async function renderPanel() {
       'p-propietarios': el => plat.panelPropietarios(el, ctx),
       'p-auditoria':   el => plat.panelAuditoriaPlataforma(el, ctx),
       'p-reportes':    el => plat.panelReportesPlataforma(el, ctx),
-      'resumen':     panelResumen,
-      'empresas':    config('empresas'),
-      // Propietarios: la misma vista de dos pestañas que en Plataforma, solo con esta empresa (pedido 16)
-      'estructura':  el => plat.panelEstructuraEmpresa(el, ctx),
-      'auditoria':   config('auditoria'),
+      'resumen':      panelResumen,
+      'usuarios':     config('usuarios'),
+      'estructura':   el => plat.panelEstructuraEmpresa(el, ctx),
+      'listas':       config('listas'),
+      'parametros':   config('parametros'),
+      'permisos':     config('permisos'),
+      'respaldo':     config('respaldo'),
+      'auditoria':    config('auditoria'),
+      'proy-resumen':    panelResumenProyecto,
+      'proy-equipo':     panelProyEquipo,
+      'proy-grupos':     panelProyGrupos,
+      'proy-columnas':   panelProyColumnas,
+      'proy-parametros': panelProyParametros,
+      'g-resumen':       panelResumenGrupo,
+      'g-equipo':        panelGrupoEquipo,
+      'g-restricciones': panelGrupoRestricciones,
+      'g-listas':        panelGrupoListas,
     };
     const fn = mapa[panelActivo];
     if (fn) await fn(cont);
@@ -185,9 +226,9 @@ async function renderPanel() {
   }
 }
 
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 // RESUMEN
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 
 async function panelResumen(el) {
   let perfiles = [], proyectos = [], delegados = [];
@@ -250,9 +291,143 @@ async function panelResumen(el) {
   el.querySelector('[data-a="ir-proyectos"]')?.addEventListener('click', () => navegarA('estructura'));
 }
 
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// RESUMEN PROYECTO (NIVEL 3)
+// ══════════════════════════════════════════════════════════════
+
+async function panelResumenProyecto(el) {
+  const selEntry = store.proyectoSel ? (store.proyectos || []).find(p => p.id === store.proyectoSel) : null;
+  const p = selEntry?.padre_id
+    ? (store.proyectos || []).find(x => x.id === selEntry.padre_id)
+    : selEntry;
+  if (!p) {
+    el.innerHTML = '<p class="nota" style="padding:20px">Seleccione un Proyecto en la barra superior para ver su resumen.</p>';
+    return;
+  }
+  const grupos = (store.proyectos || []).filter(x => x.padre_id === p.id);
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(p.codigo)} · ${esc(p.nombre_corto)}</h2>
+    <p class="nota">${grupos.length} Grupo${grupos.length !== 1 ? 's' : ''} LPS asociado${grupos.length !== 1 ? 's' : ''} a este proyecto.</p>
+    <p class="nota">Los paneles de Proyecto se ampliarán en la próxima versión.</p></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// RESUMEN GRUPO LPS (NIVEL 4)
+// ══════════════════════════════════════════════════════════════
+
+async function panelResumenGrupo(el) {
+  const selEntry = store.proyectoSel ? (store.proyectos || []).find(x => x.id === store.proyectoSel) : null;
+  // Solo mostrar si se seleccionó un Grupo LPS (tiene padre_id)
+  const g = selEntry?.padre_id ? selEntry : null;
+  if (!g) {
+    el.innerHTML = '<p class="nota" style="padding:20px">Seleccione un Grupo LPS en la barra superior para ver su resumen.</p>';
+    return;
+  }
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(g.codigo)} · ${esc(g.nombre_corto)}</h2>
+    <p class="nota">Los paneles del Grupo LPS se definirán en la próxima versión.</p></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// PANELES NIVEL 3 · PROYECTO
+// ══════════════════════════════════════════════════════════════
+
+function _proyActivo() {
+  const sel = store.proyectoSel ? (store.proyectos || []).find(p => p.id === store.proyectoSel) : null;
+  return sel?.padre_id ? (store.proyectos || []).find(p => p.id === sel.padre_id) : sel;
+}
+function _msgSinProy(el) {
+  el.innerHTML = '<p class="nota" style="padding:20px">Seleccione un Proyecto en la barra superior.</p>';
+}
+
+async function panelProyEquipo(el) {
+  const p = _proyActivo();
+  if (!p) { _msgSinProy(el); return; }
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(p.codigo)} · ${esc(p.nombre_corto)}</h2>
+    <p class="nota">Panel <b>Equipo del proyecto</b> — próxima versión.</p></div>`;
+}
+
+async function panelProyGrupos(el) {
+  const p = _proyActivo();
+  if (!p) { _msgSinProy(el); return; }
+  const render = () => {
+    const grupos = (store.proyectos || []).filter(x => x.padre_id === p.id);
+    el.innerHTML = `<div style="padding:24px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <h2 style="margin:0">${esc(p.codigo)} · ${esc(p.nombre_corto)}</h2>
+        <button class="btn btn-primario" data-a="nuevo-grupo">＋ Nuevo Grupo LPS</button>
+      </div>
+      ${grupos.length ? `<table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="text-align:left;padding:8px 12px;border-bottom:2px solid var(--borde);font-size:12px">Código</th>
+          <th style="text-align:left;padding:8px 12px;border-bottom:2px solid var(--borde);font-size:12px">Nombre</th>
+          <th style="text-align:left;padding:8px 12px;border-bottom:2px solid var(--borde);font-size:12px">Estado</th>
+        </tr></thead>
+        <tbody>${grupos.map(g => `<tr class="fila-hover" style="cursor:pointer" data-id="${g.id}">
+          <td style="padding:8px 12px;border-bottom:1px solid var(--borde)"><b>${esc(g.codigo)}</b></td>
+          <td style="padding:8px 12px;border-bottom:1px solid var(--borde)">${esc(g.nombre_corto)}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid var(--borde)">${badge(g.estado || '')}</td>
+        </tr>`).join('')}</tbody>
+      </table>` : `<p class="nota">Este proyecto aún no tiene Grupos LPS.</p>`}
+    </div>`;
+    el.querySelector('[data-a="nuevo-grupo"]').addEventListener('click', async () => {
+      seleccionarProyecto(p.id);
+      await import('../views/proyectos.js').then(m => m.formularioProyecto(null, { sub: true }));
+      render();
+    });
+    el.querySelectorAll('tr[data-id]').forEach(tr => tr.addEventListener('click', () => seleccionarProyecto(tr.dataset.id)));
+  };
+  render();
+}
+
+async function panelProyColumnas(el) {
+  const p = _proyActivo();
+  if (!p) { _msgSinProy(el); return; }
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(p.codigo)} · ${esc(p.nombre_corto)}</h2>
+    <p class="nota">Panel <b>Columnas personalizadas</b> del proyecto — próxima versión.</p></div>`;
+}
+
+async function panelProyParametros(el) {
+  const p = _proyActivo();
+  if (!p) { _msgSinProy(el); return; }
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(p.codigo)} · ${esc(p.nombre_corto)}</h2>
+    <p class="nota">Panel <b>Parámetros del proyecto</b> — próxima versión.</p></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
+// PANELES NIVEL 4 · GRUPO LPS
+// ══════════════════════════════════════════════════════════════
+
+function _grupoActivo() {
+  const sel = store.proyectoSel ? (store.proyectos || []).find(p => p.id === store.proyectoSel) : null;
+  return sel?.padre_id ? sel : null;
+}
+function _msgSinGrupo(el) {
+  el.innerHTML = '<p class="nota" style="padding:20px">Seleccione un Grupo LPS en la barra superior.</p>';
+}
+
+async function panelGrupoEquipo(el) {
+  const g = _grupoActivo();
+  if (!g) { _msgSinGrupo(el); return; }
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(g.codigo)} · ${esc(g.nombre_corto)}</h2>
+    <p class="nota">Panel <b>Equipo del grupo</b> — próxima versión.</p></div>`;
+}
+
+async function panelGrupoRestricciones(el) {
+  const g = _grupoActivo();
+  if (!g) { _msgSinGrupo(el); return; }
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(g.codigo)} · ${esc(g.nombre_corto)}</h2>
+    <p class="nota">Panel <b>Restricciones activas</b> del grupo — próxima versión.</p></div>`;
+}
+
+async function panelGrupoListas(el) {
+  const g = _grupoActivo();
+  if (!g) { _msgSinGrupo(el); return; }
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(g.codigo)} · ${esc(g.nombre_corto)}</h2>
+    <p class="nota">Panel <b>Listas del grupo</b> — próxima versión.</p></div>`;
+}
+
+// ══════════════════════════════════════════════════════════════
 // PROYECTOS / PROCESOS
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 
 async function panelProyectos(el) {
   const [proyectos, portafolios, programas, lideresProy] = await Promise.all([
@@ -334,9 +509,9 @@ async function panelProyectos(el) {
   });
 }
 
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 // ESTRUCTURA: EMPRESA → PORTAFOLIO → PROGRAMA → PROYECTO
-// ════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 
 async function cargarEstructura() {
   const [portafolios, programas, proyectos] = await Promise.all([
