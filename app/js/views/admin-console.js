@@ -36,10 +36,17 @@ const MENU_EMPRESA = [
   { id: 'auditoria',  ico: '🕑', texto: 'Auditoría',                 si: esAdmin },
 ];
 const MENU_PROYECTO = [
-  { id: 'proy-resumen', ico: '📊', texto: 'Resumen del Proyecto' },
+  { id: 'proy-resumen',    ico: '📊', texto: 'Resumen del Proyecto' },
+  { id: 'proy-equipo',     ico: '👥', texto: 'Equipo del proyecto' },
+  { id: 'proy-grupos',     ico: '🗂️', texto: 'Grupos LPS' },
+  { id: 'proy-columnas',   ico: '📐', texto: 'Columnas personalizadas' },
+  { id: 'proy-parametros', ico: '🔧', texto: 'Parámetros del proyecto' },
 ];
 const MENU_GRUPO = [
-  { id: 'g-resumen',  ico: '📊', texto: 'Resumen del Grupo LPS' },
+  { id: 'g-resumen',       ico: '📊', texto: 'Resumen del Grupo LPS' },
+  { id: 'g-equipo',        ico: '👷', texto: 'Equipo del grupo' },
+  { id: 'g-restricciones', ico: '🔒', texto: 'Restricciones activas' },
+  { id: 'g-listas',        ico: '📋', texto: 'Listas del grupo' },
 ];
 // alias legacy para no romper referencias internas
 const MENU = MENU_EMPRESA;
@@ -49,10 +56,8 @@ const MENU = MENU_EMPRESA;
 export function showAdminConsole(panelInicial, el) {
   panelActivo = panelInicial || (esPlataforma() ? 'p-empresas' : 'resumen');
   contenedor = el;
-
   el.innerHTML = buildShell();
   repintarCabecera();
-
   el.querySelector('.admin-cerrar').addEventListener('click', cerrarConsola);
   el.querySelector('.admin-topbar').addEventListener('click', e => {
     if (e.target.closest('[data-a="plataforma"]')) navegarA('p-resumen');
@@ -76,10 +81,8 @@ export function showAdminConsole(panelInicial, el) {
     const item = e.target.closest('[data-panel]');
     if (item) navegarA(item.dataset.panel);
   });
-
   pintarMenu();
   renderPanel();
-
   const dejarCatalogo = on('catalogo', () => { pintarMenu(); });
   // Si se elige otro proyecto o Grupo LPS en el menú lateral, la barra superior lo refleja
   const dejarProyecto = on('proyecto', () => repintarCabecera());
@@ -133,7 +136,7 @@ async function repintarCabecera() {
       ${empresas.map(e => `<option value="${e.id}" ${e.id === store.area?.id ? 'selected' : ''}>${esc(e.nombre)}</option>`).join('')}</select></label>
     <span class="admin-miga-sep">›</span>
     <label class="admin-miga-sel"><span>${grupoSel ? 'GRUPO LPS' : 'PROYECTO'}</span><select data-sel="proyecto"><option value="">Elegir proyecto o Grupo LPS…</option>
-      ${ordenados.map(p => `<option value="${p.id}" ${p.id === store.proyectoSel ? 'selected' : ''}>${p.padre_id ? '  ↳ ' : ''}${esc(p.codigo)} · ${esc(p.nombre_corto)}${p.padre_id ? ' (Grupo LPS)' : ''}</option>`).join('')}</select></label>`;
+      ${ordenados.map(p => `<option value="${p.id}" ${p.id === store.proyectoSel ? 'selected' : ''}>${p.padre_id ? '↳ ' : ''}${esc(p.codigo)} · ${esc(p.nombre_corto)}${p.padre_id ? ' (Grupo LPS)' : ''}</option>`).join('')}</select></label>`;
 }
 
 // ---------- Navegación ----------
@@ -172,19 +175,16 @@ function navegarA(id) {
 async function renderPanel() {
   const previo = contenedor?.querySelector('#admin-contenido');
   if (!previo) return;
-  // Cada panel registra sus clics en el contenedor: se reemplaza para no acumular los del panel anterior
-  const cont = previo.cloneNode(false);
-  previo.replaceWith(cont);
+  const cont = document.createElement('main');
+  cont.className = 'admin-contenido';
+  cont.id = 'admin-contenido';
+  cont.tabIndex = -1;
   cont.innerHTML = '<div class="admin-cargando"><span class="spinner"></span></div>';
-  // Secciones que ya funcionan en Configuración: se muestran aquí mismo, con los mismos datos y reglas
-  const config = nombre => async el => {
-    const { seccionConfig } = await import('./config.js');
-    el.innerHTML = '';
-    await seccionConfig(nombre, el);
-  };
-  const ctx = { imprimir: imprimirPanel, repintarCabecera };
+  previo.replaceWith(cont);
   if (panelActivo.startsWith('p-') && !esPlataforma()) panelActivo = 'resumen';
   try {
+    const ctx = { navegarA };
+    const config = seccion => el => plat.panelConfiguracion(el, seccion, ctx);
     const mapa = {
       'p-resumen':     el => plat.panelResumenPlataforma(el, ctx),
       'p-empresas':    el => plat.panelEmpresas(el, ctx),
@@ -201,80 +201,50 @@ async function renderPanel() {
       'permisos':     config('permisos'),
       'respaldo':     config('respaldo'),
       'auditoria':    config('auditoria'),
-      'proy-resumen': panelResumenProyecto,
-      'g-resumen':    panelResumenGrupo,
+      'proy-resumen':    panelResumenProyecto,
+      'proy-equipo':     panelProyEquipo,
+      'proy-grupos':     panelProyGrupos,
+      'proy-columnas':   panelProyColumnas,
+      'proy-parametros': panelProyParametros,
+      'g-resumen':       panelResumenGrupo,
+      'g-equipo':        panelGrupoEquipo,
+      'g-restricciones': panelGrupoRestricciones,
+      'g-listas':        panelGrupoListas,
     };
     const fn = mapa[panelActivo];
     if (fn) await fn(cont);
     else cont.innerHTML = '<p class="nota" style="padding:20px">Panel en construcción.</p>';
-  } catch (e) {
-    cont.innerHTML = `<div class="aviso error" style="margin:20px">${esc(mensajeError(e))}</div>`;
+  } catch (err) {
+    cont.innerHTML = `<div class="aviso error" style="margin:20px">${mensajeError(err)}</div>`;
   }
 }
 
 // ════════════════════════════════════════════════════════════════
-// RESUMEN
+// RESUMEN EMPRESA (NIVEL 2)
 // ════════════════════════════════════════════════════════════════
 
 async function panelResumen(el) {
-  let perfiles = [], proyectos = [], delegados = [];
-  try {
-    [perfiles, proyectos] = await Promise.all([
-      api.list('profiles', { eq: { activo: true } }),
-      api.list('proyectos', {}),
-    ]);
-    delegados = perfiles.filter(p => p.rol === 'delegado');
-  } catch { /* sin datos aún */ }
-
-  const activos = proyectos.filter(p => p.estado === 'activo').length;
-  const propuestos = proyectos.filter(p => p.estado === 'propuesto').length;
-
-  const delegadoActual = delegados[0];
-  const rolLabel = r => ROLES[r] || r;
-  const contPorRol = Object.fromEntries(['superadmin', 'admin', 'delegado', 'lider', 'consulta'].map(r =>
-    [r, perfiles.filter(p => p.rol === r).length]
-  ));
-
-  el.innerHTML = cab('Resumen del área', [btn('🖨 Imprimir', 'imprimir')]) +
-  `<div class="admin-kpis">
-    <div class="admin-kpi"><span class="admin-kpi-num">${perfiles.length}</span><span class="admin-kpi-txt">Usuarios activos</span></div>
-    <div class="admin-kpi"><span class="admin-kpi-num">${activos}</span><span class="admin-kpi-txt">Proyectos activos</span></div>
-    <div class="admin-kpi"><span class="admin-kpi-num">${propuestos}</span><span class="admin-kpi-txt">Por aprobar</span></div>
-    <div class="admin-kpi"><span class="admin-kpi-num">${proyectos.length - activos - propuestos}</span><span class="admin-kpi-txt">En pausa / cerrados</span></div>
-  </div>
-  <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:16px">
-    <div class="tarjeta" style="flex:1;min-width:260px;padding:16px">
-      <h3 style="margin:0 0 10px">Usuarios por rol</h3>
-      <table class="simple">
-        <thead><tr><th>Rol</th><th>Cantidad</th></tr></thead>
-        <tbody>
-          ${Object.entries(contPorRol).map(([r, c]) => `<tr>
-            <td>${badge(rolLabel(r), COLOR_ROL[r] || '#888')}</td>
-            <td><b>${c}</b></td>
-          </tr>`).join('')}
-        </tbody>
-      </table>
+  const [proyectos, usuarios, perfiles] = await Promise.all([
+    api.list('proyectos', { eq: { area_id: store.area.id } }),
+    api.list('profiles', { eq: { area_id: store.area.id } }),
+    api.list('profiles', { eq: { area_id: store.area.id, activo: true } }).catch(() => []),
+  ]);
+  const activos = proyectos.filter(p => p.estado === 'activo');
+  const propuestos = proyectos.filter(p => p.estado === 'propuesto');
+  const sinRol = usuarios.filter(u => !u.rol || u.rol === 'pendiente');
+  el.innerHTML = cab('Resumen de la empresa') +
+    `<div class="admin-kpis">
+      <div class="admin-kpi"><span class="admin-kpi-num">${activos.length}</span><span class="admin-kpi-txt">Proyectos activos</span></div>
+      <div class="admin-kpi${propuestos.length ? ' alerta' : ''}"><span class="admin-kpi-num">${propuestos.length}</span><span class="admin-kpi-txt">Propuestos</span></div>
+      <div class="admin-kpi"><span class="admin-kpi-num">${perfiles.length}</span><span class="admin-kpi-txt">Usuarios activos</span></div>
+      <div class="admin-kpi${sinRol.length ? ' alerta' : ''}"><span class="admin-kpi-num">${sinRol.length}</span><span class="admin-kpi-txt">Sin rol asignado</span></div>
     </div>
-    <div class="tarjeta" style="flex:1;min-width:260px;padding:16px">
-      <h3 style="margin:0 0 10px">Administrador delegado actual</h3>
-      ${delegadoActual
-        ? `<p><b>${esc(delegadoActual.nombre)}</b><br>
-           <small style="color:var(--gris-txt)">${esc(delegadoActual.email || delegadoActual.codigo || '')}</small></p>
-           <button class="btn btn-sm" data-a="ir-delegado">Gestionar delegación →</button>`
-        : `<p style="color:var(--gris-txt)">Sin delegado asignado.</p>
-           <button class="btn btn-sm btn-primario" data-a="ir-delegado">Asignar delegado →</button>`}
-    </div>
-    ${propuestos ? `<div class="tarjeta" style="flex:1;min-width:260px;padding:16px;border-left:3px solid var(--naranja)">
-      <h3 style="margin:0 0 10px">⚠ Proyectos por aprobar</h3>
-      <p>${propuestos} proyecto(s) propuesto(s) esperan aprobación.</p>
-      <button class="btn btn-sm btn-primario" data-a="ir-proyectos">Ver proyectos →</button>
-    </div>` : ''}
-  </div>`;
-
-  el.querySelector('[data-a="imprimir"]')?.addEventListener('click', () => imprimirPanel(el, 'Resumen del área'));
-  // El delegado se gestiona en Configuración › Usuarios y roles (pedido 16)
-  el.querySelector('[data-a="ir-delegado"]')?.addEventListener('click', () => { location.hash = '#/config/usuarios'; });
+    ${propuestos.length ? `<div class="aviso warn"><b>${propuestos.length} proyecto(s) esperan aprobación.</b>
+      <button class="btn btn-sm btn-primario" data-a="ir-proyectos" style="margin-left:12px">Ver proyectos →</button></div>` : ''}
+    ${sinRol.length ? `<div class="aviso warn" style="margin-top:8px"><b>${sinRol.length} usuario(s) sin rol.</b>
+      <button class="btn btn-sm" data-a="ir-usuarios" style="margin-left:12px">Ver usuarios →</button></div>` : ''}`;
   el.querySelector('[data-a="ir-proyectos"]')?.addEventListener('click', () => navegarA('estructura'));
+  el.querySelector('[data-a="ir-usuarios"]')?.addEventListener('click', () => navegarA('usuarios'));
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -313,6 +283,83 @@ async function panelResumenGrupo(el) {
 }
 
 // ════════════════════════════════════════════════════════════════
+// PANELES NIVEL 3 · PROYECTO
+// ════════════════════════════════════════════════════════════════
+
+function _proyActivo() {
+  const sel = store.proyectoSel ? (store.proyectos || []).find(p => p.id === store.proyectoSel) : null;
+  return sel?.padre_id ? (store.proyectos || []).find(p => p.id === sel.padre_id) : sel;
+}
+function _msgSinProy(el) {
+  el.innerHTML = '<p class="nota" style="padding:20px">Seleccione un Proyecto en la barra superior.</p>';
+}
+
+async function panelProyEquipo(el) {
+  const p = _proyActivo();
+  if (!p) { _msgSinProy(el); return; }
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(p.codigo)} · ${esc(p.nombre_corto)}</h2>
+    <p class="nota">Panel <b>Equipo del proyecto</b> — próxima versión.</p></div>`;
+}
+
+async function panelProyGrupos(el) {
+  const p = _proyActivo();
+  if (!p) { _msgSinProy(el); return; }
+  const grupos = (store.proyectos || []).filter(x => x.padre_id === p.id);
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(p.codigo)} · ${esc(p.nombre_corto)}</h2>
+    <p class="nota">${grupos.length} Grupo${grupos.length !== 1 ? 's' : ''} LPS en este proyecto:</p>
+    ${grupos.length ? `<ul style="margin-top:8px">${grupos.map(g =>
+      `<li><b>${esc(g.codigo)}</b> · ${esc(g.nombre_corto)}</li>`).join('')}</ul>` : ''}
+    <p class="nota" style="margin-top:16px">Gestión completa de Grupos LPS — próxima versión.</p></div>`;
+}
+
+async function panelProyColumnas(el) {
+  const p = _proyActivo();
+  if (!p) { _msgSinProy(el); return; }
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(p.codigo)} · ${esc(p.nombre_corto)}</h2>
+    <p class="nota">Panel <b>Columnas personalizadas</b> del proyecto — próxima versión.</p></div>`;
+}
+
+async function panelProyParametros(el) {
+  const p = _proyActivo();
+  if (!p) { _msgSinProy(el); return; }
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(p.codigo)} · ${esc(p.nombre_corto)}</h2>
+    <p class="nota">Panel <b>Parámetros del proyecto</b> — próxima versión.</p></div>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// PANELES NIVEL 4 · GRUPO LPS
+// ════════════════════════════════════════════════════════════════
+
+function _grupoActivo() {
+  const sel = store.proyectoSel ? (store.proyectos || []).find(p => p.id === store.proyectoSel) : null;
+  return sel?.padre_id ? sel : null;
+}
+function _msgSinGrupo(el) {
+  el.innerHTML = '<p class="nota" style="padding:20px">Seleccione un Grupo LPS en la barra superior.</p>';
+}
+
+async function panelGrupoEquipo(el) {
+  const g = _grupoActivo();
+  if (!g) { _msgSinGrupo(el); return; }
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(g.codigo)} · ${esc(g.nombre_corto)}</h2>
+    <p class="nota">Panel <b>Equipo del grupo</b> — próxima versión.</p></div>`;
+}
+
+async function panelGrupoRestricciones(el) {
+  const g = _grupoActivo();
+  if (!g) { _msgSinGrupo(el); return; }
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(g.codigo)} · ${esc(g.nombre_corto)}</h2>
+    <p class="nota">Panel <b>Restricciones activas</b> del grupo — próxima versión.</p></div>`;
+}
+
+async function panelGrupoListas(el) {
+  const g = _grupoActivo();
+  if (!g) { _msgSinGrupo(el); return; }
+  el.innerHTML = `<div style="padding:24px"><h2>${esc(g.codigo)} · ${esc(g.nombre_corto)}</h2>
+    <p class="nota">Panel <b>Listas del grupo</b> — próxima versión.</p></div>`;
+}
+
+// ════════════════════════════════════════════════════════════════
 // PROYECTOS / PROCESOS
 // ════════════════════════════════════════════════════════════════
 
@@ -325,60 +372,31 @@ async function panelProyectos(el) {
   ]);
   const colorEst = { activo: '#2e7d32', propuesto: '#e65100', en_pausa: '#795548', cerrado: '#546E7A', rechazado: '#b71c1c' };
   const labelEst = { activo: 'Activo', propuesto: 'Propuesto', en_pausa: 'En pausa', cerrado: 'Cerrado', rechazado: 'Rechazado' };
-  const propuestos = proyectos.filter(p => p.estado === 'propuesto');
-  const nomPort = id => portafolios.find(x => x.id === id)?.nombre || '';
-  const nomProg = id => programas.find(x => x.id === id)?.nombre || '';
-  const lidNames = p => lideresProy.filter(l => l.proyecto_id === p.id).map(l => nombre(l.usuario_id)).join(', ');
-
+  const nomPort = id => portafolios.find(x => x.id === id)?.nombre || '—';
+  const nomProg = id => programas.find(x => x.id === id)?.nombre || '—';
+  const lidNames = p => lideresProy.filter(l => l.proyecto_id === p.id).map(l => nombre(l.usuario_id)).filter(Boolean).join(', ');
   el.innerHTML = cab('Proyectos y procesos', [
     btn('+ Nuevo proyecto', 'nuevo', 'btn-primario'),
-    btn('🖨 Imprimir', 'imprimir'),
+    btn('⎙ Imprimir', 'imprimir'),
   ]) +
-  (propuestos.length ? `<div class="aviso warn" style="margin-bottom:12px"><b>${propuestos.length} proyecto(s) propuesto(s) esperan aprobación.</b></div>` : '') +
-  `<div class="admin-filtros">
-    <input class="inp" id="buscar-proy" placeholder="Buscar por código o nombre..." style="width:220px">
-    <select class="inp" id="fil-port"><option value="">Portafolio: todos</option>
-      ${portafolios.map(x => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('')}<option value="-">Sin portafolio</option></select>
-    <select class="inp" id="fil-est"><option value="">Estado: todos</option>
-      ${Object.entries(labelEst).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
-  </div>
-  <div class="tarjeta admin-tabla-wrap">
-    <table class="simple" id="tabla-proy">
-      <thead><tr><th>CÓDIGO</th><th>NOMBRE</th><th>GRUPO LPS DE</th><th>PORTAFOLIO</th><th>PROGRAMA</th><th>GERENCIA</th><th>ESTADO</th><th>LÍDERES</th><th></th></tr></thead>
-      <tbody>${proyectos.map(p => `<tr data-port="${p.portafolio_id || '-'}" data-est="${p.estado || ''}">
-          <td><b>${esc(p.codigo || '—')}</b></td>
-          <td>${esc(p.nombre_corto || '—')}</td>
-          <td>${esc(proyectos.find(x => x.id === p.padre_id)?.nombre_corto || '—')}</td>
-          <td>${esc(nomPort(p.portafolio_id) || '—')}</td>
-          <td>${esc(nomProg(p.programa_id) || '—')}</td>
-          <td>${esc(etiqueta(p.gerencia_id) || '—')}</td>
-          <td>${badge(labelEst[p.estado] || p.estado, colorEst[p.estado] || '#888')}</td>
-          <td><small>${esc(lidNames(p) || '—')}</small></td>
-          <td>
-            <button class="btn btn-xs" data-editar="${p.id}">Editar</button>
-            ${p.estado === 'propuesto' ? `
-              <button class="btn btn-xs btn-primario" data-aprobar="${p.id}">Aprobar</button>
-              <button class="btn btn-xs btn-warn" data-rechazar="${p.id}">Rechazar</button>` : ''}
-            ${['cerrado', 'rechazado', 'propuesto'].includes(p.estado) ? '' :
-              `<button class="btn btn-xs btn-warn" data-estado="${p.id}" data-nuevo-est="${p.estado === 'activo' ? 'en_pausa' : 'activo'}">
-                ${p.estado === 'activo' ? 'Pausar' : 'Activar'}</button>`}
-          </td></tr>`).join('')}</tbody>
-    </table>
-    <div style="text-align:right;padding:8px;color:var(--gris-txt);font-size:.85em">${proyectos.length} registro(s)</div>
-  </div>`;
-
-  const filtrar = () => {
-    const q = (el.querySelector('#buscar-proy')?.value || '').toLowerCase();
-    const port = el.querySelector('#fil-port')?.value || '';
-    const est = el.querySelector('#fil-est')?.value || '';
-    el.querySelectorAll('#tabla-proy tbody tr').forEach(tr => {
-      tr.style.display = (!q || tr.textContent.toLowerCase().includes(q)) && (!port || tr.dataset.port === port) && (!est || tr.dataset.est === est) ? '' : 'none';
-    });
-  };
-  el.querySelector('#buscar-proy')?.addEventListener('input', filtrar);
-  el.querySelector('#fil-port')?.addEventListener('change', filtrar);
-  el.querySelector('#fil-est')?.addEventListener('change', filtrar);
-
+  tabla(
+    ['CÓDIGO', 'NOMBRE', 'PORTAFOLIO', 'PROGRAMA', 'LÍDERES', 'ESTADO', ''],
+    proyectos.filter(p => !p.padre_id).map(p => [
+      `<b>${esc(p.codigo)}</b>`,
+      esc(p.nombre_corto),
+      esc(nomPort(p.portafolio_id)),
+      esc(nomProg(p.programa_id)),
+      esc(lidNames(p) || '—'),
+      badge(labelEst[p.estado] || p.estado, colorEst[p.estado] || '#888'),
+      `<button class="btn btn-xs" data-editar="${p.id}">Editar</button>
+       ${p.estado === 'propuesto' ? `
+         <button class="btn btn-xs btn-primario" data-aprobar="${p.id}">Aprobar</button>
+         <button class="btn btn-xs btn-warn" data-rechazar="${p.id}">Rechazar</button>` : ''}
+       ${['cerrado', 'rechazado', 'propuesto'].includes(p.estado) ? '' :
+         `<button class="btn btn-xs btn-warn" data-estado="${p.id}" data-nuevo-est="${p.estado === 'activo' ? 'en_pausa' : 'activo'}">
+           ${p.estado === 'activo' ? 'Pausar' : 'Activar'}</button>`}`,
+    ])
+  );
   el.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     const idEdit = e.target.closest('[data-editar]')?.dataset.editar;
@@ -396,10 +414,7 @@ async function panelProyectos(el) {
   });
 }
 
-// ════════════════════════════════════════════════════════════════
-// ESTRUCTURA: EMPRESA → PORTAFOLIO → PROGRAMA → PROYECTO
-// ════════════════════════════════════════════════════════════════
-
+// ESTRUCTURA: EMPRESA › PORTAFOLIO › PROGRAMA › PROYECTO
 async function cargarEstructura() {
   const [portafolios, programas, proyectos] = await Promise.all([
     api.list('portafolios', { eq: { area_id: store.area.id }, order: [['nombre', true]] }),
@@ -420,7 +435,6 @@ async function panelEstructura(el) {
   const labelEst = { activo: 'Activo', propuesto: 'Propuesto', en_pausa: 'En pausa', cerrado: 'Cerrado', rechazado: 'Rechazado' };
   const propuestos = proyectos.filter(p => p.estado === 'propuesto');
   const lidNames = p => lideresProy.filter(l => l.proyecto_id === p.id).map(l => nombre(l.usuario_id)).filter(Boolean).join(', ');
-
   const itemProy = (p, filtroEst, q) => {
     const ger = etiqueta(p.gerencia_id);
     const lids = lidNames(p);
@@ -448,7 +462,6 @@ async function panelEstructura(el) {
       ${subs.length ? `<ul>${subs.map(x => itemProy(x, filtroEst, q)).join('')}</ul>` : ''}
     </li>`;
   };
-
   const buildArbol = (filtroEst = '', q = '') => {
     const pasaFiltro = p => {
       const ok = (!filtroEst || p.estado === filtroEst) && (!q || `${p.codigo} ${p.nombre_corto}`.toLowerCase().includes(q));
@@ -480,10 +493,9 @@ async function panelEstructura(el) {
           ${proySueltos.length ? `<li><span class="est-port nota">Proyectos sin portafolio ni programa</span><ul>${proySueltos.map(p => itemProy(p, filtroEst, q)).join('')}</ul></li>` : ''}
         </ul></li></ul></div>`;
   };
-
   el.innerHTML = cab('Estructura de la empresa', [
     btn('+ Nuevo proyecto', 'nuevo', 'btn-primario'),
-    btn('🖨 Imprimir', 'imprimir'),
+    btn('⎙ Imprimir', 'imprimir'),
   ]) +
   (propuestos.length ? `<div class="aviso warn" style="margin-bottom:12px"><b>${propuestos.length} proyecto(s) propuesto(s) esperan aprobación.</b></div>` : '') +
   `<div class="admin-filtros">
@@ -499,7 +511,6 @@ async function panelEstructura(el) {
     </select>
   </div>
   <div id="est-arbol-cont">${buildArbol()}</div>`;
-
   const refrescar = () => {
     const q = (el.querySelector('#buscar-est')?.value || '').toLowerCase();
     const portFil = el.querySelector('#fil-port-est')?.value || '';
@@ -519,7 +530,6 @@ async function panelEstructura(el) {
   el.querySelector('#buscar-est')?.addEventListener('input', refrescar);
   el.querySelector('#fil-port-est')?.addEventListener('change', refrescar);
   el.querySelector('#fil-est-arbol')?.addEventListener('change', refrescar);
-
   el.addEventListener('click', async e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     const idEdit = e.target.closest('[data-editar]')?.dataset.editar;
@@ -565,7 +575,7 @@ async function panelProgramas(el) {
       `<b>${esc(g.codigo || '—')}</b>`, esc(g.nombre), esc(nomPort(g.portafolio_id)), esc(g.responsable_id ? nombre(g.responsable_id) : '—'),
       proyectos.filter(p => p.programa_id === g.id).length, estadoEst(g.estado),
       `<button class="btn btn-xs" data-editar="${g.id}">Editar</button>
-       <button class="btn btn-xs" data-proyectos="${g.id}">Proyectos…</button>
+       <button class="btn btn-xs" data-proyectos="${g.id}">Proyectos→</button>
        <button class="btn btn-xs btn-warn" data-estado="${g.id}">${g.estado === 'inactivo' ? 'Activar' : 'Desactivar'}</button>`]));
   el.addEventListener('click', async e => {
     const id = e.target.closest('[data-editar]')?.dataset.editar;
