@@ -77,6 +77,34 @@
   border-top: 1px solid var(--borde, #DCE3EC);
   margin: 6px 0;
 }
+/* Encabezados de nivel (NIVEL 1 · PLATAFORMA, etc.) */
+.admin-nav-nivel {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--texto-suave, #7A8FA6);
+}
+.admin-nav-nivel-sub {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--texto, #2C3E50);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+  margin-top: 1px;
+}
+.admin-nav-nivel-sep {
+  margin-top: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--borde, #DCE3EC);
+}
 .admin-item {
   display: flex;
   align-items: center;
