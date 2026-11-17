@@ -22,7 +22,6 @@ export const NAV = [
   { ruta: '/equipo', ico: '🧭', texto: 'Equipo y capacidad', si: esStaff },
   { ruta: '/reportes', ico: '🖨', texto: 'Reportes', si: () => esStaff() || puede('ver_indicadores') },
   { grupo: 'Más' },
-  { ruta: '/config/usuarios', ico: '⚙', texto: 'Configuración', si: esGestor, prefijo: '/config' },
   { ruta: '/plantillas', ico: '🧩', texto: 'Plantillas', si: esStaff },
   { ruta: '/ayuda', ico: '❔', texto: 'Ayuda', si: () => true },
   // Al final del menú y para todos los usuarios de todas las empresas (pedido q7)
@@ -233,19 +232,14 @@ function pintarProyectos() {
     const hs = hijosDe(p);
     if (!hs.length) return item(p, nivel);
     const ab = abierta('p' + p.id);
-    return `<div class="proy-item arbol-cont arbol-n${nivel}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto} (con sus Grupos LPS)`)}">
-        <span class="arbol-flecha" data-rama="p${p.id}" role="button" aria-expanded="${ab}">${ab ? '▾' : '▸'}</span><span class="arbol-ico">📋</span>
-        <span class="nom">${esc(p.nombre_corto)} <small>(${hs.length})</small></span></div>` + (ab ? hs.map(h => item(h, nivel + 1, true)).join('') : '');
+    return `<div class="proy-item arbol-cont arbol-n${nivel}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto} (con sus Grupos LPS)`)}">\n        <span class="arbol-flecha" data-rama="p${p.id}" role="button" aria-expanded="${ab}">${ab ? '▾' : '▸'}</span><span class="arbol-ico">📋</span>\n        <span class="nom">${esc(p.nombre_corto)} <small>(${hs.length})</small></span></div>` + (ab ? hs.map(h => item(h, nivel + 1, true)).join('') : '');
   };
   const raiz = arr => arr.filter(p => !p.padre_id || !lista.some(x => x.id === p.padre_id));
   const rama = (clave, nivel, ico, nombre, codigo, n, hijos, clase) => {
     if (soloConProyectos && !n) return '';
     const ab = abierta(clave);
     const nivelSel = clave[0] + ':' + clave.slice(1);   // 'f<id>' → 'f:<id>'
-    return `<div class="arbol-rama arbol-n${nivel} ${clase}${store.nivelSel === nivelSel ? ' activo' : ''}" data-rama="${clave}" data-nivel="${nivelSel}" role="button" aria-expanded="${ab}" title="${esc(nombre)}: clic para ver todo lo que contiene; la flecha lo abre o cierra">
-        <span class="arbol-flecha">${ab ? '▾' : '▸'}</span><span class="arbol-ico">${ico}</span>
-        <span class="nom">${esc(nombre)} <small>(${n})</small></span><span class="cod">${esc(codigo || '')}</span></div>
-      ${ab ? (hijos || `<div class="arbol-vacio arbol-n${nivel + 1}">Sin contenido</div>`) : ''}`;
+    return `<div class="arbol-rama arbol-n${nivel} ${clase}${store.nivelSel === nivelSel ? ' activo' : ''}" data-rama="${clave}" data-nivel="${nivelSel}" role="button" aria-expanded="${ab}" title="${esc(nombre)}: clic para ver todo lo que contiene; la flecha lo abre o cierra">\n        <span class="arbol-flecha">${ab ? '▾' : '▸'}</span><span class="arbol-ico">${ico}</span>\n        <span class="nom">${esc(nombre)} <small>(${n})</small></span><span class="cod">${esc(codigo || '')}</span></div>\n      ${ab ? (hijos || `<div class="arbol-vacio arbol-n${nivel + 1}">Sin contenido</div>`) : ''}`;
   };
   const deProg = g => lista.filter(p => p.programa_id === g.id);
   const ramaProg = (g, nivel) => { const ps = deProg(g); return rama('g' + g.id, nivel, '📁', g.nombre, g.codigo, ps.length, raiz(ps).map(p => nodo(p, nivel + 1)).join(''), 'arbol-prog'); };
@@ -260,9 +254,7 @@ function pintarProyectos() {
   const cuerpo = ramasPort + progSueltos + sueltos;
   const empresa = store.area?.nombre || 'Empresa';
   const abiertaEmp = abierta('empresa');
-  cont.innerHTML = `<div class="arbol-rama arbol-n0 arbol-emp proy-todos${!store.proyectoSel && !store.nivelSel ? ' activo' : ''}" data-rama="empresa" data-id="" role="button" aria-expanded="${abiertaEmp}"
-      title="Todos los proyectos de ${esc(empresa)}"><span class="arbol-flecha" data-solo-rama>${abiertaEmp ? '▾' : '▸'}</span><span class="arbol-ico">🏢</span>
-      <span class="nom">${esc(empresa)} <small>· todos (${lista.length})</small></span></div>` +
+  cont.innerHTML = `<div class="arbol-rama arbol-n0 arbol-emp proy-todos${!store.proyectoSel && !store.nivelSel ? ' activo' : ''}" data-rama="empresa" data-id="" role="button" aria-expanded="${abiertaEmp}"\n      title="Todos los proyectos de ${esc(empresa)}"><span class="arbol-flecha" data-solo-rama>${abiertaEmp ? '▾' : '▸'}</span><span class="arbol-ico">🏢</span>\n      <span class="nom">${esc(empresa)} <small>· todos (${lista.length})</small></span></div>` +
     (abiertaEmp ? (cuerpo || `<p class="nota" style="padding:8px">${f ? 'Sin resultados.' : 'Sin proyectos.'}</p>`) : '');
 }
 
