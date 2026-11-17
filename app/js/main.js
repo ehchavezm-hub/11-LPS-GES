@@ -1,5 +1,6 @@
 // Arranque del aplicativo: sesión, catálogo, estructura y rutas.
 import { api, modoDemo, mensajeError } from './data/api.js';
+import { esc } from './core/util.js';
 import { store, cargarPerfil, cargarCatalogo, esStaff, esSuperadmin, esAdmin } from './core/store.js';
 import { ruta, iniciarRouter } from './core/router.js';
 import { montarLayout } from './ui/layout.js';
@@ -111,7 +112,7 @@ async function arrancar() {
   try {
     await cargarPerfil(usuario.id);
   } catch (e) {
-    raiz.innerHTML = `<div class="login"><div class="login-caja"><div class="aviso error">${mensajeError(e)}</div>
+    raiz.innerHTML = `<div class="login"><div class="login-caja"><div class="aviso error">${esc(mensajeError(e))}</div>
       <button class="btn" onclick="location.reload()">Reintentar</button></div></div>`;
     return;
   }
