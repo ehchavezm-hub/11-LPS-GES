@@ -81,7 +81,7 @@
 .admin-nav-nivel {
   display: flex;
   flex-direction: column;
-  padding: 8px 10px 4px;
+  padding: 5px 10px 2px;
   font-size: 9px;
   font-weight: 700;
   letter-spacing: .07em;
@@ -89,7 +89,7 @@
   color: var(--texto-suave, #7A8FA6);
 }
 .admin-nav-nivel-sub {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
@@ -101,21 +101,21 @@
   margin-top: 1px;
 }
 .admin-nav-nivel-sep {
-  margin-top: 6px;
-  padding-top: 10px;
+  margin-top: 4px;
+  padding-top: 6px;
   border-top: 1px solid var(--borde, #DCE3EC);
 }
 .admin-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 5px 10px;
   border: none;
   background: transparent;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 13.5px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--texto-2, #4A5568);
   text-align: left;
@@ -131,8 +131,8 @@
   box-shadow: inset 3px 0 0 var(--naranja, #E8762B);
 }
 .admin-ico {
-  font-size: 16px;
-  width: 22px;
+  font-size: 14px;
+  width: 18px;
   text-align: center;
   flex-shrink: 0;
 }
