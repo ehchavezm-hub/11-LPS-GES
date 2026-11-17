@@ -57,8 +57,7 @@ export function montarLayout(raiz, { alSalir }) {
     <aside class="lateral"><div class="lateral-tirador" title="Arrastre para cambiar el ancho del menú (doble clic: ancho normal)"></div>
       <nav class="nav nav-admin" aria-label="Administración"></nav>
       <section class="menu-proy" aria-label="Menú de proyectos">
-        <div class="menu-proy-cab"><h3>Grupos LPS</h3>
-          ${esGestor() || puede('crear_cartera') ? `<button class="btn btn-sm btn-primario btn-agregar-proy" data-a="nuevo-proy" title="Agregar un Grupo LPS a un proyecto (lo verá todo el equipo)">＋ ${esGestor() ? 'Agregar' : 'Proponer'}</button>` : ''}</div>
+        <div class="menu-proy-cab"><h3>Grupos LPS</h3></div>
         <input type="search" placeholder="Buscar código o nombre…" aria-label="Buscar proyecto">
         <div class="proy-lista"></div>
       </section>
@@ -76,7 +75,7 @@ export function montarLayout(raiz, { alSalir }) {
   on('catalogo', () => { pintarProyectos(); });
   on('proyecto', () => { pintarProyectos(); pintarNav(); });
 
-  // ── Banner de sin conexión ───────────────────────────────────────────────
+  // ── Banner de sin conexión ────────────────────────────────────────────
   const banner = app.querySelector('#banner-sin-conexion');
   const btnReint = banner?.querySelector('button');
   on('conexion', ({ ok: conectado }) => {

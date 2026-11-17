@@ -38,7 +38,7 @@ export async function render(el, { seccion, query }) {
 /** Secciones de Configuración que también se muestran dentro de la consola de Administración. */
 export async function seccionConfig(nombre, el) {
   destruir();
-  const f = { empresas: store.usuario?.es_plataforma ? empresas : null, usuarios, listas, parametros, permisos, auditoria }[nombre];
+  const f = { empresas: store.usuario?.es_plataforma ? empresas : null, usuarios, listas, parametros, permisos, respaldo, auditoria }[nombre];
   if (f) await f(el); else el.textContent = 'Sección no disponible.';
 }
 export function destruir() { desmontarOrg?.(); grilla?.destruir(); grilla = null; dejarCatalogo?.(); dejarCatalogo = null; catalogoProyectos?.destruir(); catalogoProyectos = null; }
