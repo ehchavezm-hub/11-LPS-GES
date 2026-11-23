@@ -6,28 +6,29 @@ import { ROLES } from '../data/catalogos.js';
 import { esc, html, normalizar, fmtFechaHora } from '../core/util.js';
 import { ir } from '../core/router.js';
 import { pedirDatos, ok, error, arrastrable } from './ui.js';
+import { icono } from './iconos.js';
 
 export const NAV = [
   { grupo: 'Administración' },
-  { ruta: '/admin', ico: '⚙', texto: 'Administración', si: esAdmin, prefijo: '/admin' },
+  { ruta: '/admin', ico: 'admin', texto: 'Administración', si: esAdmin, prefijo: '/admin' },
   { grupo: 'Planificación' },
-  { ruta: '/plan', ico: '📅', texto: 'Plan semanal', si: esStaff },
-  { ruta: '/lookahead', ico: '🔭', texto: 'Look Ahead', si: esStaff },
-  { ruta: '/backlog', ico: '🗃', texto: 'Backlog', si: esStaff },   // trabajo pendiente del Grupo LPS, antes del Look Ahead
-  { ruta: '/restricciones', ico: '🚧', texto: 'Restricciones', si: esStaff },
-  { ruta: '/cartera', ico: '🗂', texto: 'Cartera y solicitudes', si: () => esStaff() || puede('crear_solicitud') },
+  { ruta: '/plan', ico: 'plan', texto: 'Plan semanal', si: esStaff },
+  { ruta: '/lookahead', ico: 'lookahead', texto: 'Look Ahead', si: esStaff },
+  { ruta: '/backlog', ico: 'backlog', texto: 'Backlog', si: esStaff },   // trabajo pendiente del Grupo LPS, antes del Look Ahead
+  { ruta: '/restricciones', ico: 'restricciones', texto: 'Restricciones', si: esStaff },
+  { ruta: '/cartera', ico: 'cartera', texto: 'Cartera y solicitudes', si: () => esStaff() || puede('crear_solicitud') },
   { grupo: 'Seguimiento' },
-  { ruta: '/tablero', ico: '📊', texto: 'Tablero', si: () => true },   // pedido 173: todos los usuarios ven el Tablero
-  { ruta: '/reunion', ico: '👥', texto: 'Reunión semanal', si: esStaff },
-  { ruta: '/equipo', ico: '🧭', texto: 'Equipo y capacidad', si: esStaff },
-  { ruta: '/reportes', ico: '🖨', texto: 'Reportes', si: () => esStaff() || puede('ver_indicadores') },
+  { ruta: '/tablero', ico: 'tablero', texto: 'Tablero', si: () => true },   // pedido 173: todos los usuarios ven el Tablero
+  { ruta: '/reunion', ico: 'reunion', texto: 'Reunión semanal', si: esStaff },
+  { ruta: '/equipo', ico: 'equipo', texto: 'Equipo y capacidad', si: esStaff },
+  { ruta: '/reportes', ico: 'reportes', texto: 'Reportes', si: () => esStaff() || puede('ver_indicadores') },
   { grupo: 'Más' },
-  { ruta: '/config/usuarios', ico: '⚙', texto: 'Configuración', si: esGestor, prefijo: '/config' },
-  { ruta: '/plantillas', ico: '🧩', texto: 'Plantillas', si: esStaff },
-  { ruta: '/ayuda', ico: '❔', texto: 'Ayuda', si: () => true },
+  { ruta: '/config/usuarios', ico: 'config', texto: 'Configuración', si: esGestor, prefijo: '/config' },
+  { ruta: '/plantillas', ico: 'plantillas', texto: 'Plantillas', si: esStaff },
+  { ruta: '/ayuda', ico: 'ayuda', texto: 'Ayuda', si: () => true },
   // Al final del menú y para todos los usuarios de todas las empresas (pedido q7)
   { grupo: 'Todas las empresas' },
-  { ruta: '/mejoras', ico: '💡', texto: 'Mejoras del aplicativo', si: () => true },
+  { ruta: '/mejoras', ico: 'mejoras', texto: 'Mejoras del aplicativo', si: () => true },
 ];
 
 let filtroProy = '';
@@ -40,7 +41,7 @@ export function montarLayout(raiz, { alSalir }) {
     <div class="banner-sin-conexion" id="banner-sin-conexion" role="alert" aria-live="assertive" hidden>
       <span class="banner-icono">📡</span>
       <span class="banner-texto"><strong>Sin conexión con la base de datos</strong> — los cambios <strong>NO se guardarán</strong>. Verifica tu red o usa datos móviles en lugar del WiFi corporativo.</span>
-      <span class="banner-reint"><button onclick="document.getElementById('banner-sin-conexion').dataset.reintentando='1';this.disabled=true;this.textContent='Verificando…'" title="Forzar una verificación ahora">Reintentar</button></span>
+      <span class="banner-reint"><button title="Forzar una verificación ahora">Reintentar</button></span>
     </div>
     <header class="cabecera">
       <button class="btn-icono btn-menu" data-a="menu" aria-label="Contraer o expandir el menú" title="Contraer / expandir el menú lateral">☰</button>
@@ -110,6 +111,10 @@ export function montarLayout(raiz, { alSalir }) {
     }
   });
 
+  // Celular (pedido 176): tocar fuera del menú lateral lo cierra
+  app.addEventListener('click', e => {
+    if (document.body.classList.contains('menu-abierto') && !e.target.closest('.lateral, .cabecera')) document.body.classList.remove('menu-abierto');
+  });
   app.querySelector('.cabecera').addEventListener('click', e => {
     const a = e.target.closest('[data-a]')?.dataset.a;
     if (a === 'menu') {
@@ -187,7 +192,7 @@ function pintarNav() {
   const actual = location.hash.replace(/^#/, '').split('?')[0];
   const pintar = lista => lista.filter(n => n.grupo || n.si()).map(n => n.grupo
     ? `<div class="nav-grupo">${esc(n.grupo)}</div>`
-    : `<a href="#${n.ruta}" title="${esc(n.texto)}" class="${actual === n.ruta || actual.startsWith((n.prefijo || n.ruta) + '/') ? 'activo' : ''}"><span class="ico">${n.ico}</span><span class="txt">${esc(n.texto)}</span></a>`).join('');
+    : `<a href="#${n.ruta}" title="${esc(n.texto)}" class="${actual === n.ruta || actual.startsWith((n.prefijo || n.ruta) + '/') ? 'activo' : ''}"><span class="ico">${icono(n.ico)}</span><span class="txt">${esc(n.texto)}</span></a>`).join('');
   // Administración arriba, luego el árbol PROYECTOS y después los módulos (pedido q6)
   const corte = NAV.findIndex((n, i) => i > 0 && n.grupo);
   const admin = NAV.slice(0, corte);
@@ -196,7 +201,7 @@ function pintarNav() {
   // s10: nombre del Grupo LPS activo como cabecera de los módulos
   const proyActivo = store.proyectoSel ? store.proyectos.find(p => p.id === store.proyectoSel) : null;
   const cabProy = proyActivo
-    ? `<div class="nav-proy-activo" title="${esc(proyActivo.nombre_completo || proyActivo.nombre_corto)}"><span class="ico">📋</span><span class="txt"><b>${esc(proyActivo.codigo || '')}</b>${proyActivo.codigo ? ' · ' : ''}${esc(proyActivo.nombre_corto)}</span></div>`
+    ? `<div class="nav-proy-activo" title="${esc(proyActivo.nombre_completo || proyActivo.nombre_corto)}"><span class="ico">${icono('proyecto')}</span><span class="txt"><b>${esc(proyActivo.codigo || '')}</b>${proyActivo.codigo ? ' · ' : ''}${esc(proyActivo.nombre_corto)}</span></div>`
     : '';
   navModulos.innerHTML = cabProy + pintar(NAV.slice(corte));
   for (const nav of [navAdmin, navModulos]) nav.querySelectorAll('a').forEach(a => a.addEventListener('click', () => document.body.classList.remove('menu-abierto')));
@@ -225,7 +230,7 @@ function pintarProyectos() {
   const idsPort = new Set(portafolios.map(x => x.id)), idsProg = new Set(programas.map(x => x.id));
 
   const item = (p, nivel, sub) => `<div class="proy-item arbol-n${nivel}${sub ? ' arbol-sub' : ''}${store.proyectoSel === p.id ? ` activo${p.padre_id ? ' grupo-activo' : ''}` : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto}${sub ? ' (Grupo LPS)' : ''}`)}">
-      <span class="arbol-ico">${sub ? '▫' : '📋'}</span><span class="nom">${esc(p.nombre_corto)}${p.estado === 'propuesto' ? ' ⏳' : ''}</span></div>`;
+      <span class="arbol-ico">${icono(sub ? 'grupo' : 'proyecto')}</span><span class="nom">${esc(p.nombre_corto)}${p.estado === 'propuesto' ? ' ⏳' : ''}</span></div>`;
   // Proyecto con Grupos LPS (pedido a7): se elige completo con un clic en el nombre; la flecha lo abre o cierra
   const hijosDe = p => lista.filter(x => x.padre_id === p.id);
   const nodo = (p, nivel) => {
@@ -233,7 +238,7 @@ function pintarProyectos() {
     if (!hs.length) return item(p, nivel);
     const ab = abierta('p' + p.id);
     return `<div class="proy-item arbol-cont arbol-n${nivel}${store.proyectoSel === p.id ? ' activo' : ''}" data-id="${p.id}" title="${esc(`${p.codigo} · ${p.nombre_completo || p.nombre_corto} (con sus Grupos LPS)`)}">
-        <span class="arbol-flecha" data-rama="p${p.id}" role="button" aria-expanded="${ab}">${ab ? '▾' : '▸'}</span><span class="arbol-ico">📋</span>
+        <span class="arbol-flecha" data-rama="p${p.id}" role="button" aria-expanded="${ab}">${ab ? '▾' : '▸'}</span><span class="arbol-ico">${icono('proyecto')}</span>
         <span class="nom">${esc(p.nombre_corto)} <small>(${hs.length})</small></span></div>` + (ab ? hs.map(h => item(h, nivel + 1, true)).join('') : '');
   };
   const raiz = arr => arr.filter(p => !p.padre_id || !lista.some(x => x.id === p.padre_id));
@@ -242,17 +247,17 @@ function pintarProyectos() {
     const ab = abierta(clave);
     const nivelSel = clave[0] + ':' + clave.slice(1);   // 'f<id>' → 'f:<id>'
     return `<div class="arbol-rama arbol-n${nivel} ${clase}${store.nivelSel === nivelSel ? ' activo' : ''}" data-rama="${clave}" data-nivel="${nivelSel}" role="button" aria-expanded="${ab}" title="${esc(nombre)}: clic para ver todo lo que contiene; la flecha lo abre o cierra">
-        <span class="arbol-flecha">${ab ? '▾' : '▸'}</span><span class="arbol-ico">${ico}</span>
+        <span class="arbol-flecha">${ab ? '▾' : '▸'}</span><span class="arbol-ico">${icono(ico)}</span>
         <span class="nom">${esc(nombre)} <small>(${n})</small></span><span class="cod">${esc(codigo || '')}</span></div>
       ${ab ? (hijos || `<div class="arbol-vacio arbol-n${nivel + 1}">Sin contenido</div>`) : ''}`;
   };
   const deProg = g => lista.filter(p => p.programa_id === g.id);
-  const ramaProg = (g, nivel) => { const ps = deProg(g); return rama('g' + g.id, nivel, '📁', g.nombre, g.codigo, ps.length, raiz(ps).map(p => nodo(p, nivel + 1)).join(''), 'arbol-prog'); };
+  const ramaProg = (g, nivel) => { const ps = deProg(g); return rama('g' + g.id, nivel, 'programa', g.nombre, g.codigo, ps.length, raiz(ps).map(p => nodo(p, nivel + 1)).join(''), 'arbol-prog'); };
   const ramasPort = portafolios.map(fp => {
     const gs = programas.filter(g => g.portafolio_id === fp.id);
     const directos = lista.filter(p => p.portafolio_id === fp.id && !idsProg.has(p.programa_id));
     const n = gs.reduce((s, g) => s + deProg(g).length, 0) + directos.length;
-    return rama('f' + fp.id, 1, '🗂', fp.nombre, fp.codigo, n, gs.map(g => ramaProg(g, 2)).join('') + raiz(directos).map(p => nodo(p, 2)).join(''), 'arbol-port');
+    return rama('f' + fp.id, 1, 'portafolio', fp.nombre, fp.codigo, n, gs.map(g => ramaProg(g, 2)).join('') + raiz(directos).map(p => nodo(p, 2)).join(''), 'arbol-port');
   }).join('');
   const progSueltos = programas.filter(g => !idsPort.has(g.portafolio_id)).map(g => ramaProg(g, 1)).join('');
   const sueltos = raiz(lista.filter(p => !idsPort.has(p.portafolio_id) && !idsProg.has(p.programa_id))).map(p => nodo(p, 1)).join('');
@@ -260,7 +265,7 @@ function pintarProyectos() {
   const empresa = store.area?.nombre || 'Empresa';
   const abiertaEmp = abierta('empresa');
   cont.innerHTML = `<div class="arbol-rama arbol-n0 arbol-emp proy-todos${!store.proyectoSel && !store.nivelSel ? ' activo' : ''}" data-rama="empresa" data-id="" role="button" aria-expanded="${abiertaEmp}"
-      title="Todos los proyectos de ${esc(empresa)}"><span class="arbol-flecha" data-solo-rama>${abiertaEmp ? '▾' : '▸'}</span><span class="arbol-ico">🏢</span>
+      title="Todos los proyectos de ${esc(empresa)}"><span class="arbol-flecha" data-solo-rama>${abiertaEmp ? '▾' : '▸'}</span><span class="arbol-ico">${icono('empresa')}</span>
       <span class="nom">${esc(empresa)} <small>· todos (${lista.length})</small></span></div>` +
     (abiertaEmp ? (cuerpo || `<p class="nota" style="padding:8px">${f ? 'Sin resultados.' : 'Sin proyectos.'}</p>`) : '');
 }

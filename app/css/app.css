@@ -85,7 +85,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .nav a { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 7px; color: var(--texto-2); text-decoration: none; font-weight: 600; font-size: 13.5px; }
 .nav a:hover { background: var(--surface-2); }
 .nav a.activo, .nav a.activo:hover { background: var(--naranja); color: #fff; }   /* sección elegida en naranja (pedido 172) */
-.nav .ico { width: 18px; text-align: center; }
+.nav .ico { width: 18px; text-align: center; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.nav .ico svg, .arbol-ico svg { display: block; }
+.arbol-ico svg { width: 14px; height: 14px; color: var(--texto-3); }
+.proy-item.grupo-activo .arbol-ico svg, .proy-item.activo .arbol-ico svg { color: inherit; }
 
 /* ---------- Grupo LPS activo en la cabecera de módulos (s10) ---------- */
 .nav-proy-activo { display: flex; align-items: center; gap: 9px; padding: 6px 10px 4px; margin: 4px 8px 0; background: var(--azul-claro); border-radius: 7px; border-left: 3px solid var(--naranja); font-size: 12.5px; font-weight: 600; color: var(--azul-ejec); }
@@ -138,9 +141,9 @@ select.sel, input.inp { padding: 6px 9px; border: 1px solid var(--borde); border
 .aviso.ok { border-color: var(--verde); background: #EAF4E8; }
 
 /* ---------- KPI ---------- */
-.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(124px, 1fr)); grid-auto-rows: 1fr; gap: 10px; margin-bottom: 14px; }
 .kpi { background: var(--surface); border: 1px solid var(--borde); border-radius: var(--radio); padding: 10px 13px; box-shadow: var(--sombra); border-top: 3px solid var(--kc, var(--azul)); }
-.kpi-tit { font-size: 11.5px; color: var(--texto-3); font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
+.kpi-tit { font-size: 11px; color: var(--texto-3); font-weight: 700; text-transform: uppercase; letter-spacing: .35px; line-height: 1.3; min-height: 2.6em; }   /* títulos de 1 o 2 líneas: los valores quedan alineados */
 .kpi-val { font-size: 24px; font-weight: 800; color: var(--kc, var(--azul-ejec)); font-family: var(--fuente-titulos); margin-top: 2px; }
 .kpi-sub { font-size: 12px; color: var(--texto-3); }
 .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 700;
@@ -291,6 +294,18 @@ body.pantalla-completa .contenido { padding: 24px 34px; font-size: 16px; }
   .grid-2 { grid-template-columns: 1fr; }
   .form { grid-template-columns: 1fr; }
   .selector-semana span { min-width: 140px; }
+  /* Pedido 176: el contenido ocupa todo el ancho; el menú flota encima y un velo permite cerrarlo */
+  #app { grid-template-columns: 1fr !important; }
+  .contenido { grid-column: 1; }
+  body.menu-abierto .contenido { pointer-events: none; }
+  body.menu-abierto #app::after { content: ''; position: fixed; inset: 54px 0 0 0; background: rgba(26,26,46,.35); z-index: 790; }
+  .cabecera { gap: 6px; padding: 0 8px; }
+  .logo { white-space: nowrap; font-size: 18px; }
+}
+@media (max-width: 600px) {
+  .cabecera .tam-letra, .cabecera .demo-chip, .cabecera .btn-texto-cab { display: none; }
+  .btn-actualizar .btn-flecha::before { content: '⟳ '; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media print { .cabecera, .lateral, .grilla-barra, .grilla-ayuda { display: none; } }
 
@@ -397,7 +412,7 @@ body.pantalla-completa .contenido { padding: 24px 34px; font-size: 16px; }
 
 /* ---------- Menú lateral ajustable y contraíble (☰) ---------- */
 .btn-menu { display: inline-block; }
-.lateral { position: relative; }
+@media (min-width: 901px) { .lateral { position: relative; } }   /* en celular el menú flota (ver Responsive) */
 .lateral-tirador { position: absolute; top: 0; right: -3px; width: 7px; height: 100%; cursor: col-resize; z-index: 5; }
 .lateral-tirador:hover, body.arrastrando-lateral .lateral-tirador { background: color-mix(in srgb, var(--azul) 35%, transparent); }
 body.arrastrando-lateral { cursor: col-resize; user-select: none; }

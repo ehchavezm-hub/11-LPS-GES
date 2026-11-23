@@ -113,7 +113,8 @@ async function arrancar() {
     await cargarPerfil(usuario.id);
   } catch (e) {
     raiz.innerHTML = `<div class="login"><div class="login-caja"><div class="aviso error">${esc(mensajeError(e))}</div>
-      <button class="btn" onclick="location.reload()">Reintentar</button></div></div>`;
+      <button class="btn" data-a="reintentar">Reintentar</button></div></div>`;
+    raiz.querySelector('[data-a="reintentar"]').addEventListener('click', () => location.reload());   // sin onclick en línea: lo bloquea la CSP
     return;
   }
   if (!store.usuario) return mostrarPendiente(raiz, 'Su perfil aún no está creado. Intente nuevamente en unos segundos.');

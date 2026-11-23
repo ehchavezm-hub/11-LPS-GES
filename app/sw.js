@@ -12,6 +12,8 @@ const ARCHIVOS = [
   'js/ui/grid.js',
   'js/ui/layout.js',
   'js/ui/ui.js',
+  'js/ui/iconos.js',
+  'js/services/pdf-vista.js',
   'js/services/columnas.js',
   'js/services/grupos-lps.js',
   'js/services/excel-listas.js',

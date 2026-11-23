@@ -36,8 +36,10 @@ export function columnasActividad({ modo, semana, semanasLA = [], extras = {}, c
       formatoGrupo: s => etiquetaSemana(s),
     } : null,
     // Plan semanal: la semana de cada compromiso, solo lectura (para moverlo de semana: clic derecho → Mover a la semana siguiente)
-    modo === 'plan' ? { field: 'semana', title: 'Semana', tipo: 'texto', ancho: 160, posicionFija: true, editable: false, filtro: false,
-      formato: v => esc(v ? etiquetaSemana(v) : ''), exportar: v => (v ? etiquetaSemana(v) : '') } : null,
+    // Pedido 176: columna angosta (todas las filas son de la semana elegida arriba); las fechas, al pasar el mouse
+    modo === 'plan' ? { field: 'semana', title: 'Semana', tipo: 'texto', ancho: 96, posicionFija: true, editable: false, filtro: false,
+      formato: v => (v ? `<span title="${esc(etiquetaSemana(v))}">${esc(etiquetaSemana(v).split(' · ')[0])}</span>` : ''),
+      exportar: v => (v ? etiquetaSemana(v) : '') } : null,
     { field: 'responsable_id', title: 'Resp. 1', tipo: 'lista', ancho: 130, opciones: opcionesLideres, editable: () => esGestor(),
       ayuda: 'Responsable (el PAC se atribuye a esta persona)' },
     { field: 'gerencia_id', title: 'Gerencia', tipo: 'lista', ancho: 95, opciones: () => opciones('gerencias').map(o => ({ ...o, label: o.value ? (store.valores.get(o.value)?.codigo || o.label) : o.label })) },

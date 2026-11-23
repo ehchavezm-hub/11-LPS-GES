@@ -221,26 +221,12 @@ export function documentoReporte(titulo, contenidoHTML, { papel = 'A4', orientac
   .hoja { width: ${ancho}mm; min-height: ${alto}mm; }
   .hoja.land { width: ${ancho}mm; }
   @media screen { .hoja { zoom: var(--vista, 1); } }   /* la hoja entera cabe en el ancho de la vista previa */
-</style></head><body>
+</style></head><body data-una-hoja="${unaHoja ? '1' : ''}" data-alto="${alto}" data-ancho="${ancho}">
 <div class="hoja" id="hoja">
   <div class="enc"><span>${esc(version)}</span><span>${esc(proy)}</span><span>${fecha}, ${hora}</span></div>
   <h1 class="titulo">${esc(titulo)}</h1>
   <div id="contenido">${contenidoHTML}</div>
   <div class="pie"><span>${esc(firma)}</span><span>—</span><span>Vista preliminar</span></div>
 </div>
-<script>
-  const encajar = () => { const h = document.getElementById('hoja'); document.documentElement.style.setProperty('--vista', 1);
-    document.documentElement.style.setProperty('--vista', Math.min(1, (innerWidth - 28) / h.offsetWidth)); };
-  addEventListener('resize', encajar); addEventListener('load', encajar); encajar();
-  // "Todo en 1 hoja": reduce el contenido hasta que entre en el alto útil de la hoja
-  if (${unaHoja ? 'true' : 'false'}) {
-    const ajustar = () => {
-      const c = document.getElementById('contenido'); c.style.zoom = 1;
-      const mm = 96 / 25.4, util = (${alto} - 20) * mm - 70, anchoUtil = (${ancho} - 20) * mm;
-      const z = Math.min(1, util / c.scrollHeight, anchoUtil / c.scrollWidth);
-      c.style.zoom = z;
-    };
-    addEventListener('load', ajustar); setTimeout(ajustar, 50);
-  }
-<\/script></body></html>`;
+<script src="${new URL('js/services/pdf-vista.js', document.baseURI).href}"><\/script></body></html>`;
 }
